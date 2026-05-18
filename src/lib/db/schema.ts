@@ -43,13 +43,13 @@ export const sessions = sqliteTable("sessions", {
     .notNull()
     .references(() => users.id),
   token_hash: text("token_hash", { length: 65 }).unique(),
-  expires_at: integer("expires_at", { mode: "timestamp" }),
+  expires_at: text("expires_at"),
   created_at: text("created_at"),
 });
 
 export const otpRateLimits = sqliteTable("otp_rate_limits", {
   phone_e164: text("phone_e164", { length: 20 }).notNull().primaryKey(),
-  last_request_at: integer("last_request_at", { mode: "timestamp" }),
+  last_request_at: text("last_request_at"),
   request_count_window: integer("request_count_window").default(0),
 });
 

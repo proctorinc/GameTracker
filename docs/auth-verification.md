@@ -27,7 +27,7 @@ Add to `.env.local`:
 
 ```bash
 # Database
-DATABASE_URL=file:./db.sqlite
+DATABASE_URL=file:./dev.sqlite
 
 # Twilio Verify (production)
 TWILIO_ACCOUNT_SID=your_account_sid

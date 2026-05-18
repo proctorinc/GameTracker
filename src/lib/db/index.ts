@@ -1,9 +1,9 @@
 import { drizzle } from 'drizzle-orm/libsql'
 import { createClient } from '@libsql/client'
+import { getEnv } from '../env-config'
 
-// Create SQLite client (in-memory for dev, file-based for prod)
 const sqlite = createClient({
-  url: process.env.DATABASE_URL || 'file:./db.sqlite',
+  url: getEnv().DATABASE_URL,
 })
 
 export const db = drizzle(sqlite)

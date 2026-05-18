@@ -48,8 +48,8 @@ export const POST = async (request: Request) => {
 
     const { createSessionTokenWithSecret } = await import("@/lib/auth/tokens");
     const { raw, hashed: sessionTokenHash } = await createSessionTokenWithSecret();
-    const expiresAt = Date.now() + 60 * 60 * 24 * 400 * 1000;
-    await createSession(user.id, sessionTokenHash, expiresAt);
+    const expiresAtMs = Date.now() + 60 * 60 * 24 * 400 * 1000; // 400 days
+    await createSession(user.id, sessionTokenHash, expiresAtMs);
 
     const response = NextResponse.json(
       {

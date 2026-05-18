@@ -46,7 +46,7 @@ export default function LoginPage() {
         throw new Error(verifyData.error || "Failed to sign in");
       }
 
-      router.push("/dashboard?verified=true");
+      router.push("/dashboard");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to sign in");
     } finally {

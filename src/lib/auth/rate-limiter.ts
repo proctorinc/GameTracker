@@ -20,9 +20,9 @@ export async function checkRateLimit(
 
   const row = await db.select().from(otpRateLimits).where(eq(otpRateLimits.phone_e164, phoneE164)).get();
 
-  const lastRequestAt = row?.last_request_at ?? Date.now();
+  const lastRequestAt = row?.last_request_at ?? "1970-01-01T00:00:00.000Z";
 
-  if (Date.now() - Number(lastRequestAt) >= WINDOW_MS) {
+  if (Date.now() - new Date(lastRequestAt).getTime() >= WINDOW_MS) {
     await db.update(otpRateLimits as any)
       .set({
         last_request_at: new Date().toISOString(),

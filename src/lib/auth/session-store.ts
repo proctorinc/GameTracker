@@ -8,7 +8,7 @@ export interface SessionData {
   id: string;
   user_id: string;
   token_hash: string;
-  expires_at: number; // SQLite integer timestamp (milliseconds)
+  expires_at: string; // SQLite datetime (ISO string)
   created_at: string | null;
   user: AuthUser;
 }
@@ -34,14 +34,9 @@ export async function createSession(
     .values({
       user_id: userId,
       token_hash: tokenHash,
+      expires_at: new Date(expiresAtMs).toISOString(),
     })
     .returning();
-
-  // Set timestamps after insert (SQLite requires NULL for optional integer columns unless specified)
-  await db.update(sessions).set({
-    expires_at: expiresAtMs as any,
-    created_at: new Date().toISOString(),
-  }).where(eq(sessions.id, session.id));
 
   const updatedSession = session as any;
   // Ensure non-null values are properly set
@@ -49,7 +44,7 @@ export async function createSession(
     id: updatedSession.id,
     user_id: updatedSession.user_id,
     token_hash: updatedSession.token_hash || "",
-    expires_at: Number(updatedSession.expires_at) || expiresAtMs,
+    expires_at: updatedSession.expires_at,
     created_at: updatedSession.created_at ?? null,
     user: toAuthUser(user),
   };
@@ -80,7 +75,7 @@ export async function getSessionByToken(sessionToken: string): Promise<SessionDa
     id: session.id,
     user_id: session.user_id,
     token_hash: session.token_hash || "",
-    expires_at: Number(session.expires_at) || 0,
+    expires_at: session.expires_at ?? null,
     created_at: session.created_at ?? null,
     user: toAuthUser(row.user),
   };
@@ -92,8 +87,8 @@ export async function deleteSession(sessionId: SessionData["id"]): Promise<void>
 }
 
 export function isValidSession(session: Pick<SessionData, "expires_at">): boolean {
-  const expiresAt = Number(session.expires_at);
-  return Number.isFinite(expiresAt) && expiresAt > Date.now();
+  const expiresAtMs = session.expires_at ? new Date(session.expires_at).getTime() : 0;
+  return Number.isFinite(expiresAtMs) && expiresAtMs > Date.now();
 }
 
 function toAuthUser(user: UserRow): AuthUser {
