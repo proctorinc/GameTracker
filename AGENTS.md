@@ -1,5 +1,24 @@
-<!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
+# Project Structure for AI Agents
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
-<!-- END:nextjs-agent-rules -->
+## Core Directories
+
+- `app/` - Next.js App Router pages and layouts
+- `components/ui/` - shadcn/ui components
+- `lib/` - Database utilities and shared utilities  
+- `schema/` - Drizzle ORM database schemas
+
+## Setup Complete
+
+The template includes:
+- Next.js 16 with App Router
+- TypeScript with strict mode
+- Tailwind CSS v4
+- shadcn/ui with Base UI primitives
+- Drizzle ORM with SQLite support
+- Sidebar navigation layout
+
+## Next Steps
+
+1. Add your database schema to `schema/`
+2. Run migrations with `npm run db:migrate`
+3. Start the dev server with `npm run dev`

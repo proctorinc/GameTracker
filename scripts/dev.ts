@@ -1,0 +1,34 @@
+import { execSync, spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { validateEnv } from "../src/lib/env-config";
+
+async function main() {
+  const env = validateEnv(true);
+
+  const dataDir = path.join(process.cwd(), "data");
+  fs.mkdirSync(dataDir, { recursive: true });
+
+  console.log(`[dev] APP_ENV=${env.APP_ENV}`);
+  console.log(`[dev] DATABASE_URL=${env.DATABASE_URL}`);
+
+  console.log("[dev] Running migrations…");
+  execSync("npm run db:generate", { stdio: "inherit", env: process.env });
+
+  const { runDevSeed } = await import("../src/lib/dev/seed");
+  await runDevSeed();
+
+  console.log("[dev] Starting Next.js…");
+  const child = spawn("npx", ["next", "dev"], {
+    stdio: "inherit",
+    env: process.env,
+    shell: process.platform === "win32",
+  });
+
+  child.on("exit", (code) => process.exit(code ?? 0));
+}
+
+main().catch((err) => {
+  console.error(err instanceof Error ? err.message : err);
+  process.exit(1);
+});
