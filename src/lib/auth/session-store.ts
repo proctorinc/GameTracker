@@ -3,6 +3,7 @@ import { db, users, sessions } from "../db";
 import type { AuthUser } from "./session";
 import type { UserRow } from "./user-store";
 import { isPhoneVerified } from "./user-store";
+import { hashToken, hashTokenWithSecret } from "./tokens";
 
 export interface SessionData {
   id: string;
@@ -50,40 +51,50 @@ export async function createSession(
   };
 }
 
-/** Hash a token - only works in server contexts (API routes). Throws in Edge Runtime. */
-async function hashToken(token: string): Promise<string> {
-  const crypto = await import("node:crypto");
-  return crypto.createHash("sha256").update(token).digest("hex");
-}
-
 export async function getSessionByToken(sessionToken: string): Promise<SessionData | null> {
-  // This function is ONLY called from server-side contexts, not middleware
-  const tokenHash = await hashToken(sessionToken);
-  const row = await db
-    .select({ session: sessions, user: users })
-    .from(sessions)
-    .innerJoin(users, eq(sessions.user_id, users.id))
-    .where(eq(sessions.token_hash, tokenHash))
-    .get();
+  // Prefer the current HMAC-based token format, but keep a legacy SHA-256 fallback.
+  const candidateHashes = [hashTokenWithSecret(sessionToken), await hashToken(sessionToken)];
 
-  if (!row || !isPhoneVerified(row.user)) {
-    return null;
+  for (const tokenHash of candidateHashes) {
+    const row = await db
+      .select({ session: sessions, user: users })
+      .from(sessions)
+      .innerJoin(users, eq(sessions.user_id, users.id))
+      .where(eq(sessions.token_hash, tokenHash))
+      .get();
+
+    if (!row || !isPhoneVerified(row.user)) {
+      continue;
+    }
+
+    const session = row.session as any;
+    return {
+      id: session.id,
+      user_id: session.user_id,
+      token_hash: session.token_hash || "",
+      expires_at: session.expires_at ?? null,
+      created_at: session.created_at ?? null,
+      user: toAuthUser(row.user),
+    };
   }
 
-  const session = row.session as any;
-  return {
-    id: session.id,
-    user_id: session.user_id,
-    token_hash: session.token_hash || "",
-    expires_at: session.expires_at ?? null,
-    created_at: session.created_at ?? null,
-    user: toAuthUser(row.user),
-  };
+  return null;
 }
 
 /** Delete a session (logout) */
 export async function deleteSession(sessionId: SessionData["id"]): Promise<void> {
   await db.delete(sessions).where(eq(sessions.id, sessionId));
+}
+
+/** Delete a session by the raw cookie token. */
+export async function deleteSessionByToken(sessionToken: string): Promise<void> {
+  const session = await getSessionByToken(sessionToken);
+
+  if (!session) {
+    return;
+  }
+
+  await deleteSession(session.id);
 }
 
 export function isValidSession(session: Pick<SessionData, "expires_at">): boolean {

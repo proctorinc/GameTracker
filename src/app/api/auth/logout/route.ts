@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionTokenFromCookie, clearSessionCookie } from "@/lib/auth/cookies";
-import { deleteSession } from "@/lib/auth/session-store";
+import { deleteSessionByToken } from "@/lib/auth/session-store";
 
 export const POST = async (request: Request) => {
   try {
@@ -9,7 +9,7 @@ export const POST = async (request: Request) => {
 
     if (token) {
       // Delete DB session
-      await deleteSession(token);
+      await deleteSessionByToken(token);
     }
 
     // Clear cookie

@@ -12,8 +12,11 @@ async function main() {
   console.log(`[dev] APP_ENV=${env.APP_ENV}`);
   console.log(`[dev] DATABASE_URL=${env.DATABASE_URL}`);
 
-  console.log("[dev] Running migrations…");
+  console.log("[dev] Generating database…");
   execSync("npm run db:generate", { stdio: "inherit", env: process.env });
+
+  console.log("[dev] Applying migrations…");
+  execSync("npm run db:migrate", { stdio: "inherit", env: process.env });
 
   const { runDevSeed } = await import("../src/lib/dev/seed");
   await runDevSeed();

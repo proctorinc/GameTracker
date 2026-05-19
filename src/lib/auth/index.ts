@@ -6,6 +6,7 @@ export {
   createSession,
   getSessionByToken,
   deleteSession,
+  deleteSessionByToken,
   isValidSession,
 } from "./session-store";
 

@@ -35,7 +35,7 @@ export async function clearDevData(): Promise<void> {
 
 async function countUsers(): Promise<number> {
   const row = await db.select({ count: sql<number>`count(*)` }).from(users).get();
-  return Number(row?.count ?? 0);
+  return Number(row?.count) ?? 0;
 }
 
 /** Solo verified self-signup group. */

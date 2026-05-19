@@ -83,6 +83,14 @@ export async function getUsersInGroup(groupId: string): Promise<UserRow[]> {
   return db.select().from(users).where(eq(users.group_id, groupId));
 }
 
+export async function getUsersInGroups(groupIds: string[]): Promise<UserRow[]> {
+  if (groupIds.length === 0) {
+    return [];
+  }
+
+  return db.select().from(users).where(inArray(users.group_id, groupIds));
+}
+
 export async function createInvitedUser(input: {
   phone_e164: string;
   group_id: string;

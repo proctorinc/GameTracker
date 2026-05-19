@@ -8,6 +8,13 @@
       "when": 1779119036084,
       "tag": "0000_colorful_madelyne_pryor",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1779123241092,
+      "tag": "0001_greedy_richard_fisk",
+      "breakpoints": true
     }
   ]
 }
