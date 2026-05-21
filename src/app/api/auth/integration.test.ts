@@ -81,7 +81,7 @@ describe("Auth API - Verify OTP", () => {
 describe("Auth API - Logout", () => {
   it("should clear cookie on logout", async () => {
     const headers = new Headers();
-    headers.append("cookie", "skyjo_session=test-token");
+    headers.append("cookie", "app_session=test-token");
 
     const response = await logoutPOST(new Request("http://localhost:3000/api/auth/logout", {
       method: "POST",

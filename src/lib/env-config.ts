@@ -71,6 +71,7 @@ const prodSchema = z.object({
   TWILIO_AUTH_TOKEN: z.string().min(1),
   TWILIO_VERIFY_SERVICE_SID: z.string().min(1),
   NEXT_PUBLIC_APP_ENV: z.literal("production").optional(),
+  TURSO_AUTH_TOKEN: z.string().min(1),
 });
 
 export type DevEnv = z.infer<typeof devSchema>;
@@ -135,6 +136,7 @@ function syncToProcessEnv(config: AppEnvConfig): void {
     process.env.TWILIO_ACCOUNT_SID = prod.TWILIO_ACCOUNT_SID;
     process.env.TWILIO_AUTH_TOKEN = prod.TWILIO_AUTH_TOKEN;
     process.env.TWILIO_VERIFY_SERVICE_SID = prod.TWILIO_VERIFY_SERVICE_SID;
+    process.env.TURSO_AUTH_TOKEN = prod.TURSO_AUTH_TOKEN;
   }
 }
 
@@ -174,6 +176,7 @@ export function validateEnv(force = false): AppEnvConfig {
         TWILIO_AUTH_TOKEN: raw.TWILIO_AUTH_TOKEN,
         TWILIO_VERIFY_SERVICE_SID: raw.TWILIO_VERIFY_SERVICE_SID,
         NEXT_PUBLIC_APP_ENV: raw.NEXT_PUBLIC_APP_ENV ?? "production",
+        TURSO_AUTH_TOKEN: raw.TURSO_AUTH_TOKEN,
       });
       break;
     }

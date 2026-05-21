@@ -7,7 +7,9 @@ import { DEFAULT_RETURN_PATH } from "@/lib/auth/return-path";
 
 export default async function DashboardPage() {
   const cookieStore = await cookies();
-  const sessionToken = cookieStore.get("skyjo_session")?.value;
+  const sessionToken = cookieStore.get("app_session")?.value;
+
+  return <div>404</div>
 
   if (!sessionToken) {
     redirect(`/login?from=${encodeURIComponent(DEFAULT_RETURN_PATH)}`);

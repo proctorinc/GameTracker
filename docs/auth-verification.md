@@ -62,7 +62,7 @@ Response: `204` (no content) or `400` (invalid phone) or `429` (rate limited)
 ```bash
 POST /api/auth/otp/verify
 Content-Type: application/json
-Cookie: skyjo_session=<opaque-token>
+Cookie: app_session=<opaque-token>
 
 { "phone": "+15551234567", "code": "123456" }
 ```
@@ -73,7 +73,7 @@ Response: `200` with `{ user: { id, phone }, sessionId }` + Set-Cookie header
 
 ```bash
 POST /api/auth/logout
-Cookie: skyjo_session=<opaque-token>
+Cookie: app_session=<opaque-token>
 ```
 
 Response: `204` with cleared cookie

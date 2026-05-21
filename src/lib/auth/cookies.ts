@@ -10,10 +10,10 @@ export interface AuthContext {
 export function getSessionTokenFromCookie(request: Request): string | null {
   try {
     const cookieHeader = request.headers.get("cookie") || "";
-    // Parse only the first cookie value for skyjo_session
-    const match = cookieHeader.split(";").find((c) => c.trim().startsWith("skyjo_session="));
+    // Parse only the first cookie value for app_session
+    const match = cookieHeader.split(";").find((c) => c.trim().startsWith("app_session="));
     if (match) {
-      const token = match.replace(/^skyjo_session=/, "");
+      const token = match.replace(/^app_session=/, "");
       return token;
     }
   } catch {
@@ -37,14 +37,14 @@ export function setSessionCookie(
   try {
     const headers = new Headers();
     if (request.headers.get("cookie")) {
-      // Remove all skyjo_session cookies before setting a new one
+      // Remove all app_session cookies before setting a new one
       headers.set(
         "set-cookie",
-        request.headers.get("cookie")!.split(";").filter((c) => !c.startsWith("skyjo_session=")).join(";"),
+        request.headers.get("cookie")!.split(";").filter((c) => !c.startsWith("app_session=")).join(";"),
       );
     }
 
-    const name = "skyjo_session";
+    const name = "app_session";
     const path = "/";
     const sameSite = "lax";
     const secure = request.headers.get("x-forwarded-proto") === "https" || process.env.NODE_ENV === "production";
@@ -84,14 +84,14 @@ export function clearSessionCookie(request: Request): Response {
   try {
     const headers = new Headers();
     if (request.headers.get("cookie")) {
-      // Remove all skyjo_session cookies
+      // Remove all app_session cookies
       headers.set(
         "set-cookie",
-        request.headers.get("cookie")!.split(";").filter((c) => !c.startsWith("skyjo_session=")).join(";"),
+        request.headers.get("cookie")!.split(";").filter((c) => !c.startsWith("app_session=")).join(";"),
       );
     }
 
-    const name = "skyjo_session";
+    const name = "app_session";
     const path = "/";
     const sameSite = "lax";
     headers.append(

@@ -65,7 +65,7 @@ export const POST = async (request: Request) => {
       { status: 200 },
     );
 
-    response.cookies.set("skyjo_session", raw, {
+    response.cookies.set("app_session", raw, {
       httpOnly: true,
       secure: isProd(),
       sameSite: "lax",

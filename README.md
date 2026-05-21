@@ -1,4 +1,4 @@
-This is a [Next.js](https://nextjs.org) project for Skyjo.
+This is a [Next.js](https://nextjs.org) project for Skybo.
 
 ## Development (recommended)
 
@@ -93,7 +93,7 @@ Production requires Twilio credentials and does not load demo data.
 - `POST /api/auth/logout` — Clear session
 - `GET /api/auth/me` — Current user, group, referral network
 
-Sessions use an HttpOnly `skyjo_session` cookie (raw token in cookie, hash in database).
+Sessions use an HttpOnly `app_session` cookie (raw token in cookie, hash in database).
 
 See [`docs/auth-verification.md`](./docs/auth-verification.md) for manual verification steps.
 

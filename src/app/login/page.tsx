@@ -10,7 +10,7 @@ export default async function LoginPage({
   searchParams: Promise<{ from?: string }>;
 }) {
   const [{ from }, cookieStore] = await Promise.all([searchParams, cookies()]);
-  const sessionToken = cookieStore.get("skyjo_session")?.value;
+  const sessionToken = cookieStore.get("app_session")?.value;
   const target = sanitizeReturnPath(from ?? DEFAULT_RETURN_PATH);
 
   if (sessionToken) {

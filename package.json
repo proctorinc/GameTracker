@@ -1,5 +1,5 @@
 {
-  "name": "skyjo-2",
+  "name": "skybo",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -24,12 +24,15 @@
     "better-sqlite3": "^12.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
     "dagre": "^0.8.5",
     "drizzle-orm": "^0.45.2",
+    "gsap": "^3.15.0",
     "libphonenumber-js": "^1.13.2",
     "lucide-react": "^1.16.0",
     "next": "16.2.6",
     "react": "19.2.4",
+    "react-country-state-city": "^1.1.12",
     "react-dom": "19.2.4",
     "shadcn": "^4.7.0",
     "tailwind-merge": "^3.6.0",

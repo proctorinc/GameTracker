@@ -1,8 +1,17 @@
-import { eq } from "drizzle-orm";
-import { db, users } from "../db";
+import { desc, eq } from "drizzle-orm";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { cards, db, groupReferrals, groups, partnerInvites, sessions, users } from "../db";
 import { createGroup } from "../db/group-store";
 
 export type UserRow = typeof users.$inferSelect;
+export type UserFullRow = UserRow & {
+  group?: typeof groups.$inferSelect | null;
+  activeProfileCard?: typeof cards.$inferSelect | null;
+  partnerInvitesSent?: Array<typeof partnerInvites.$inferSelect>;
+  partnerInvitesReceived?: Array<typeof partnerInvites.$inferSelect>;
+  groupReferralsSent?: Array<typeof groupReferrals.$inferSelect>;
+  cards?: Array<typeof cards.$inferSelect>;
+}
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -21,8 +30,41 @@ export async function findUserByPhone(phoneE164: string): Promise<UserRow | null
 
 /** Find user by ID */
 export async function findUserById(userId: string): Promise<UserRow | null> {
-  const result = await db.select().from(users).where(eq(users.id, userId)).get();
+  const result = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    with: {
+      cards: {
+        with: {
+          owner: true,
+        }
+      }
+    }
+  });
   return result ?? null;
+}
+
+export async function getUserFullById(userId: string): Promise<UserFullRow | null> {
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    with: {
+      group: true,
+      activeProfileCard: {
+          with: {
+              owner: true
+          },
+      },
+      partnerInvitesSent: true,
+      partnerInvitesReceived: true,
+      groupReferralsSent: true,
+      cards: {
+        orderBy: (cards, { asc }) => [
+          asc(cards.value),
+          desc(cards.weight),
+        ], 
+      },
+    },
+  });
+  return user ?? null;
 }
 
 /**
@@ -104,22 +146,4 @@ export async function ensureUserVerifiedAfterOtp(
   }
 
   return existing;
-}
-
-/** Update user profile */
-export async function updateUserProfile(
-  userId: string,
-  profile: { first_name?: string; last_name?: string },
-): Promise<UserRow> {
-  const [user] = await db
-    .update(users)
-    .set({
-      ...(profile.first_name !== undefined ? { first_name: profile.first_name } : {}),
-      ...(profile.last_name !== undefined ? { last_name: profile.last_name } : {}),
-      updated_at: nowIso(),
-    })
-    .where(eq(users.id, userId))
-    .returning();
-
-  return user;
 }

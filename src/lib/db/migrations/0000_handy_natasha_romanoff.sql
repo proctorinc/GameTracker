@@ -1,3 +1,17 @@
+CREATE TABLE `cards` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`value` integer NOT NULL,
+	`suit` text NOT NULL,
+	`weight` integer NOT NULL,
+	`deck` text DEFAULT 'standard' NOT NULL,
+	`modifier` text DEFAULT 'basic' NOT NULL,
+	`exact_pull_chance` integer NOT NULL,
+	`generic_pull_chance` integer NOT NULL,
+	`created_at` text,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
 CREATE TABLE `group_referrals` (
 	`id` text PRIMARY KEY NOT NULL,
 	`referrer_group_id` text NOT NULL,
@@ -28,7 +42,7 @@ CREATE TABLE `groups` (
 --> statement-breakpoint
 CREATE TABLE `otp_rate_limits` (
 	`phone_e164` text(20) PRIMARY KEY NOT NULL,
-	`last_request_at` integer,
+	`last_request_at` text,
 	`request_count_window` integer DEFAULT 0
 );
 --> statement-breakpoint
@@ -52,7 +66,7 @@ CREATE TABLE `sessions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
 	`token_hash` text(65),
-	`expires_at` integer,
+	`expires_at` text,
 	`created_at` text,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
 );
@@ -60,12 +74,14 @@ CREATE TABLE `sessions` (
 CREATE UNIQUE INDEX `sessions_token_hash_unique` ON `sessions` (`token_hash`);--> statement-breakpoint
 CREATE TABLE `users` (
 	`id` text PRIMARY KEY NOT NULL,
+	`profile_card_id` text,
 	`phone_e164` text(20) NOT NULL,
 	`first_name` text,
 	`last_name` text,
 	`phone_verified_at` text,
-	`group_id` text,
+	`group_id` text NOT NULL,
 	`created_by_user_id` text,
+	`is_profile_complete` integer DEFAULT false,
 	`created_at` text,
 	`updated_at` text,
 	FOREIGN KEY (`group_id`) REFERENCES `groups`(`id`) ON UPDATE no action ON DELETE no action

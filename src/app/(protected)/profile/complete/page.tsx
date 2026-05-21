@@ -1,7 +1,7 @@
-import { ProfileOverview } from "@/components/profile/profile-overview";
+import { CompleteProfile } from "@/components/profile/complete-profile";
 import { loadUser } from "@/lib/auth/protected-session";
 
-export default async function ProfilePage() {
+export default async function CreateProfilePage() {
   const { user } = await loadUser();
 
   if (!user) {
@@ -9,6 +9,6 @@ export default async function ProfilePage() {
   }
 
   return (
-    <ProfileOverview user={user} />
+    <CompleteProfile user={user} />
   );
 }
