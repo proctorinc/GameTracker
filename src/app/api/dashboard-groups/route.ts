@@ -4,6 +4,10 @@
 import { NextResponse } from "next/server";
 import { requireAuth, UnauthorizedError } from "@/lib/auth/require-auth";
 import { loadAuthMeData } from "@/lib/auth/auth-me";
+import { logError } from "@/lib/server-log";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export const GET = async (request: Request) => {
   try {
@@ -14,7 +18,9 @@ export const GET = async (request: Request) => {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
-    console.error("Dashboard groups error:", error);
+    logError("dashboard.groups.failed", error, {
+      path: new URL(request.url).pathname,
+    });
     return NextResponse.json({ error: "internal_server_error" }, { status: 500 });
   }
 };

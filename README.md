@@ -62,6 +62,7 @@ Configuration is validated at startup (`src/instrumentation.ts`, `next.config.ts
 |----------|-------------|------|------------|
 | `APP_ENV` | optional (defaults to `development`) | optional (defaults to `test` via vitest) | **required** `production` (not inferred from `NODE_ENV`) |
 | `DATABASE_URL` | default `file:./data/dev.sqlite` | default `file:./data/test.sqlite` | **required** |
+| `TURSO_AUTH_TOKEN` | not used | not used | **required** for remote Turso/libSQL |
 | `SESSION_SECRET` | insecure dev default | test default | **required** (min 32 chars) |
 | `TWILIO_*` | not used | not used | **all three required** |
 | `DEV_SEED_*` | optional | — | must not be set |
@@ -72,8 +73,10 @@ Copy [`.env.production.example`](./.env.production.example) to `.env.local` (or 
 
 ```
 APP_ENV=production
-DATABASE_URL=...
+DATABASE_URL=libsql://your-db.turso.io
+TURSO_AUTH_TOKEN=...
 SESSION_SECRET=...
+NEXT_PUBLIC_APP_ENV=production
 TWILIO_ACCOUNT_SID=...
 TWILIO_AUTH_TOKEN=...
 TWILIO_VERIFY_SERVICE_SID=...
@@ -85,6 +88,17 @@ npm run start
 ```
 
 Production requires Twilio credentials and does not load demo data.
+
+## Staging on Vercel
+
+Use a dedicated Vercel staging project backed by a dedicated Turso database and real Twilio Verify credentials. Treat staging as production-like by keeping `APP_ENV=production`.
+
+- Use a Vercel-managed staging URL first.
+- Keep staging data synthetic only.
+- Run `npm run staging:ready` before merges/deploys to staging.
+- Use `npm run db:seed:staging` only with explicit confirmation when you intentionally want to reset staging data.
+
+See [`docs/staging-deployment.md`](./docs/staging-deployment.md) for the full setup, Vercel workflow, env mapping, and smoke checklist.
 
 ## Authentication API
 

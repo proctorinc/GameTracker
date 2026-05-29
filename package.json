@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "tsx scripts/dev.ts",
+    "dev": "node --import tsx scripts/dev.ts",
     "dev:next": "next dev",
-    "db:seed": "tsx scripts/seed-dev.ts",
-    "db:reset": "tsx scripts/reset-dev-db.ts",
+    "db:seed": "node --import tsx scripts/seed-dev.ts",
+    "db:seed:staging": "node --import tsx scripts/seed-staging.ts",
+    "db:reset": "node --import tsx scripts/reset-dev-db.ts",
     "build": "APP_ENV=production next build",
     "start": "APP_ENV=production next start",
     "lint": "eslint",
@@ -19,6 +20,7 @@
     "test:e2e": "playwright test",
     "test:e2e:smoke": "playwright test --grep @smoke",
     "test:ci": "npm run test:unit && npm run test:component && npm run test:integration && npm run test:e2e:smoke",
+    "staging:ready": "npm run test && npm run build",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"

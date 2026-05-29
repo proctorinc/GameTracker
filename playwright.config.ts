@@ -14,7 +14,7 @@ export default defineConfig({
   },
   webServer: {
     command:
-      `APP_ENV=test NEXT_PUBLIC_APP_ENV=test AUTH_MOCK_OTP=123456 PORT=${PORT} npm run db:migrate && APP_ENV=test NEXT_PUBLIC_APP_ENV=test AUTH_MOCK_OTP=123456 PORT=${PORT} npm run db:seed && APP_ENV=test NEXT_PUBLIC_APP_ENV=test AUTH_MOCK_OTP=123456 PORT=${PORT} npm run dev:next -- --port ${PORT}`,
+      `APP_ENV=test NEXT_PUBLIC_APP_ENV=test AUTH_MOCK_OTP=123456 HOSTNAME=127.0.0.1 PORT=${PORT} npm run db:migrate && APP_ENV=test NEXT_PUBLIC_APP_ENV=test AUTH_MOCK_OTP=123456 HOSTNAME=127.0.0.1 PORT=${PORT} npm run db:seed && APP_ENV=test NEXT_PUBLIC_APP_ENV=test AUTH_MOCK_OTP=123456 HOSTNAME=127.0.0.1 PORT=${PORT} npm run dev:next -- --hostname 127.0.0.1 --port ${PORT}`,
     url: baseURL,
     reuseExistingServer: true,
     timeout: 120000,

@@ -5,6 +5,10 @@ import {
 } from "@/lib/auth/cookies";
 import { deleteSessionByToken } from "@/lib/db/store/session.store";
 import { hashTokenWithSecret } from "@/lib/auth/tokens";
+import { logError } from "@/lib/server-log";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export const POST = async (request: Request) => {
   try {
@@ -31,7 +35,9 @@ export const POST = async (request: Request) => {
 
     return response;
   } catch (error) {
-    console.error("Logout error:", error);
+    logError("auth.logout.failed", error, {
+      path: new URL(request.url).pathname,
+    });
     // Even on error, clear cookie and return success for user experience
     const response = new NextResponse(null, {
       status: 204,

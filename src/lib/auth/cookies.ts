@@ -125,9 +125,8 @@ export function clearSessionCookie(request: Request): Response {
 
     return new Response(null, { status: 204, headers });
   } catch {
-    // If cookies() API not available or fails, just clear via redirect
-    window.location.href = "/logout";
-    return null as any;
+    // Fall back to a best-effort cookie clear response in non-browser contexts.
+    return new Response(null, { status: 204 });
   }
 }
 

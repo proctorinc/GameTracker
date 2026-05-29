@@ -7,8 +7,14 @@ import { ensureUserVerifiedAfterOtp } from "@/lib/db/store/user.store";
 import { resolveVerifyProvider } from "@/lib/twilio/service";
 import { isDev, isProd } from "@/lib/env";
 import { createSession } from "@/lib/db/store";
+import { logError, redactPhoneNumber } from "@/lib/server-log";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export const POST = async (request: Request) => {
+  let phoneForLogs: string | null = null;
+
   try {
     let body: { phone?: string; code?: string };
     try {
@@ -18,6 +24,7 @@ export const POST = async (request: Request) => {
     }
 
     const { phone, code } = body;
+    phoneForLogs = phone ?? null;
 
     if (!phone) {
       return NextResponse.json({ error: "phone is required" }, { status: 400 });
@@ -83,7 +90,10 @@ export const POST = async (request: Request) => {
 
     return response;
   } catch (error) {
-    console.error("OTP verify error:", error);
+    logError("auth.otp.verify.failed", error, {
+      path: new URL(request.url).pathname,
+      phoneNumber: redactPhoneNumber(phoneForLogs),
+    });
     return NextResponse.json(
       { error: "internal_server_error" },
       { status: 500 },

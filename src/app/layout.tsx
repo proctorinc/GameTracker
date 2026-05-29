@@ -1,50 +1,10 @@
 import { type Metadata } from "next";
-import {
-  Fredoka,
-  Geist_Mono,
-  Ranchers,
-  Chicle,
-  Dongle,
-} from "next/font/google";
 import "@xyflow/react/dist/style.css";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import Link from "next/link";
-
-// const fontSans = Winky_Sans({
-//   subsets: ["latin"],
-//   variable: "--font-winky",
-// });
-
-const fontSkybo = Fredoka({
-  subsets: ["latin"],
-  variable: "--font-fredoka",
-});
-
-const fontMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-geist-mono",
-});
-
-const fontRanchers = Ranchers({
-  subsets: ["latin"],
-  weight: "400",
-  variable: "--font-ranchers",
-});
-
-const fontChicle = Chicle({
-  subsets: ["latin"],
-  weight: "400",
-  variable: "--font-chicle",
-});
-
-const fontDongle = Dongle({
-  subsets: ["latin"],
-  weight: "400",
-  variable: "--font-dongle",
-});
 
 export const metadata: Metadata = {
   title: "Skybo",
@@ -60,14 +20,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn(
-        "h-full antialiased",
-        fontSkybo.variable,
-        fontChicle.variable,
-        fontRanchers.variable,
-        fontMono.variable,
-        fontDongle.variable,
-      )}
+      className={cn("h-full antialiased")}
     >
       <body className="min-h-full flex">
         <ThemeProvider>

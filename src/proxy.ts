@@ -4,6 +4,7 @@ import { findUserById } from "./lib/db/store/user.store";
 import { getSessionByTokenHash } from "./lib/db/store/session.store";
 import { hashTokenWithSecret } from "./lib/auth/tokens";
 import { isValidSession } from "./lib/auth/protected-session";
+import { logError } from "./lib/server-log";
 
 const PUBLIC_ROUTES = ["/login", "/"];
 const ONBOARDING_ROUTE = "/profile/complete";
@@ -44,7 +45,9 @@ export default async function proxy(request: NextRequest) {
         }
       }
     } catch (error) {
-      console.error("Proxy auth lookup failed:", error);
+      logError("proxy.auth.lookup_failed", error, {
+        path: pathname,
+      });
     }
   }
 
