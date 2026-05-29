@@ -82,7 +82,7 @@ export default async function PublicProfilePage({
 
   return (
     <main className="min-h-screen px-4 pb-8">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+      <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <Card className="overflow-hidden border border-border/80 bg-card/95 pt-0 shadow-2xl">
           <div
             className="h-28 w-full"
@@ -90,8 +90,8 @@ export default async function PublicProfilePage({
               background: `linear-gradient(135deg, ${data.profile.color}, rgba(15,23,42,0.18))`,
             }}
           />
-          <CardContent className="-mt-14 flex flex-col gap-5 pb-6 md:flex-row md:items-end md:justify-between">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center">
+          <CardContent className="-mt-14 flex flex-col gap-5 pb-6">
+            <div className="flex flex-col gap-4">
               <ProfilePicture
                 size="xl"
                 user={data.profile}
@@ -119,7 +119,7 @@ export default async function PublicProfilePage({
                 </div>
               </div>
             </div>
-            <div className="flex flex-col gap-2 md:items-end">
+            <div className="flex flex-col gap-2">
               <PublicProfileActions
                 profileId={data.profile.id}
                 profileName={data.profile.displayName}

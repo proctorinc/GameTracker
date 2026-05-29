@@ -41,6 +41,7 @@ describe("validateEnv", () => {
       TWILIO_ACCOUNT_SID: "ACtest",
       TWILIO_AUTH_TOKEN: "token",
       TWILIO_VERIFY_SERVICE_SID: "VATEST",
+      TURSO_AUTH_TOKEN: "turso-token",
     };
     const env = validateEnv(true);
     expect(env.APP_ENV).toBe("production");

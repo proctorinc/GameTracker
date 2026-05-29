@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/input-otp";
 import { toast } from "sonner";
 
-const IS_DEV = true;
+const IS_DEV = process.env.NEXT_PUBLIC_APP_ENV === "development";
 
 interface LoginFormState {
   phone?: string;
@@ -129,7 +129,10 @@ export default function LoginForm() {
 
         <CardContent>
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+            <div
+              className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4"
+              data-testid="login-error"
+            >
               {error}
             </div>
           )}
@@ -144,6 +147,7 @@ export default function LoginForm() {
                 autoComplete="tel"
                 maxLength={10}
                 value={formData.phone}
+                data-testid="login-phone"
                 onChange={(value) => setFormData({ ...formData, phone: value })}
                 required
               >
@@ -182,6 +186,7 @@ export default function LoginForm() {
                   type="number"
                   maxLength={6}
                   value={formData.otpCode}
+                  data-testid="login-otp"
                   onChange={(value) =>
                     setFormData({ ...formData, otpCode: value })
                   }

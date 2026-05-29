@@ -39,7 +39,7 @@ export function CompleteProfile({ user }: ProfileOverviewProps) {
         color,
       });
 
-      router.push("/card/pull");
+      router.push("/dashboard");
     } catch (error) {
       console.error("Failed to update profile:", error);
     } finally {
@@ -94,6 +94,7 @@ export function CompleteProfile({ user }: ProfileOverviewProps) {
                 />
               </div>
               <ProfileColorSelector
+                hidePreview
                 color={color}
                 onSelect={setColor}
                 disabled={isPending}

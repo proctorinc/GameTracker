@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardEmpty, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { GameTitleLibraryEntry } from "@/lib/db/store/game.store";
 import { ArrowRight, Plus } from "lucide-react";
@@ -58,44 +58,51 @@ export default function CreateGameTitleStep({
             </p>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-3">
-            {gameTitles.map((title) => {
-              const isSelected =
-                title.id === selectedTitleId && !newTitle.trim();
+            {gameTitles.length === 0 ? (
+              <CardEmpty className="w-full">
+                No saved or universal titles yet. Enter a new title below to
+                create your first one.
+              </CardEmpty>
+            ) : (
+              gameTitles.map((title) => {
+                const isSelected =
+                  title.id === selectedTitleId && !newTitle.trim();
 
-              return (
-                <button
-                  key={title.id}
-                  className={cn(
-                    "relative flex min-h-32 flex-1 basis-[46%] flex-col justify-between overflow-hidden rounded-3xl p-4 text-left transition",
-                    isSelected
-                      ? "text-background shadow-sm ring-4 ring-border scale-105"
-                      : "border-border text-foreground hover:opacity-95",
-                  )}
-                  onClick={() => {
-                    setSelectedTitleId(title.id);
-                    setNewTitle("");
-                  }}
-                  type="button"
-                  style={{
-                    backgroundColor: title.color,
-                    borderColor: title.color,
-                  }}
-                >
-                  {title.imageUrl ? (
-                    <div
-                      className="absolute inset-0 bg-cover bg-center opacity-45"
-                      style={{ backgroundImage: `url("${title.imageUrl}")` }}
-                    />
-                  ) : null}
-                  <div className="absolute inset-0 bg-linear-to-t from-white/60 via-white/35 dark:from-black/80 dark:via-black/35 to-transparent" />
-                  <div className="relative z-10 flex h-full flex-col justify-between">
-                    <span className="text-lg font-black text-white drop-shadow-sm">
-                      {title.title}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={title.id}
+                    className={cn(
+                      "relative flex min-h-32 flex-1 basis-[46%] flex-col justify-between overflow-hidden rounded-3xl p-4 text-left transition",
+                      isSelected
+                        ? "text-background shadow-sm ring-4 ring-border scale-105"
+                        : "border-border text-foreground hover:opacity-95",
+                    )}
+                    onClick={() => {
+                      setSelectedTitleId(title.id);
+                      setNewTitle("");
+                    }}
+                    type="button"
+                    style={{
+                      backgroundColor: title.color,
+                      borderColor: title.color,
+                    }}
+                  >
+                    {title.imageUrl ? (
+                      <div
+                        className="absolute inset-0 bg-cover bg-center opacity-45"
+                        style={{ backgroundImage: `url("${title.imageUrl}")` }}
+                      />
+                    ) : null}
+                    <div className="absolute inset-0 bg-linear-to-t from-white/60 via-white/35 dark:from-black/80 dark:via-black/35 to-transparent" />
+                    <div className="relative z-10 flex h-full flex-col justify-between">
+                      <span className="text-lg font-black text-white drop-shadow-sm">
+                        {title.title}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })
+            )}
           </CardContent>
         </Card>
 

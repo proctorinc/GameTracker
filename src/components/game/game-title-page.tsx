@@ -62,7 +62,7 @@ export default function GameTitlePage({
 
   return (
     <div className="min-h-screen px-4 pb-24">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+      <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <div
           className="relative overflow-hidden rounded-[2rem] border border-black/5 p-6 text-white shadow-xl"
           style={{ backgroundColor: title.color }}
@@ -132,6 +132,8 @@ export default function GameTitlePage({
                 games={recentHistory}
                 currentUserId={currentUserId}
                 emptyMessage="No games played for this title yet."
+                emptyActionHref={`/game/create/settings?titleId=${title.id}`}
+                emptyActionLabel="Start the first game"
               />
             </CardContent>
           </Card>

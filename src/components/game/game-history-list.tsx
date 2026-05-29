@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarDays, Trophy } from "lucide-react";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Badge } from "@/components/ui/badge";
+import { CardEmpty } from "@/components/ui/card";
 import type { GameFull } from "@/lib/db/store";
 import { cn } from "@/lib/utils";
 
@@ -62,16 +63,28 @@ export default function GameHistoryList({
   games,
   currentUserId,
   emptyMessage,
+  emptyActionHref,
+  emptyActionLabel,
 }: {
   games: GameFull[];
   currentUserId: string;
   emptyMessage: string;
+  emptyActionHref?: string;
+  emptyActionLabel?: string;
 }) {
   if (games.length === 0) {
     return (
-      <div className="rounded-[1.5rem] border border-dashed border-border p-6 text-sm text-muted-foreground">
-        {emptyMessage}
-      </div>
+      <CardEmpty className="flex flex-col items-center gap-3 p-6">
+        <p>{emptyMessage}</p>
+        {emptyActionHref && emptyActionLabel ? (
+          <Link
+            href={emptyActionHref}
+            className="text-sm font-semibold text-primary transition-colors hover:text-primary/80"
+          >
+            {emptyActionLabel}
+          </Link>
+        ) : null}
+      </CardEmpty>
     );
   }
 

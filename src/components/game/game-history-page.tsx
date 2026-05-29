@@ -13,7 +13,7 @@ export default function GameHistoryPage({
 
   return (
     <div className="min-h-screen px-4 pb-24">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+      <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <div className="space-y-2">
           <div className="space-y-1">
             <h1 className="text-4xl font-black tracking-tight">Game history</h1>
@@ -46,6 +46,8 @@ export default function GameHistoryPage({
               games={games}
               currentUserId={user.id}
               emptyMessage="No games match these filters yet."
+              emptyActionHref="/game/create"
+              emptyActionLabel="Start a new game"
             />
           </CardContent>
         </Card>
