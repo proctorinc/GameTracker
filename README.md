@@ -108,11 +108,22 @@ npm run db:studio     # Drizzle Studio
 ## Tests
 
 ```bash
-npm run test
-npm run test:coverage
+npm run test          # CI-style local gate: unit + component + integration + E2E smoke
+npm run test:unit     # Fast pure logic and helper tests
+npm run test:component  # Client component tests with jsdom + Testing Library
+npm run test:integration # Real SQLite-backed route, store, and server-action tests
+npm run test:e2e      # Full Playwright suite
+npm run test:e2e:smoke # Playwright smoke coverage for key user flows
+npm run test:coverage # Coverage across unit, component, and integration suites
 ```
 
-Tests use `APP_ENV=test` with a mock OTP provider (not dev auto-login).
+Test stack:
+
+- `Vitest` for unit, component, and integration tests
+- `React Testing Library` for interactive client components
+- `Playwright` for browser smoke and end-to-end flows
+
+Tests use `APP_ENV=test` with a mock OTP provider. Integration tests run against isolated SQLite databases, and Playwright uses the test environment rather than the development auto-login flow.
 
 ## Project layout
 
