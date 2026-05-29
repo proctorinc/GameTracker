@@ -1,7 +1,9 @@
 import type { AuthUser } from "./session";
 import { UnauthorizedError } from "./session";
-import { getSessionTokenFromCookie, validateSession } from "./cookies";
-import { getSessionByToken, isValidSession } from "./session-store";
+import { getSessionTokenFromCookie } from "./cookies";
+import { isValidSession } from "./protected-session";
+import { getSessionByTokenHash } from "../db/store/session.store";
+import { hashTokenWithSecret } from "./tokens";
 
 export async function requireAuth(
   request: Request,
@@ -12,7 +14,7 @@ export async function requireAuth(
     throw new UnauthorizedError("No session cookie found");
   }
 
-  const session = await getSessionByToken(token);
+  const session = await getSessionByTokenHash(hashTokenWithSecret(token));
 
   if (!session) {
     throw new UnauthorizedError("Invalid or expired session");
@@ -25,9 +27,9 @@ export async function requireAuth(
   return { user: session.user, sessionId: session.id };
 }
 
-export async function withAuth(
+export function withAuth(
   handler: (req: Request, ctx: { user: AuthUser; sessionId: string }) => Promise<Response>,
-): Promise<(req: Request) => Promise<Response>> {
+): (req: Request) => Promise<Response> {
   return async (req: Request) => {
     try {
       const auth = await requireAuth(req);

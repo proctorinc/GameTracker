@@ -1,55 +1,83 @@
 "use server";
 
-import { UserFullRow } from "@/lib/auth/user-store";
-import { db, users } from "@/lib/db";
+import {
+  getUserById,
+  getUserFullById,
+  updateUser,
+} from "@/lib/db/store/user.store";
+import { db, users } from "@/lib/db/store";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { loadCurrentUser } from "@/lib/auth/auth-me";
 
-export async function updateUserProfile(
-  userId: string, 
-  data: { first_name: string; last_name: string }
-) {
-  await db.update(users)
+export async function updateUserProfile(data: {
+  firstName: string;
+  lastName: string;
+  color?: string;
+}) {
+  const user = await loadCurrentUser();
+
+  await db
+    .update(users)
     .set({
-      first_name: data.first_name,
-      last_name: data.last_name,
-      is_profile_complete: true,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      color: data.color,
+      isProfileComplete: true,
     })
-    .where(eq(users.id, userId));
+    .where(eq(users.id, user.id));
 
   revalidatePath("/profile");
+  revalidatePath(`/profile/${user.id}`);
 }
 
-export async function updateProfileCard(
-    userId: string, 
-    data: { profileCardId: string }
-  ) {
-    await db.update(users)
-      .set({
-        profile_card_id: data.profileCardId,
-      })
-      .where(eq(users.id, userId));
-  
-    revalidatePath("/profile");
+export async function updateProfileCard(data: { profileCardId: string }) {
+  const user = await loadCurrentUser();
+
+  await db
+    .update(users)
+    .set({
+      profileCardId: data.profileCardId,
+    })
+    .where(eq(users.id, user.id));
+
+  revalidatePath("/profile");
+  revalidatePath(`/profile/${user.id}`);
+}
+
+export async function getUserProfile() {
+  const user = await loadCurrentUser();
+  return getUserFullById(user.id);
+}
+
+export async function updateOwnedGuestColor(data: {
+  guestUserId: string;
+  color: string;
+  gameId?: string;
+}) {
+  const user = await loadCurrentUser();
+  const targetUser = await getUserById(data.guestUserId);
+
+  if (!targetUser) {
+    throw new Error("User not found");
   }
 
-export async function getUserProfile(userId: string): Promise<UserFullRow | null> {
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, userId),
-      with: {
-        group: true,
-        activeProfileCard: {
-            with: {
-                owner: true
-            },
-        },
-        partnerInvitesSent: true,
-        partnerInvitesReceived: true,
-        groupReferralsSent: true,
-        cards: {
-            orderBy: (cards, { asc }) => [asc(cards.value)], 
-        },
-      },
-    });
-    return user ?? null;
+  const isCurrentUser = targetUser.id === user.id;
+  const isOwnedGuest =
+    targetUser.isGuest && targetUser.created_by_user_id === user.id;
+
+  if (!isCurrentUser && !isOwnedGuest) {
+    throw new Error("You can only update yourself or guests you created");
+  }
+
+  await updateUser(targetUser.id, {
+    color: data.color,
+  });
+
+  revalidatePath("/friends");
+  revalidatePath("/dashboard");
+
+  if (data.gameId) {
+    revalidatePath(`/game/${data.gameId}/play`);
+  }
 }

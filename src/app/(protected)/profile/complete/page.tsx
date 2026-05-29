@@ -8,7 +8,8 @@ export default async function CreateProfilePage() {
     return <div>Loading...</div>
   }
 
+  // Cast UserBase to UserFull - CompleteProfile handles optional relations
   return (
-    <CompleteProfile user={user} />
+    <CompleteProfile user={user as any} />
   );
 }

@@ -1,11 +1,7 @@
 "use client";
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import type { ReferralTreeNode, ReferralTreeUser } from "@/lib/dashboard/referral-tree";
-
-function formatMembersNames(users: ReferralTreeUser[]): string {
-  return users.map((user) => user.first_name + " " + user.last_name).join(", ")
-}
+import type { ReferralTreeNode } from "@/lib/dashboard/referral-tree";
 
 export function ReferralTreeBubbleNode({
   data,

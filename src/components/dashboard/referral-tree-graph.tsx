@@ -74,7 +74,7 @@ function ReferralTreeGraphCanvas({
   }, [currentGroupId, fitView, nodesInitialized, referrals]);
 
   return (
-    <div className="h-screen w-full overflow-hidden rounded-[2rem] border border-amber-200/80 bg-[radial-gradient(circle_at_top,_rgba(255,251,235,0.95),_rgba(239,246,255,0.9)_45%,_rgba(226,232,240,0.82))]">
+    <div className="h-screen w-full overflow-hidden rounded-[2rem]">
       <ReactFlow<ReferralTreeNode, ReferralTreeEdge>
         className="h-full w-full"
         nodes={data.nodes}
@@ -96,12 +96,12 @@ function ReferralTreeGraphCanvas({
           focusable: false,
         }}
       >
-        <Background
+        {/* <Background
           color="#f59e0b"
           gap={32}
           size={1}
           className="opacity-25"
-        />
+        /> */}
         <Controls showInteractive={false} position="bottom-right" />
       </ReactFlow>
     </div>

@@ -7,11 +7,28 @@ export interface PhoneError {
 
 export type PhoneValidationResult = string | PhoneError;
 
+function coerceFrontendPhoneInput(input: string): string {
+  const trimmed = input.trim();
+
+  // The login form sends digits only, e.g. "15550009999".
+  if (/^\d+$/.test(trimmed)) {
+    if (trimmed.length === 11 && trimmed.startsWith("1")) {
+      return `+${trimmed}`;
+    }
+
+    if (trimmed.length === 10) {
+      return `+1${trimmed}`;
+    }
+  }
+
+  return trimmed;
+}
+
 /**
  * Parse and normalize a phone number to E.164 format.
  */
 export function normalizePhoneToE164(input: string): PhoneValidationResult {
-  const trimmed = input.trim();
+  const trimmed = coerceFrontendPhoneInput(input);
 
   // Reject empty strings explicitly
   if (!trimmed) {
@@ -43,13 +60,15 @@ export function normalizePhoneToE164(input: string): PhoneValidationResult {
  * Parse a phone number using libphonenumber-js with region guessing.
  */
 export function parsePhoneForInternalUse(input: string): PhoneValidationResult {
+  const normalizedInput = coerceFrontendPhoneInput(input);
+
   // Reject empty strings explicitly
-  if (!input.trim()) {
+  if (!normalizedInput.trim()) {
     return { message: "Phone number is required", isValid: false };
   }
 
   try {
-    const parsed = parsePhoneNumber(input, undefined);
+    const parsed = parsePhoneNumber(normalizedInput, undefined);
 
     if (!parsed.isValid) {
       // Allow numbers with country code only

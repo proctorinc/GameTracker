@@ -1,6 +1,6 @@
 "use server";
 
-import { CardRow, createUserCard } from "@/lib/db/cards-store";
+import { CardRow, createUserCard } from "@/lib/db/store/cards.store";
 import { revalidatePath } from "next/cache";
 
 export async function pullCard(

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { normalizePhoneToE164, parsePhoneForInternalUse } from "@/lib/auth/phone";
+import { normalizePhoneToE164 } from "@/lib/auth/phone";
 import { checkRateLimit } from "@/lib/auth/rate-limiter";
 import { resolveVerifyProvider } from "@/lib/twilio/service";
 import { isDev } from "@/lib/env";
@@ -24,7 +24,7 @@ export const POST = async (request: Request) => {
       return NextResponse.json(result, { status: 400 });
     }
 
-    const phoneE164 = parsePhoneForInternalUse(phone) as string;
+    const phoneE164 = result;
 
     const rateLimitResult = await checkRateLimit(phoneE164);
     if (!rateLimitResult.allowed) {

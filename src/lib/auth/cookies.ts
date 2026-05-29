@@ -1,5 +1,8 @@
+import { getSessionByTokenHash } from "../db/store/session.store";
+import { getUserById } from "../db/store/user.store";
+import { hashTokenWithSecret } from "./tokens";
+import { isValidSession } from "./protected-session";
 import type { AuthUser } from "./session";
-import { getSessionByToken, isValidSession, type SessionData } from "./session-store";
 
 export interface AuthContext {
   user: AuthUser;
@@ -11,7 +14,9 @@ export function getSessionTokenFromCookie(request: Request): string | null {
   try {
     const cookieHeader = request.headers.get("cookie") || "";
     // Parse only the first cookie value for app_session
-    const match = cookieHeader.split(";").find((c) => c.trim().startsWith("app_session="));
+    const match = cookieHeader
+      .split(";")
+      .find((c) => c.trim().startsWith("app_session="));
     if (match) {
       const token = match.replace(/^app_session=/, "");
       return token;
@@ -40,14 +45,20 @@ export function setSessionCookie(
       // Remove all app_session cookies before setting a new one
       headers.set(
         "set-cookie",
-        request.headers.get("cookie")!.split(";").filter((c) => !c.startsWith("app_session=")).join(";"),
+        request.headers
+          .get("cookie")!
+          .split(";")
+          .filter((c) => !c.startsWith("app_session="))
+          .join(";"),
       );
     }
 
     const name = "app_session";
     const path = "/";
     const sameSite = "lax";
-    const secure = request.headers.get("x-forwarded-proto") === "https" || process.env.NODE_ENV === "production";
+    const secure =
+      request.headers.get("x-forwarded-proto") === "https" ||
+      process.env.NODE_ENV === "production";
 
     headers.append(
       "set-cookie",
@@ -61,25 +72,34 @@ export function setSessionCookie(
   }
 }
 
-/** Validate session and extract user (returns null if invalid) */
+/** Get session and user from request cookie */
 export async function validateSession(
   request: Request,
-): Promise<{ validated: false } | { validated: true; user: AuthUser; sessionId: string }> {
+): Promise<
+  { validated: false } | { validated: true; user: AuthUser; sessionId: string }
+> {
   const token = getSessionTokenFromCookie(request);
   if (!token) {
     return { validated: false };
   }
 
-  const session = await getSessionByToken(token);
+  const session = await getSessionByTokenHash(hashTokenWithSecret(token));
 
-  if (session && isValidSession(session)) {
-    return { validated: true, user: session.user, sessionId: session.id };
+  if (!session || !isValidSession(session)) {
+    return { validated: false };
   }
 
-  return { validated: false };
+  // Load user data separately to avoid "referencedTable" errors from relation loading
+  const userData = await getUserById(session.user.id);
+
+  if (!userData) {
+    // User no longer exists - invalidate session
+    return { validated: false };
+  }
+
+  return { validated: true, user: userData, sessionId: session.id };
 }
 
-/** Clear session cookie */
 export function clearSessionCookie(request: Request): Response {
   try {
     const headers = new Headers();
@@ -87,7 +107,11 @@ export function clearSessionCookie(request: Request): Response {
       // Remove all app_session cookies
       headers.set(
         "set-cookie",
-        request.headers.get("cookie")!.split(";").filter((c) => !c.startsWith("app_session=")).join(";"),
+        request.headers
+          .get("cookie")!
+          .split(";")
+          .filter((c) => !c.startsWith("app_session="))
+          .join(";"),
       );
     }
 
@@ -116,7 +140,7 @@ export async function requireAuth(
     throw new Error("No session cookie found");
   }
 
-  const session = await getSessionByToken(token);
+  const session = await getSessionByTokenHash(hashTokenWithSecret(token));
 
   if (!session) {
     throw new Error("Invalid or expired session");
@@ -126,5 +150,12 @@ export async function requireAuth(
     throw new Error("Session has expired");
   }
 
-  return { user: session.user, sessionId: session.id };
+  // Load user data separately to avoid "referencedTable" errors from relation loading
+  const userData = await getUserById(session.user.id);
+
+  if (!userData) {
+    throw new Error("User account no longer exists");
+  }
+
+  return { user: userData, sessionId: session.id };
 }

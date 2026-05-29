@@ -15,6 +15,15 @@ describe("Auth API - Request OTP", () => {
     expect(response.status).toBe(200);
   });
 
+  it("should accept digit-only frontend US phone number", async () => {
+    const response = await POST(new Request("http://localhost:3000/api/auth/otp/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: "15550009999" }),
+    }));
+    expect(response.status).toBe(200);
+  });
+
   it("should accept valid international phone number", async () => {
     const response = await POST(new Request("http://localhost:3000/api/auth/otp/request", {
       method: "POST",

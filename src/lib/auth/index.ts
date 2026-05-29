@@ -1,24 +1,10 @@
 export { UnauthorizedError, type AuthUser } from "./session";
 export { requireAuth, withAuth } from "./require-auth";
-export { getSessionTokenFromCookie, setSessionCookie, clearSessionCookie } from "./cookies";
-
 export {
-  createSession,
-  getSessionByToken,
-  deleteSession,
-  deleteSessionByToken,
-  isValidSession,
-} from "./session-store";
-
-export {
-  findUserByPhone,
-  findUserById,
-  createVerifiedUserWithGroup,
-  markPhoneVerified,
-  ensureUserVerifiedAfterOtp,
-  updateUserProfile,
-  isPhoneVerified,
-  type UserRow,
-} from "./user-store";
+  getSessionTokenFromCookie,
+  setSessionCookie,
+  clearSessionCookie,
+} from "./cookies";
 
 export { normalizePhoneToE164, parsePhoneForInternalUse } from "./phone";
+export { loadCurrentUser } from "./auth-me";

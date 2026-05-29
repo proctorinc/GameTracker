@@ -1,10 +1,11 @@
 export interface AuthUser {
   id: string;
-  phone_e164: string;
-  first_name: string | null;
-  last_name: string | null;
-  group_id: string | null;
+  role: "user" | "admin";
+  phoneNumber: string | null;
+  firstName: string | null;
+  lastName: string | null;
   phone_verified_at: string | null;
+  isProfileComplete: boolean;
 }
 
 /**

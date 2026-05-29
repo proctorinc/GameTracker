@@ -24,13 +24,18 @@ export interface ReferralTreeReferral {
 }
 
 export interface ReferralTreeNodeData extends Record<string, unknown> {
-  groupName: string;
-  memberCountLabel: string;
   memberSummary: string;
+  location?: string;
   isCurrentGroup: boolean;
   statusTone: "current" | "default";
-  location: string;
 }
+
+// groupName: string;
+// memberCountLabel: string;
+// memberSummary: string;
+// isCurrentGroup: boolean;
+// statusTone: "current" | "default";
+// location: string;
 
 export interface ReferralTreeEdgeData extends Record<string, unknown> {
   status: ReferralTreeReferral["status"];
@@ -149,12 +154,10 @@ export function buildReferralTreeData(input: {
       type: "groupBubble",
       position: { x: 0, y: 0 },
       data: {
-        groupName: formatGroupName(group),
-        memberCountLabel: formatMemberCountLabel(group),
-        memberSummary: formatMemberList(group.users),
+        memberSummary: formatMemberList(group.users, input.currentUserId),
+        location: group.display_location ?? undefined,
         isCurrentGroup,
         statusTone: isCurrentGroup ? "current" : "default",
-        location: group.display_location,
       },
     };
   }) satisfies ReferralTreeNode[];

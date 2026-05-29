@@ -1,276 +1,377 @@
-import { eq, sql } from "drizzle-orm";
-import { isDev } from "@/lib/env";
-import {
-  db,
-  groups,
-  users,
-  sessions,
-  partnerInvites,
-  groupReferrals,
-  otpRateLimits,
-} from "@/lib/db";
-import {
-  createGroup,
-  createInvitedUser,
-  invitePartnerToGroup,
-  respondToPartnerInvite,
-  createReferralInvite,
-  respondToReferral,
-  confirmReferralAsReferrer,
-} from "@/lib/db/group-store";
-import { createVerifiedUserWithGroup, markPhoneVerified } from "@/lib/auth/user-store";
-import { DEMO_HUB_PHONE, demoLocation, demoName, demoPhone } from "./seed-data";
+import { eq } from "drizzle-orm";
+import { faker } from "@faker-js/faker";
+import * as schema from "../db/schema"; // Adjust this path to your actual schema file location
+import { db } from "../db";
+import { addPlayerToGame, createGame } from "../db/store/game.store";
 
-const SEED_VERSION = 2;
-const DEFAULT_MIN_USERS = 100;
+function createTitlePreviewUrl(input: {
+  title: string;
+  accent: string;
+  background: string;
+}) {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420">
+      <defs>
+        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="${input.background}" />
+          <stop offset="100%" stop-color="${input.accent}" />
+        </linearGradient>
+      </defs>
+      <rect width="640" height="420" rx="36" fill="url(#bg)" />
+      <circle cx="520" cy="84" r="98" fill="rgba(255,255,255,0.15)" />
+      <circle cx="96" cy="356" r="144" fill="rgba(255,255,255,0.12)" />
+      <text
+        x="56"
+        y="230"
+        fill="white"
+        font-family="Arial, sans-serif"
+        font-size="60"
+        font-weight="700"
+      >${input.title}</text>
+    </svg>
+  `.trim();
 
-export async function clearDevData(): Promise<void> {
-  await db.delete(otpRateLimits);
-  await db.delete(sessions);
-  await db.delete(partnerInvites);
-  await db.delete(groupReferrals);
-  await db.delete(users);
-  await db.delete(groups);
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
-async function countUsers(): Promise<number> {
-  const row = await db.select({ count: sql<number>`count(*)` }).from(users).get();
-  return Number(row?.count) ?? 0;
-}
+export async function runDevSeed() {
+  console.log("⏳ Seeding database...");
 
-/** Solo verified self-signup group. */
-async function seedSoloVerified(startSeq: number, count: number): Promise<void> {
-  for (let i = 0; i < count; i++) {
-    const seq = startSeq + i;
-    const loc = i % 2 === 0 ? demoLocation(seq) : null;
-    await createVerifiedUserWithGroup(demoPhone(seq), {
-      ...demoName(seq),
-      ...(loc
-        ? {
-            city: loc.city,
-            region: loc.region,
-            latitude: loc.latitude,
-            longitude: loc.longitude,
-          }
-        : {}),
+  // Optional: Clear existing data before seeding (Triggers cascades cleanly if set up)
+  // Ordered from child tables to parent tables to avoid foreign key constraints during wipe
+  await db.delete(schema.gameRoundScores);
+  await db.delete(schema.gameRounds);
+  await db.delete(schema.gameWinners);
+  await db.delete(schema.gamePlayers);
+  await db.delete(schema.invitations);
+  await db.delete(schema.friendships);
+  await db.delete(schema.sessions);
+  await db.delete(schema.cardDrops);
+  await db.delete(schema.games);
+  await db.delete(schema.userGameTitle);
+  await db.delete(schema.gameTitle);
+  await db.delete(schema.users);
+
+  // --- 2. Seed Main User ---
+  const [mainUser] = await db
+    .insert(schema.users)
+    .values({
+      firstName: "Matt",
+      lastName: "Proctor",
+      color: "#FF5733",
+      role: "admin",
+      phoneNumber: "+15550009999",
+      phone_verified_at: new Date().toISOString(),
+      isProfileComplete: true,
+      isGuest: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+    .returning();
+
+  console.log(`✅ Main user created: ${mainUser.firstName}`);
+
+  // --- 3. Seed Friends (Other Registered Users) ---
+  const totalFriends = 15;
+  const friendUsers = [];
+
+  for (let i = 0; i < totalFriends; i++) {
+    const [friend] = await db
+      .insert(schema.users)
+      .values({
+        firstName: faker.person.firstName(),
+        lastName: faker.person.lastName(),
+        color: faker.color.rgb(),
+        phoneNumber: faker.phone.number({ style: "international" }),
+        phone_verified_at: faker.date.past().toISOString(),
+        isProfileComplete: true,
+        isGuest: false,
+        createdAt: faker.date.past().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+      .returning();
+
+    friendUsers.push(friend);
+  }
+
+  // Establish friendships with the main user
+  for (const friend of friendUsers) {
+    const isInviter = faker.datatype.boolean();
+    await db.insert(schema.friendships).values({
+      user1Id: mainUser.id,
+      user2Id: friend.id,
+      inviterId: isInviter ? mainUser.id : friend.id,
+      createdAt: faker.date.past().toISOString(),
     });
   }
-}
+  console.log(`✅ Seeded ${totalFriends} friends and friendship connections.`);
 
-/** Solo unverified placeholder (invited, not logged in). */
-async function seedSoloUnverified(startSeq: number, count: number): Promise<void> {
-  const sponsor = await db
-    .select()
-    .from(users)
-    .where(eq(users.phone_e164, demoPhone(1001)))
-    .get();
-  if (!sponsor) {
-    throw new Error("Seed requires solo verified user at +15550001001 first");
-  }
-
-  for (let i = 0; i < count; i++) {
-    const seq = startSeq + i;
-    const group = await createGroup();
-    await createInvitedUser({
-      phone_e164: demoPhone(seq),
-      group_id: group.id,
-      ...demoName(seq),
-      created_by_user_id: sponsor.id,
+  for (const friend of faker.helpers.arrayElements(friendUsers, 4)) {
+    await db.insert(schema.invitations).values({
+      inviterUserId: mainUser.id,
+      targetType: "user",
+      inviteeUserId: friend.id,
+      kind: "friend",
+      status: "pending",
+      createdAt: faker.date.recent().toISOString(),
+      updatedAt: new Date().toISOString(),
     });
   }
-}
 
-/** Two-user group with partner invite in given status. */
-async function seedCouple(
-  seq: number,
-  status: "pending" | "accepted" | "declined",
-): Promise<void> {
-  const primaryPhone = demoPhone(seq);
-  const partnerPhone = demoPhone(seq + 10_000);
-  const primary = await createVerifiedUserWithGroup(primaryPhone, {
-    ...demoName(seq),
-    ...demoLocation(seq),
-  });
-  const { invite } = await invitePartnerToGroup({
-    group_id: primary.group_id!,
-    phone_e164: partnerPhone,
-    ...demoName(seq + 1),
-    invited_by_user_id: primary.id,
-  });
-
-  if (status === "pending") {
-    return;
+  for (let i = 0; i < 3; i++) {
+    await db.insert(schema.invitations).values({
+      inviterUserId: mainUser.id,
+      targetType: "phone",
+      inviteePhoneNumber: faker.phone.number({ style: "international" }),
+      kind: "friend",
+      status: "pending",
+      createdAt: faker.date.recent().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
   }
 
-  await respondToPartnerInvite(invite.id, primary.group_id!, status);
-  if (status === "accepted") {
-    await markPhoneVerified(
-      (await db.select().from(users).where(eq(users.phone_e164, partnerPhone)).get())!.id,
-    );
+  // --- 4. Seed Guests ---
+  const totalGuests = 5;
+  for (let i = 0; i < totalGuests; i++) {
+    await db.insert(schema.users).values({
+      firstName: `Guest-${faker.person.firstName()}`,
+      color: "#888888",
+      isProfileComplete: false,
+      isGuest: true,
+      created_by_user_id: mainUser.id, // Main user generated these guests
+      createdAt: new Date().toISOString(),
+    });
   }
-}
+  console.log(`✅ Seeded ${totalGuests} temporary guest profiles.`);
 
-/** Referral edge with optional response and referrer confirmation. */
-async function seedReferral(
-  referrerSeq: number,
-  refereeSeq: number,
-  options: {
-    status?: "pending" | "accepted" | "declined";
-    referrerConfirmed?: boolean;
-    withLocation?: boolean;
-  } = {},
-): Promise<void> {
-  const referrer = await db
-    .select()
-    .from(users)
-    .where(eq(users.phone_e164, demoPhone(referrerSeq)))
-    .get();
-
-  if (!referrer?.group_id) {
-    throw new Error(`Referrer not found for seq ${referrerSeq}`);
+  // --- 6. Seed OTP Rate Limits ---
+  // Add some random mock rate limit states for random phone numbers
+  for (let i = 0; i < 5; i++) {
+    await db.insert(schema.otpRateLimits).values({
+      phoneNumber: faker.phone.number({ style: "international" }),
+      lastRequestAt: new Date().toISOString(),
+      requestCountWindow: faker.number.int({ min: 1, max: 5 }),
+    });
   }
 
-  const loc = options.withLocation ? demoLocation(refereeSeq) : undefined;
-  const { refereeGroup, referral } = await createReferralInvite({
-    referrer_group_id: referrer.group_id,
-    invited_by_user_id: referrer.id,
-    referee: {
-      phone_e164: demoPhone(refereeSeq),
-      ...demoName(refereeSeq),
+  // --- 7. Seed Game Titles ---
+  const titles = [
+    {
+      title: "Skyjo",
+      color: "#38bdf8",
+      imageUrl: "/images/skyjo.png",
+      defaultScoringMode: "lowest_wins" as const,
+      defaultEndingMode: "score_threshold" as const,
+      defaultScoreThreshold: 100,
+      defaultScoreThresholdDirection: "at_least" as const,
     },
-    location: loc
-      ? {
-          city: loc.city,
-          region: loc.region,
-          latitude: loc.latitude,
-          longitude: loc.longitude,
-        }
-      : undefined,
-  });
+    {
+      title: "Texas Hold'em",
+      color: "#ef4444",
+      imageUrl: createTitlePreviewUrl({
+        title: "Texas Hold'em",
+        accent: "#ef4444",
+        background: "#7f1d1d",
+      }),
+      defaultScoringMode: "highest_wins" as const,
+      defaultEndingMode: "none" as const,
+    },
+    {
+      title: "Blackjack",
+      color: "#22c55e",
+      imageUrl: createTitlePreviewUrl({
+        title: "Blackjack",
+        accent: "#22c55e",
+        background: "#14532d",
+      }),
+      defaultScoringMode: "highest_wins" as const,
+      defaultEndingMode: "score_threshold" as const,
+      defaultScoreThreshold: 21,
+      defaultScoreThresholdDirection: "at_least" as const,
+    },
+    {
+      title: "Hearts",
+      color: "#f472b6",
+      imageUrl: createTitlePreviewUrl({
+        title: "Hearts",
+        accent: "#f472b6",
+        background: "#831843",
+      }),
+      defaultScoringMode: "lowest_wins" as const,
+      defaultEndingMode: "score_threshold" as const,
+      defaultScoreThreshold: 100,
+      defaultScoreThresholdDirection: "at_least" as const,
+    },
+    {
+      title: "Uno",
+      color: "#f59e0b",
+      imageUrl: createTitlePreviewUrl({
+        title: "Uno",
+        accent: "#f59e0b",
+        background: "#7c2d12",
+      }),
+      defaultScoringMode: "highest_wins" as const,
+      defaultEndingMode: "round_count" as const,
+      defaultTargetRounds: 7,
+    },
+  ];
+  const gameTitleIdsByName = new Map<string, string>();
+  for (const title of titles) {
+    const [gameTitle] = await db
+      .insert(schema.gameTitle)
+      .values({
+        title: title.title,
+        normalizedTitle: title.title.trim().replace(/\s+/g, " ").toLowerCase(),
+        color: title.color,
+        imageUrl: title.imageUrl,
+        defaultScoringMode: title.defaultScoringMode ?? null,
+        defaultEndingMode: title.defaultEndingMode ?? null,
+        defaultTargetRounds: title.defaultTargetRounds ?? null,
+        defaultScoreThreshold: title.defaultScoreThreshold ?? null,
+        defaultScoreThresholdDirection:
+          title.defaultScoreThresholdDirection ?? null,
+        isUniversal: true,
+        createdAt: new Date().toISOString(),
+      })
+      .returning();
 
-  const status = options.status ?? "pending";
-  if (status === "pending") {
-    return;
+    gameTitleIdsByName.set(title.title, gameTitle.id);
+    await db.insert(schema.userGameTitle).values({
+      userId: mainUser.id,
+      gameTitleId: gameTitle.id,
+      source: "admin_seed",
+      acquiredAt: new Date().toISOString(),
+    });
   }
 
-  await respondToReferral(referral.id, refereeGroup.id, status);
-  if (status === "accepted" && options.referrerConfirmed) {
-    await confirmReferralAsReferrer(referral.id, referrer.group_id);
-  }
-  if (status === "accepted") {
-    const refereeUser = await db
-      .select()
-      .from(users)
-      .where(eq(users.phone_e164, demoPhone(refereeSeq)))
-      .get();
-    if (refereeUser && !refereeUser.phone_verified_at) {
-      await markPhoneVerified(refereeUser.id);
+  // --- 8. Seed Games & Game Players ---
+  // Let's create 8 historical games
+  for (let i = 0; i < 8; i++) {
+    const randomTitle = faker.helpers.arrayElement(titles).title;
+    const creator = faker.helpers.arrayElement(friendUsers);
+    const isCompleted = faker.datatype.boolean();
+    const seededWinnerId = faker.helpers.arrayElement([mainUser.id, creator.id]);
+
+    const game = await createGame({
+      gameTitleId: gameTitleIdsByName.get(randomTitle)!,
+      creatorId: creator.id,
+      version: "v1",
+      scoringMode: "lowest_wins",
+      endingMode: "score_threshold",
+      scoreThreshold: 100,
+      scoreThresholdDirection: "at_least",
+      completedRounds: isCompleted ? faker.number.int({ min: 1, max: 10 }) : 0,
+      createdAt: faker.date.past().toISOString(),
+      completedAt: isCompleted ? new Date().toISOString() : null,
+    });
+
+    // Add Players to this game (Always include mainUser + 2 random friends)
+    const currentMatchPlayers = [
+      mainUser,
+      creator,
+      ...faker.helpers
+        .arrayElements(
+          friendUsers.filter((friend) => friend.id !== creator.id),
+          2,
+        ),
+    ];
+
+    for (const p of currentMatchPlayers) {
+      const gamePlayer = await addPlayerToGame(game.id, p.id);
+
+      if (isCompleted) {
+        await db
+          .update(schema.gamePlayers)
+          .set({
+            score: faker.number.int({ min: 10, max: 500 }),
+          })
+          .where(eq(schema.gamePlayers.id, gamePlayer.id));
+      }
+    }
+
+    if (isCompleted) {
+      await db.insert(schema.gameWinners).values({
+        gameId: game.id,
+        userId: seededWinnerId,
+        createdAt: new Date().toISOString(),
+      });
     }
   }
-}
 
-/** Linear referral chain: seq0 → seq1 → seq2 → seq3 */
-async function seedReferralChain(baseSeq: number, length: number): Promise<void> {
-  await createVerifiedUserWithGroup(demoPhone(baseSeq), {
-    ...demoName(baseSeq),
-    ...demoLocation(baseSeq),
-  });
+  // --- 5. Create Standard Deck Cards for All Users ---
+  // const createStandardCards = async (userId: string) => {
+  //   const cards: typeof schema.cards.$inferSelect[] = [];
 
-  for (let i = 1; i < length; i++) {
-    await seedReferral(baseSeq + i - 1, baseSeq + i, {
-      status: "accepted",
-      referrerConfirmed: i % 2 === 0,
-      withLocation: true,
-    });
-  }
-}
+  //   for (let value = -2; value <= 12; value++) {
+  //     for (const suit of ["DARK_BLUE", "LIGHT_BLUE", "GREEN", "YELLOW", "RED"] as const) {
+  //       const insertResult = await db.insert(schema.cards).values({
+  //         ownerId: userId,
+  //         deckName: "standard",
+  //         value,
+  //         suit,
+  //         weight: value * 100,
+  //         modifier: "Basic",
+  //         probability: (value + 2) * 123 + 456,
+  //         suitProbability: 1,
+  //         createdAt: new Date().toISOString(),
+  //       }).returning();
 
-/** Hub group with spokes; hub uses fixed DEMO_HUB_PHONE. */
-async function seedReferralStar(hubSeq: number, spokeCount: number): Promise<void> {
-  await createVerifiedUserWithGroup(DEMO_HUB_PHONE, {
-    ...demoName(hubSeq),
-    ...demoLocation(hubSeq),
-  });
+  //       cards.push(insertResult[0]!);
+  //     }
+  //   }
 
-  for (let i = 0; i < spokeCount; i++) {
-    await seedReferral(hubSeq, hubSeq + 20_000 + i, {
-      status: i % 3 === 0 ? "pending" : i % 3 === 1 ? "accepted" : "declined",
-      referrerConfirmed: i % 2 === 0,
-      withLocation: i % 2 === 0,
-    });
-  }
-}
+  //   // Assign first card as profile card
+  //   const firstCard = cards.find(c => c.value === -2 && c.suit === "DARK_BLUE");
+  //   if (firstCard) {
+  //     await db.update(schema.users).set({
+  //       profileCardId: firstCard.id,
+  //       isProfileComplete: true,
+  //     }).where(eq(schema.users.id, userId));
+  //   }
 
-async function runSeedScenarios(): Promise<void> {
-  // Solo verified (25)
-  await seedSoloVerified(1001, 25);
-  // Solo unverified placeholders (15)
-  await seedSoloUnverified(1200, 15);
-  // Couples: accepted (20), pending (5), declined (5)
-  for (let i = 0; i < 20; i++) {
-    await seedCouple(2000 + i, "accepted");
-  }
-  for (let i = 0; i < 5; i++) {
-    await seedCouple(3000 + i, "pending");
-  }
-  for (let i = 0; i < 5; i++) {
-    await seedCouple(4000 + i, "declined");
-  }
-  // Referral-only groups from existing referrers
-  for (let i = 0; i < 15; i++) {
-    await seedReferral(1001 + (i % 20), 5000 + i, { status: "pending", withLocation: i % 2 === 0 });
-  }
-  for (let i = 0; i < 8; i++) {
-    await seedReferral(1001 + (i % 20), 6000 + i, {
-      status: "accepted",
-      referrerConfirmed: i % 2 === 0,
-    });
-  }
-  for (let i = 0; i < 4; i++) {
-    await seedReferral(1001 + (i % 20), 7000 + i, { status: "declined" });
-  }
-  // Chain A → B → C → D
-  await seedReferralChain(8000, 4);
-  // Star hub
-  await seedReferralStar(9999, 12);
-  // Extra solo groups to pad counts
-  await seedSoloVerified(9000, 10);
-}
+  //   return cards;
+  // };
 
-/**
- * Load development demo data. Idempotent unless DEV_SEED_RESET=1 or DEV_SEED_FORCE=1.
- */
-export async function runDevSeed(): Promise<{ seeded: boolean; userCount: number }> {
-  if (!isDev()) {
-    throw new Error("Dev seed can only run when APP_ENV=development");
-  }
+  // const allCards = await Promise.all([
+  //   createStandardCards(mainUser.id),
+  //   ...friendUsers.map(friend => createStandardCards(friend.id)),
+  // ]);
 
-  const minUsers = Number(process.env.DEV_SEED_MIN_USERS ?? DEFAULT_MIN_USERS);
-  const existing = await countUsers();
+  // // --- 9. Seed Card Drops (Skipping Decks/Cards, but mapping to User & Game) ---
+  // for (let i = 0; i < 8; i++) {
+  //   const randomTitle = faker.helpers.arrayElement(titles);
+  //   const game = await createGame({
+  //       gameTitleId: randomTitle,
+  //       name: `${randomTitle} Arena Showdown`,
+  //       creatorId: faker.helpers.arrayElement(friendUsers).id,
+  //       createdAt: faker.date.past().toISOString(),
+  //     });
 
-  if (process.env.DEV_SEED_RESET === "1") {
-    console.log("[dev-seed] Resetting database…");
-    await clearDevData();
-  } else if (
-    existing >= minUsers &&
-    process.env.DEV_SEED_FORCE !== "1"
-  ) {
-    console.log(`[dev-seed] Skipping (${existing} users, min ${minUsers}). Set DEV_SEED_FORCE=1 to re-seed.`);
-    return { seeded: false, userCount: existing };
-  }
+  //   const currentMatchPlayers = [
+  //     mainUser,
+  //     ...faker.helpers.arrayElements(friendUsers, 2),
+  //   ];
 
-  if (process.env.DEV_SEED_FORCE === "1" && process.env.DEV_SEED_RESET !== "1") {
-    await clearDevData();
-  }
+  //   for (const p of currentMatchPlayers) {
+  //     await db.insert(schema.gamePlayers).values({
+  //       gameId: game.id,
+  //       userId: p.id,
+  //       score: faker.number.int({ min: 10, max: 500 }),
+  //     });
+  //   }
 
-  console.log(`[dev-seed] Seeding demo data (v${SEED_VERSION})…`);
-  await runSeedScenarios();
+  //   // Create card drops for this game
+  //   await db.insert(schema.cardDrops).values({
+  //     userId: mainUser.id,
+  //     gameId: game.id,
+  //     cardCount: faker.number.int({ min: 1, max: 3 }),
+  //     deckName: "standard",
+  //   });
+  // }
 
-  const userCount = await countUsers();
-  const groupCount = Number(
-    (await db.select({ count: sql<number>`count(*)` }).from(groups).get())?.count ?? 0,
-  );
-  console.log(`[dev-seed] Done: ${userCount} users, ${groupCount} groups. Hub login: ${DEMO_HUB_PHONE}`);
-
-  return { seeded: true, userCount };
+  console.log("✅ Seeded matches, scores, and title definitions.");
+  // console.log(
+  //   `✅ Created ${allCards.reduce((sum, c) => sum + c.length, 0)} cards total.`,
+  // );
+  console.log("🚀 Database seeding completed successfully!");
 }

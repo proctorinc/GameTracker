@@ -1,174 +1,78 @@
+import { cookies } from "next/headers";
 import { UnauthorizedError, type AuthUser } from "./session";
-import {
-  getGroupById,
-  getPendingReferralsForGroup,
-  getReferralNetwork,
-  getUsersInGroups,
-  type UserRow,
-} from "@/lib/db/group-store";
+import { isValidSession } from "./protected-session";
+import { hashTokenWithSecret } from "./tokens";
+import { getSessionByTokenHash } from "../db/store/session.store";
+import { type UserBase } from "../db/store/user.store";
+import { getAcceptedFriendshipsByUserId } from "../db/store/friendship.store";
 
-export interface MaskedUser {
+/**
+ * Load the current authenticated user from session cookie.
+ * Use this in server actions to get the authenticated user without passing userId.
+ */
+export async function loadCurrentUser(): Promise<AuthUser> {
+  const user = await loadOptionalCurrentUser();
+
+  if (!user) {
+    throw new UnauthorizedError("No session cookie found in actions");
+  }
+
+  return user;
+}
+
+export async function loadOptionalCurrentUser(): Promise<AuthUser | null> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get("app_session")?.value;
+
+  if (!sessionToken) {
+    return null;
+  }
+
+  const session = await getSessionByTokenHash(hashTokenWithSecret(sessionToken));
+
+  if (!session || !isValidSession(session)) {
+    return null;
+  }
+
+  // Return user base data - we don't load relations here to avoid "referencedTable" errors
+  return session.user;
+}
+
+/**
+ * Load lightweight user data with accepted friends network.
+ * Used for /me endpoint and dashboard networks.
+ */
+export async function loadAuthMeData(authUser: AuthUser): Promise<{
   id: string;
-  first_name: string | null;
-  last_name: string | null;
-  group_id: string | null;
-  phone_last4: string;
-}
+  role: "user" | "admin";
+  firstName: string | null;
+  lastName: string | null;
+  color: string;
+  phoneNumber: string | null;
+  profileCardId: string | null;
+  isProfileComplete: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+  isGuest: boolean;
+  network: Array<{
+    id: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    color: string;
+    phoneNumber: string | null;
+    createdAt: string | null;
+    updatedAt: string | null;
+    isProfileComplete: boolean;
+    isGuest: boolean;
+  }>;
+}> {
+  const userId = authUser.id;
 
-export interface AuthMeUser {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  group_id: string | null;
-  phone_last4: string;
-}
-
-export interface AuthMeGroup {
-  id: string;
-  city: string | null;
-  region: string | null;
-  country: string | null;
-  display_location: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  created_at: string | null;
-  updated_at: string | null;
-  users: MaskedUser[];
-}
-
-export interface AuthMeData {
-  user: AuthMeUser;
-  group: AuthMeGroup;
-  network: {
-    groups: AuthMeGroup[];
-    referrals: Awaited<ReturnType<typeof getReferralNetwork>>["referrals"];
-  };
-  pending_referrals: Awaited<ReturnType<typeof getPendingReferralsForGroup>>;
-}
-
-function toPhoneLast4(phoneE164: string): string {
-  const digits = phoneE164.replace(/\D/g, "");
-  return digits.slice(-4).padStart(4, "0");
-}
-
-function toMaskedUser(user: Pick<UserRow, "id" | "first_name" | "last_name" | "group_id" | "phone_e164">): MaskedUser {
+  // Load accepted friend data for this user from friendship store
   return {
-    id: user.id,
-    first_name: user.first_name,
-    last_name: user.last_name,
-    group_id: user.group_id,
-    phone_last4: toPhoneLast4(user.phone_e164),
-  };
-}
-
-export async function loadAuthMeData(user: AuthUser): Promise<AuthMeData> {
-  if (!user.group_id) {
-    throw new UnauthorizedError("User does not belong to a group");
-  }
-
-  const group = await getGroupById(user.group_id);
-
-  if (!group) {
-    throw new UnauthorizedError("User group not found");
-  }
-
-  const [network, pendingReferrals] = await Promise.all([
-    getReferralNetwork(user.group_id),
-    getPendingReferralsForGroup(user.group_id),
-  ]);
-  const groupIds = Array.from(new Set([group.id, ...network.groups.map((item) => item.id)]));
-  const networkUsers = await getUsersInGroups(groupIds);
-  const usersByGroupId = new Map<string, MaskedUser[]>();
-
-  for (const networkUser of networkUsers) {
-    if (!networkUser.group_id) {
-      continue;
-    }
-
-    const existing = usersByGroupId.get(networkUser.group_id) ?? [];
-    existing.push(toMaskedUser(networkUser));
-    usersByGroupId.set(networkUser.group_id, existing);
-  }
-
-  const groupsWithUsers = network.groups.map((networkGroup) => ({
-    ...networkGroup,
-    users: usersByGroupId.get(networkGroup.id) ?? [],
-  }));
-  const currentGroup =
-    groupsWithUsers.find((networkGroup) => networkGroup.id === group.id) ?? {
-      ...group,
-      users: usersByGroupId.get(group.id) ?? [],
-    };
-
-  return {
-    user: {
-      id: user.id,
-      first_name: user.first_name,
-      last_name: user.last_name,
-      group_id: user.group_id,
-      phone_last4: toPhoneLast4(user.phone_e164),
-    },
-    group: currentGroup,
-    network: {
-      groups: groupsWithUsers,
-      referrals: network.referrals,
-    },
-    pending_referrals: pendingReferrals,
-  };
-}
-
-export async function loadNetworkData(user: AuthUser): Promise<AuthMeData> {
-  if (!user.group_id) {
-    throw new UnauthorizedError("User does not belong to a group");
-  }
-
-  const group = await getGroupById(user.group_id);
-
-  if (!group) {
-    throw new UnauthorizedError("User group not found");
-  }
-
-  const [network, pendingReferrals] = await Promise.all([
-    getReferralNetwork(user.group_id),
-    getPendingReferralsForGroup(user.group_id),
-  ]);
-  const groupIds = Array.from(new Set([group.id, ...network.groups.map((item) => item.id)]));
-  const networkUsers = await getUsersInGroups(groupIds);
-  const usersByGroupId = new Map<string, MaskedUser[]>();
-
-  for (const networkUser of networkUsers) {
-    if (!networkUser.group_id) {
-      continue;
-    }
-
-    const existing = usersByGroupId.get(networkUser.group_id) ?? [];
-    existing.push(toMaskedUser(networkUser));
-    usersByGroupId.set(networkUser.group_id, existing);
-  }
-
-  const groupsWithUsers = network.groups.map((networkGroup) => ({
-    ...networkGroup,
-    users: usersByGroupId.get(networkGroup.id) ?? [],
-  }));
-  const currentGroup =
-    groupsWithUsers.find((networkGroup) => networkGroup.id === group.id) ?? {
-      ...group,
-      users: usersByGroupId.get(group.id) ?? [],
-    };
-
-  return {
-    user: {
-      id: user.id,
-      first_name: user.first_name,
-      last_name: user.last_name,
-      group_id: user.group_id,
-      phone_last4: toPhoneLast4(user.phone_e164),
-    },
-    group: currentGroup,
-    network: {
-      groups: groupsWithUsers,
-      referrals: network.referrals,
-    },
-    pending_referrals: pendingReferrals,
+    ...authUser as UserBase,
+    network: (await getAcceptedFriendshipsByUserId(userId)).map((friendship) =>
+      friendship.user1Id === userId ? friendship.user2 : friendship.user1,
+    ),
   };
 }

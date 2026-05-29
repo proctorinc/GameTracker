@@ -2,6 +2,16 @@ import { describe, it, expect } from "vitest";
 import { normalizePhoneToE164, parsePhoneForInternalUse } from "./phone";
 
 describe("normalizePhoneToE164", () => {
+  it("should normalize digit-only frontend US phone number", () => {
+    const result = normalizePhoneToE164("15550009999");
+    expect(result).toBe("+15550009999");
+  });
+
+  it("should normalize 10-digit US phone number", () => {
+    const result = normalizePhoneToE164("5550009999");
+    expect(result).toBe("+15550009999");
+  });
+
   it("should normalize US phone number", () => {
     const result = normalizePhoneToE164("+1 (555) 123-4567");
     const normalized = result as string;
@@ -31,6 +41,11 @@ describe("normalizePhoneToE164", () => {
 });
 
 describe("parsePhoneForInternalUse", () => {
+  it("should accept digit-only frontend US phone number", () => {
+    const result = parsePhoneForInternalUse("15550009999");
+    expect(result).toBe("+15550009999");
+  });
+
   it("should return phone number for valid E.164", () => {
     const result = parsePhoneForInternalUse("+15551234567");
     expect(result).toBe("+15551234567");

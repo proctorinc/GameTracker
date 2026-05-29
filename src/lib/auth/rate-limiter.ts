@@ -1,9 +1,12 @@
-import { eq } from "drizzle-orm";
-import { db, otpRateLimits } from "../db";
 import { isDev } from "@/lib/env";
+import {
+  deleteOtpRateLimit,
+  getOtpRateLimitByPhoneNumber,
+  updateOtpRateLimit,
+} from "../db/store";
 
 const MAX_REQUESTS_PER_WINDOW = 3;
-const WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
 interface RateLimitResult {
   allowed: boolean;
@@ -12,48 +15,43 @@ interface RateLimitResult {
 
 /** Check and update rate limit for a phone number */
 export async function checkRateLimit(
-  phoneE164: string,
+  phoneNumber: string,
 ): Promise<RateLimitResult> {
   if (isDev() || process.env.NODE_ENV === "test") {
     return { allowed: true };
   }
 
-  const row = await db.select().from(otpRateLimits).where(eq(otpRateLimits.phone_e164, phoneE164)).get();
+  const row = await getOtpRateLimitByPhoneNumber(phoneNumber);
 
-  const lastRequestAt = row?.last_request_at ?? "1970-01-01T00:00:00.000Z";
+  const lastRequestAt = row?.lastRequestAt ?? "1970-01-01T00:00:00.000Z";
 
   if (Date.now() - new Date(lastRequestAt).getTime() >= WINDOW_MS) {
-    await db.update(otpRateLimits as any)
-      .set({
-        last_request_at: new Date().toISOString(),
-        request_count_window: 1,
-      })
-      .where(eq(otpRateLimits.phone_e164, phoneE164))
-      .run();
+    await updateOtpRateLimit(phoneNumber, {
+      lastRequestAt: new Date().toISOString(),
+      requestCountWindow: 1,
+    });
 
     return { allowed: true };
   }
 
-  const count = (await db.select().from(otpRateLimits).where(eq(otpRateLimits.phone_e164, phoneE164)).get())?.request_count_window ?? 0;
+  const count = row?.requestCountWindow ?? 0;
   if (count >= MAX_REQUESTS_PER_WINDOW) {
     return {
       allowed: false,
-      reason: "Rate limit exceeded. Please wait before requesting another code.",
+      reason:
+        "Rate limit exceeded. Please wait before requesting another code.",
     };
   }
 
-  await db.update(otpRateLimits as any)
-    .set({
-      last_request_at: new Date().toISOString(),
-      request_count_window: count + 1,
-    })
-    .where(eq(otpRateLimits.phone_e164, phoneE164))
-    .run();
+  await updateOtpRateLimit(phoneNumber, {
+    lastRequestAt: new Date().toISOString(),
+    requestCountWindow: count + 1,
+  });
 
   return { allowed: true };
 }
 
 /** Reset rate limit for a phone number */
-export async function resetRateLimit(phoneE164: string): Promise<void> {
-  await db.delete(otpRateLimits).where(eq(otpRateLimits.phone_e164, phoneE164)).run();
+export async function resetRateLimit(phoneNumber: string): Promise<void> {
+  await deleteOtpRateLimit(phoneNumber);
 }

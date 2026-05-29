@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
-import { getSessionTokenFromCookie, clearSessionCookie } from "@/lib/auth/cookies";
-import { deleteSessionByToken } from "@/lib/auth/session-store";
+import {
+  getSessionTokenFromCookie,
+  clearSessionCookie,
+} from "@/lib/auth/cookies";
+import { deleteSessionByToken } from "@/lib/db/store/session.store";
+import { hashTokenWithSecret } from "@/lib/auth/tokens";
 
 export const POST = async (request: Request) => {
   try {
@@ -9,7 +13,7 @@ export const POST = async (request: Request) => {
 
     if (token) {
       // Delete DB session
-      await deleteSessionByToken(token);
+      await deleteSessionByToken(hashTokenWithSecret(token));
     }
 
     // Clear cookie
@@ -19,7 +23,10 @@ export const POST = async (request: Request) => {
     });
     const clearedHeaders = await clearSessionCookie(request);
     if (clearedHeaders) {
-      response.headers.set("set-cookie", clearedHeaders.headers.get("set-cookie") ?? "");
+      response.headers.set(
+        "set-cookie",
+        clearedHeaders.headers.get("set-cookie") ?? "",
+      );
     }
 
     return response;
@@ -32,7 +39,10 @@ export const POST = async (request: Request) => {
     });
     const clearedHeaders = await clearSessionCookie(request);
     if (clearedHeaders) {
-      response.headers.set("set-cookie", clearedHeaders.headers.get("set-cookie") ?? "");
+      response.headers.set(
+        "set-cookie",
+        clearedHeaders.headers.get("set-cookie") ?? "",
+      );
     }
 
     return response;

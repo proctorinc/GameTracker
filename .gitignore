@@ -38,6 +38,7 @@ yarn-error.log*
 # local dev/prod databases
 /data/
 *.sqlite
+sqlite.db
 
 # vercel
 .vercel

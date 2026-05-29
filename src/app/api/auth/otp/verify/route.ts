@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
-import { normalizePhoneToE164, parsePhoneForInternalUse } from "@/lib/auth/phone";
-import { ensureUserVerifiedAfterOtp } from "@/lib/auth/user-store";
-import { createSession } from "@/lib/auth/session-store";
+import {
+  normalizePhoneToE164,
+} from "@/lib/auth/phone";
+import { countIncomingPendingInvitationsForUser } from "@/lib/db/store/invitation.store";
+import { ensureUserVerifiedAfterOtp } from "@/lib/db/store/user.store";
 import { resolveVerifyProvider } from "@/lib/twilio/service";
 import { isDev, isProd } from "@/lib/env";
+import { createSession } from "@/lib/db/store";
 
 export const POST = async (request: Request) => {
   try {
@@ -21,13 +24,19 @@ export const POST = async (request: Request) => {
     }
 
     if (!isDev() && !code) {
-      return NextResponse.json({ error: "phone and code are required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "phone and code are required" },
+        { status: 400 },
+      );
     }
 
     if (!isDev() && code) {
       const codeLength = code.length;
       if (codeLength < 4 || codeLength > 8) {
-        return NextResponse.json({ error: "code must be 4-8 digits" }, { status: 400 });
+        return NextResponse.json(
+          { error: "code must be 4-8 digits" },
+          { status: 400 },
+        );
       }
     }
 
@@ -36,7 +45,7 @@ export const POST = async (request: Request) => {
       return NextResponse.json(result, { status: 400 });
     }
 
-    const phoneE164 = parsePhoneForInternalUse(phone) as string;
+    const phoneE164 = result;
     const verifyProvider = resolveVerifyProvider();
     const isApproved = await verifyProvider.checkOtp(phoneE164, code ?? "");
 
@@ -45,22 +54,21 @@ export const POST = async (request: Request) => {
     }
 
     const user = await ensureUserVerifiedAfterOtp(phoneE164);
+    const pendingInvitationCount = await countIncomingPendingInvitationsForUser({
+      userId: user.id,
+      phoneNumber: user.phoneNumber,
+    });
 
     const { createSessionTokenWithSecret } = await import("@/lib/auth/tokens");
-    const { raw, hashed: sessionTokenHash } = await createSessionTokenWithSecret();
-    const expiresAtMs = Date.now() + 60 * 60 * 24 * 400 * 1000; // 400 days
-    await createSession(user.id, sessionTokenHash, expiresAtMs);
+    const { raw, hashed: sessionTokenHash } =
+      await createSessionTokenWithSecret();
+    const expiresAtIso = new Date(Date.now() + 60 * 60 * 24 * 400 * 1000).toISOString();
+    await createSession(user.id, sessionTokenHash, expiresAtIso);
 
     const response = NextResponse.json(
       {
-        user: {
-          id: user.id,
-          phone: user.phone_e164,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          group_id: user.group_id,
-          phone_verified_at: user.phone_verified_at,
-        },
+        user,
+        hasPendingInvitations: pendingInvitationCount > 0,
       },
       { status: 200 },
     );
@@ -76,6 +84,9 @@ export const POST = async (request: Request) => {
     return response;
   } catch (error) {
     console.error("OTP verify error:", error);
-    return NextResponse.json({ error: "internal_server_error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "internal_server_error" },
+      { status: 500 },
+    );
   }
 };

@@ -3,6 +3,6 @@
  */
 import { requireAuth, withAuth } from "@/lib/auth/require-auth";
 
-export const GET = withAuth((req) => {
+export const GET = withAuth(async () => {
   return Response.json({ message: "You are authenticated!" });
 });

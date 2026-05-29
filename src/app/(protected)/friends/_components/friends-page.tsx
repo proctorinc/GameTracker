@@ -1,0 +1,54 @@
+"use client";
+
+import type { FriendsPageData } from "@/app/actions/pages/friends";
+import { FriendsPageProvider, useFriendsPage } from "./friends-page-provider";
+import { AddFriendDialog } from "./dialogs/add-friend-dialog";
+import { GuestActionsDialog } from "./dialogs/guest-actions-dialog";
+import { RemoveFriendDialog } from "./dialogs/remove-friend-dialog";
+import { FriendsPageHeader } from "./sections/friends-page-header";
+import { FriendsTabContent } from "./sections/friends-tab-content";
+import { FriendsTabs } from "./sections/friends-tabs";
+import { InviteNotices } from "./sections/invite-notices";
+import { InvitationsCard } from "./sections/invitations-card";
+
+type FriendsPageProps = {
+  data: FriendsPageData;
+  baseUrl: string;
+  showInviteNotice: boolean;
+};
+
+function FriendsPageContent() {
+  const { activeTab } = useFriendsPage();
+
+  return (
+    <div className="min-h-screen overflow-y-auto px-4 py-6 pb-24">
+      <div className="mx-auto flex w-full max-w-md flex-col gap-4">
+        <FriendsPageHeader />
+        <FriendsTabs />
+        <InviteNotices />
+        {activeTab === "friends" ? <FriendsTabContent /> : <InvitationsCard />}
+      </div>
+
+      <AddFriendDialog />
+      <GuestActionsDialog />
+      <RemoveFriendDialog />
+    </div>
+  );
+}
+
+export function FriendsPageView({
+  data,
+  baseUrl,
+  showInviteNotice,
+}: FriendsPageProps) {
+  return (
+    <FriendsPageProvider
+      key={`${data.user.id}:${showInviteNotice ? "notice" : "default"}`}
+      data={data}
+      baseUrl={baseUrl}
+      showInviteNotice={showInviteNotice}
+    >
+      <FriendsPageContent />
+    </FriendsPageProvider>
+  );
+}

@@ -1,13 +1,23 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getSessionByToken, isValidSession, type SessionData } from "./session-store";
 import { DEFAULT_RETURN_PATH } from "./return-path";
-import { getUserFullById, UserFullRow } from "./user-store";
+import { getUserById, UserBase } from "../db/store/user.store";
+import { getSessionByTokenHash, type SessionWithUser } from "../db/store";
+import { hashTokenWithSecret } from "./tokens";
+
+export type SessionData = SessionWithUser;
+
+export function isValidSession(session: Pick<SessionData, "expiresAt">) {
+  if (!session.expiresAt) {
+    return false;
+  }
+
+  return new Date(session.expiresAt).getTime() > Date.now();
+}
 
 /** Combined session + auth me data for protected pages */
 export interface ProtectedSession {
-  session: SessionData;
-  user: UserFullRow | null;
+  user: UserBase;
 }
 
 /**
@@ -22,18 +32,23 @@ export async function loadUser(): Promise<ProtectedSession> {
     redirect(`/login?from=${encodeURIComponent(DEFAULT_RETURN_PATH)}`);
   }
 
-  const session = await getSessionByToken(sessionToken);
+  const session = await getSessionByTokenHash(
+    hashTokenWithSecret(sessionToken),
+  );
 
   if (!session || !isValidSession(session)) {
     redirect(`/login?from=${encodeURIComponent(DEFAULT_RETURN_PATH)}`);
   }
 
-  const userData = await getUserFullById(session.user.id);
+  const userData = await getUserById(session.user.id);
+
+  if (!userData) {
+    redirect(`/login?from=${encodeURIComponent(DEFAULT_RETURN_PATH)}`);
+  }
 
   return {
     user: userData,
-    session,
-  }
+  };
 }
 
 /**
@@ -48,7 +63,9 @@ export async function requireSessionRaw(): Promise<SessionData> {
     redirect(`/login?from=${encodeURIComponent(DEFAULT_RETURN_PATH)}`);
   }
 
-  const session = await getSessionByToken(sessionToken);
+  const session = await getSessionByTokenHash(
+    hashTokenWithSecret(sessionToken),
+  );
 
   if (!session || !isValidSession(session)) {
     redirect(`/login?from=${encodeURIComponent(DEFAULT_RETURN_PATH)}`);

@@ -1,8 +1,14 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import LoginForm from "./login-form";
-import { DEFAULT_RETURN_PATH, sanitizeReturnPath } from "@/lib/auth/return-path";
-import { getSessionByToken, isValidSession } from "@/lib/auth/session-store";
+import {
+  DEFAULT_RETURN_PATH,
+  sanitizeReturnPath,
+} from "@/lib/auth/return-path";
+import { getSessionByTokenHash } from "@/lib/db/store/session.store";
+import { getUserById } from "@/lib/db/store/user.store";
+import { isValidSession } from "@/lib/auth/protected-session";
+import { hashTokenWithSecret } from "@/lib/auth/tokens";
 
 export default async function LoginPage({
   searchParams,
@@ -14,9 +20,17 @@ export default async function LoginPage({
   const target = sanitizeReturnPath(from ?? DEFAULT_RETURN_PATH);
 
   if (sessionToken) {
-    const session = await getSessionByToken(sessionToken);
+    const session = await getSessionByTokenHash(hashTokenWithSecret(sessionToken));
 
     if (session && isValidSession(session)) {
+      // Load user data without relations to avoid "referencedTable" errors
+      const userData = await getUserById(session.user.id);
+
+      if (!userData) {
+        // User no longer exists or is deleted, invalidate session
+        redirect(`/login?from=${encodeURIComponent(target)}#user-deleted`);
+      }
+
       redirect(target);
     }
   }

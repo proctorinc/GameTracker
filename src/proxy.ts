@@ -1,72 +1,85 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
-import { findUserById } from './lib/auth/user-store';
-import { getSessionByToken } from './lib/auth';
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { findUserById } from "./lib/db/store/user.store";
+import { getSessionByTokenHash } from "./lib/db/store/session.store";
+import { hashTokenWithSecret } from "./lib/auth/tokens";
+import { isValidSession } from "./lib/auth/protected-session";
 
-const PUBLIC_ROUTES = ['/login', '/'];
-const ONBOARDING_ROUTE = '/profile/complete';
+const PUBLIC_ROUTES = ["/login", "/"];
+const ONBOARDING_ROUTE = "/profile/complete";
 const SESSION_COOKIE_NAME = "app_session";
 
 export default async function proxy(request: NextRequest) {
-    const { nextUrl, cookies } = request;
-    const pathname = nextUrl.pathname;
-  
-    const sessionToken = cookies.get(SESSION_COOKIE_NAME)?.value
-    const isAuthenticated = !!sessionToken
+  const { nextUrl, cookies } = request;
+  const pathname = nextUrl.pathname;
 
-    const isPublicOrAuth = PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(route + '/'))
+  const sessionToken = cookies.get(SESSION_COOKIE_NAME)?.value;
+  const isAuthenticated = !!sessionToken;
 
-    if (!isPublicOrAuth && !isAuthenticated) {
-        const loginUrl = new URL('/login', request.url)
-        loginUrl.searchParams.set('callbackUrl', pathname) 
-        return NextResponse.redirect(loginUrl)
-    }
+  const isPublicOrAuth = PUBLIC_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(route + "/"),
+  );
 
-    let isProfileComplete = false;
-    let isValidSession = false;
+  if (!isPublicOrAuth && !isAuthenticated) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("callbackUrl", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
 
-    if (sessionToken) {
-        try {
-            const session = await getSessionByToken(sessionToken);
-            
-            if (session?.user?.id) {
-                const userData = await findUserById(session.user.id);
-                
-                if (userData) {
-                    isValidSession = true;
-                    isProfileComplete = !!userData.is_profile_complete;
-                }
-            }
-        } catch (error) {
-            console.error("Proxy auth lookup failed:", error);
+  let isProfileComplete = false;
+  let hasValidSession = false;
+
+  if (sessionToken) {
+    try {
+      const session = await getSessionByTokenHash(
+        hashTokenWithSecret(sessionToken),
+      );
+
+      if (session?.user?.id && isValidSession(session)) {
+        const userData = await findUserById(session.user.id);
+
+        if (userData) {
+          hasValidSession = true;
+          isProfileComplete = !!userData.isProfileComplete;
         }
+      }
+    } catch (error) {
+      console.error("Proxy auth lookup failed:", error);
     }
+  }
 
-    if (!isPublicOrAuth && !isValidSession) {
-        const response = NextResponse.redirect(new URL('/login', request.url));
-        // Force clear the orphaned cookie so they aren't stuck in a proxy loop
-        response.cookies.delete(SESSION_COOKIE_NAME);
-        return response;
-    }
+  if (!isPublicOrAuth && !hasValidSession) {
+    const response = NextResponse.redirect(new URL("/login", request.url));
+    // Force clear the orphaned cookie so they aren't stuck in a proxy loop
+    response.cookies.delete(SESSION_COOKIE_NAME);
+    return response;
+  }
 
-    const isAuthRoute = ['/login', '/register'].some((route) => pathname.startsWith(route))
-    if (isAuthRoute && isValidSession) {
-        const dest = isProfileComplete ? '/dashboard' : ONBOARDING_ROUTE
-        return NextResponse.redirect(new URL(dest, request.url))
-    }
+  const isAuthRoute = ["/login", "/register"].some((route) =>
+    pathname.startsWith(route),
+  );
+  if (isAuthRoute && hasValidSession) {
+    const dest = isProfileComplete ? "/dashboard" : ONBOARDING_ROUTE;
+    return NextResponse.redirect(new URL(dest, request.url));
+  }
 
-    if (!isPublicOrAuth && isValidSession && !isProfileComplete && pathname !== ONBOARDING_ROUTE) {
-        return NextResponse.redirect(new URL(ONBOARDING_ROUTE, request.url))
-    }
+  if (
+    !isPublicOrAuth &&
+    hasValidSession &&
+    !isProfileComplete &&
+    pathname !== ONBOARDING_ROUTE
+  ) {
+    return NextResponse.redirect(new URL(ONBOARDING_ROUTE, request.url));
+  }
 
-    return NextResponse.next()
+  return NextResponse.next();
 }
 
 export const config = {
-    matcher: [
-        /*
-        * Match all request paths except for internal Next.js paths and static assets
-        */
-        '/((?!_next/static|_next/image|api|favicon.ico).*)',
-    ],
-}
+  matcher: [
+    /*
+     * Match all request paths except for internal Next.js paths and static assets
+     */
+    "/((?!_next/static|_next/image|api|favicon.ico).*)",
+  ],
+};

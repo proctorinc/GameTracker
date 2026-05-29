@@ -102,7 +102,11 @@ export default function ShadcnLocationSelector({
   }, [selectedCountryId, selectedStateId]);
 
   // Handlers for Selection Changes
-  const handleCountryChange = (idString: string) => {
+  const handleCountryChange = (idString: string | null) => {
+    if (!idString) {
+      return;
+    }
+
     const found = countriesList.find((c) => String(c.id) === idString);
     const name = found ? found.name : "";
 
@@ -126,7 +130,11 @@ export default function ShadcnLocationSelector({
     onSelect(updated);
   };
 
-  const handleCityChange = (cityName: string) => {
+  const handleCityChange = (cityName: string | null) => {
+    if (!cityName) {
+      return;
+    }
+
     const updated = { ...locationStrings, city: cityName };
     setLocationStrings(updated);
     onSelect(updated);
