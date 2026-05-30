@@ -54,4 +54,30 @@ describe("validateEnv", () => {
     expect(env.APP_ENV).toBe("test");
     expect(env.DATABASE_URL).toBe("file:./data/test.sqlite");
   });
+
+  it("accepts test config with remote Turso credentials", () => {
+    process.env = {
+      APP_ENV: "test",
+      NODE_ENV: "test",
+      DATABASE_URL: "libsql://skybo-test.turso.io",
+      SESSION_SECRET: "test-session-secret-for-tests-only",
+      NEXT_PUBLIC_APP_ENV: "test",
+      TURSO_AUTH_TOKEN: "turso-test-token",
+    };
+    const env = validateEnv(true);
+    expect(env.APP_ENV).toBe("test");
+    expect(env.DATABASE_URL).toBe("libsql://skybo-test.turso.io");
+    expect("TURSO_AUTH_TOKEN" in env && env.TURSO_AUTH_TOKEN).toBe("turso-test-token");
+  });
+
+  it("rejects remote test config without a Turso auth token", () => {
+    process.env = {
+      APP_ENV: "test",
+      NODE_ENV: "test",
+      DATABASE_URL: "libsql://skybo-test.turso.io",
+      SESSION_SECRET: "test-session-secret-for-tests-only",
+      NEXT_PUBLIC_APP_ENV: "test",
+    };
+    expect(() => validateEnv(true)).toThrow(/TURSO_AUTH_TOKEN/);
+  });
 });

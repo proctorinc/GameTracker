@@ -40,6 +40,10 @@ const optionalTwilio = z.object({
   TWILIO_VERIFY_SERVICE_SID: z.string().optional(),
 });
 
+function isRemoteLibsqlUrl(databaseUrl: string): boolean {
+  return databaseUrl.startsWith("libsql://") || databaseUrl.startsWith("https://");
+}
+
 const devSchema = z
   .object({
     APP_ENV: z.literal("development"),
@@ -50,8 +54,18 @@ const devSchema = z
     DEV_SEED_FORCE: z.enum(["0", "1"]).optional(),
     DEV_SEED_RESET: z.enum(["0", "1"]).optional(),
     AUTH_MOCK_OTP: z.string().optional(),
+    TURSO_AUTH_TOKEN: z.string().optional(),
   })
-  .merge(optionalTwilio);
+  .merge(optionalTwilio)
+  .superRefine((env, ctx) => {
+    if (isRemoteLibsqlUrl(env.DATABASE_URL) && !env.TURSO_AUTH_TOKEN) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["TURSO_AUTH_TOKEN"],
+        message: "is required when DATABASE_URL points to a remote Turso/libSQL database",
+      });
+    }
+  });
 
 const testSchema = z
   .object({
@@ -60,8 +74,18 @@ const testSchema = z
     SESSION_SECRET: z.string().min(1),
     NEXT_PUBLIC_APP_ENV: z.literal("test"),
     AUTH_MOCK_OTP: z.string().optional(),
+    TURSO_AUTH_TOKEN: z.string().optional(),
   })
-  .merge(optionalTwilio);
+  .merge(optionalTwilio)
+  .superRefine((env, ctx) => {
+    if (isRemoteLibsqlUrl(env.DATABASE_URL) && !env.TURSO_AUTH_TOKEN) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["TURSO_AUTH_TOKEN"],
+        message: "is required when DATABASE_URL points to a remote Turso/libSQL database",
+      });
+    }
+  });
 
 const prodSchema = z.object({
   APP_ENV: z.literal("production"),
@@ -131,12 +155,19 @@ function syncToProcessEnv(config: AppEnvConfig): void {
     process.env.DEV_SEED_MIN_USERS = String(config.DEV_SEED_MIN_USERS);
   }
 
+  if ("TURSO_AUTH_TOKEN" in config) {
+    if (config.TURSO_AUTH_TOKEN) {
+      process.env.TURSO_AUTH_TOKEN = config.TURSO_AUTH_TOKEN;
+    } else {
+      delete process.env.TURSO_AUTH_TOKEN;
+    }
+  }
+
   if (config.APP_ENV === "production") {
     const prod = config as ProdEnv;
     process.env.TWILIO_ACCOUNT_SID = prod.TWILIO_ACCOUNT_SID;
     process.env.TWILIO_AUTH_TOKEN = prod.TWILIO_AUTH_TOKEN;
     process.env.TWILIO_VERIFY_SERVICE_SID = prod.TWILIO_VERIFY_SERVICE_SID;
-    process.env.TURSO_AUTH_TOKEN = prod.TURSO_AUTH_TOKEN;
   }
 }
 

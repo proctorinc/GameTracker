@@ -5,10 +5,11 @@ import { getEnv } from "../env-config";
 import { describeDatabaseTarget, logInfo } from "../server-log";
 
 const env = getEnv();
+const isRemoteLibsql = !env.DATABASE_URL.startsWith("file:");
 
 const sqlite = createClient({
   url: env.DATABASE_URL,
-  ...(env.APP_ENV === "production"
+  ...(isRemoteLibsql && "TURSO_AUTH_TOKEN" in env && env.TURSO_AUTH_TOKEN
     ? { authToken: env.TURSO_AUTH_TOKEN }
     : {}),
 });
@@ -16,7 +17,8 @@ const sqlite = createClient({
 logInfo("db.client.initialized", {
   appEnv: env.APP_ENV,
   databaseTarget: describeDatabaseTarget(env.DATABASE_URL),
-  usesRemoteAuthToken: env.APP_ENV === "production",
+  usesRemoteAuthToken:
+    isRemoteLibsql && "TURSO_AUTH_TOKEN" in env && Boolean(env.TURSO_AUTH_TOKEN),
 });
 
 export const db = drizzle(sqlite, { schema });

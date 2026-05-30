@@ -1,7 +1,13 @@
 "use client";
 
 import { sectionActionClassName } from "@/components/ui/section-styles";
-import { Card, CardContent, CardEmpty, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardEmpty,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useDashboardPage } from "../dashboard-page-provider";
@@ -10,7 +16,7 @@ export function RecentlyPlayedSection() {
   const { recentGameTitles } = useDashboardPage();
 
   return (
-    <Card>
+    <div className="flex flex-col gap-4">
       <CardHeader className="flex flex-row items-center justify-between gap-3">
         <CardTitle>Recently played</CardTitle>
         <Link href="/titles" className={sectionActionClassName}>
@@ -66,6 +72,6 @@ export function RecentlyPlayedSection() {
           </div>
         )}
       </CardContent>
-    </Card>
+    </div>
   );
 }
