@@ -28,7 +28,7 @@ export function RecentlyPlayedSection() {
         {recentGameTitles.length === 0 ? (
           <CardEmpty className="flex flex-col items-center gap-3">
             <p>No recent titles yet.</p>
-            <Link href="/game/create" className={sectionActionClassName}>
+            <Link href="/game/create/settings" className={sectionActionClassName}>
               Start a game
               <ArrowRight />
             </Link>

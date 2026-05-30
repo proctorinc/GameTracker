@@ -1,4 +1,14 @@
-import { and, asc, desc, eq, isNotNull, isNull, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+} from "drizzle-orm";
 import {
   db,
   gamePlayers,
@@ -56,6 +66,28 @@ export type GameHistoryFilters = {
 };
 export type GameWithCreator = GameBase & {
   creator: typeof db._.fullSchema.users.$inferSelect;
+};
+
+type GameTitleLibraryRow = {
+  id: string;
+  title: string;
+  normalizedTitle: string;
+  color: string;
+  imageUrl: string;
+  defaultScoringMode: GameTitleBase["defaultScoringMode"];
+  defaultEndingMode: GameTitleBase["defaultEndingMode"];
+  defaultTargetRounds: GameTitleBase["defaultTargetRounds"];
+  defaultScoreThreshold: GameTitleBase["defaultScoreThreshold"];
+  defaultScoreThresholdDirection: GameTitleBase["defaultScoreThresholdDirection"];
+  isUniversal: boolean;
+  createdByUserId: string | null;
+  mergedIntoGameTitleId: string | null;
+  createdAt: string;
+  ownershipSource: typeof userGameTitle.$inferSelect.source | null;
+  acquiredAt: string | null;
+  acquiredFromUserId: string | null;
+  acquiredFromUserFirstName: string | null;
+  acquiredFromUserLastName: string | null;
 };
 
 export const gameFullRelations = {
@@ -147,6 +179,75 @@ function nowIso() {
 
 function normalizeGameTitleTitle(title: string) {
   return title.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function mapGameTitleLibraryRow(row: GameTitleLibraryRow): GameTitleLibraryEntry {
+  return {
+    id: row.id,
+    title: row.title,
+    normalizedTitle: row.normalizedTitle,
+    color: row.color,
+    imageUrl: row.imageUrl,
+    defaultScoringMode: row.defaultScoringMode,
+    defaultEndingMode: row.defaultEndingMode,
+    defaultTargetRounds: row.defaultTargetRounds,
+    defaultScoreThreshold: row.defaultScoreThreshold,
+    defaultScoreThresholdDirection: row.defaultScoreThresholdDirection,
+    isUniversal: row.isUniversal,
+    createdByUserId: row.createdByUserId,
+    mergedIntoGameTitleId: row.mergedIntoGameTitleId,
+    createdAt: row.createdAt,
+    accessSource: row.ownershipSource ?? "universal",
+    acquiredAt: row.acquiredAt ?? null,
+    acquiredFromUserId: row.acquiredFromUserId ?? null,
+    acquiredFromUserName:
+      [row.acquiredFromUserFirstName, row.acquiredFromUserLastName]
+        .filter(Boolean)
+        .join(" ")
+        .trim() || null,
+    isOwned: Boolean(row.ownershipSource),
+  };
+}
+
+function accessibleGameTitleWhere(userId: string) {
+  return and(
+    isNull(gameTitle.mergedIntoGameTitleId),
+    or(eq(gameTitle.isUniversal, true), isNotNull(userGameTitle.userId)),
+  );
+}
+
+function gameTitleLibrarySelect(userId: string) {
+  return db
+    .select({
+      id: gameTitle.id,
+      title: gameTitle.title,
+      normalizedTitle: gameTitle.normalizedTitle,
+      color: gameTitle.color,
+      imageUrl: gameTitle.imageUrl,
+      defaultScoringMode: gameTitle.defaultScoringMode,
+      defaultEndingMode: gameTitle.defaultEndingMode,
+      defaultTargetRounds: gameTitle.defaultTargetRounds,
+      defaultScoreThreshold: gameTitle.defaultScoreThreshold,
+      defaultScoreThresholdDirection: gameTitle.defaultScoreThresholdDirection,
+      isUniversal: gameTitle.isUniversal,
+      createdByUserId: gameTitle.createdByUserId,
+      mergedIntoGameTitleId: gameTitle.mergedIntoGameTitleId,
+      createdAt: gameTitle.createdAt,
+      ownershipSource: userGameTitle.source,
+      acquiredAt: userGameTitle.acquiredAt,
+      acquiredFromUserId: userGameTitle.acquiredFromUserId,
+      acquiredFromUserFirstName: users.firstName,
+      acquiredFromUserLastName: users.lastName,
+    })
+    .from(gameTitle)
+    .leftJoin(
+      userGameTitle,
+      and(
+        eq(userGameTitle.gameTitleId, gameTitle.id),
+        eq(userGameTitle.userId, userId),
+      ),
+    )
+    .leftJoin(users, eq(users.id, userGameTitle.acquiredFromUserId));
 }
 
 export async function createGame(
@@ -266,70 +367,161 @@ export async function getGameTitleByNormalizedTitle(
 export async function listGameTitles(
   userId: string,
 ): Promise<GameTitleLibraryEntry[]> {
-  const rows = await db
-    .select({
-      id: gameTitle.id,
-      title: gameTitle.title,
-      normalizedTitle: gameTitle.normalizedTitle,
-      color: gameTitle.color,
-      imageUrl: gameTitle.imageUrl,
-      defaultScoringMode: gameTitle.defaultScoringMode,
-      defaultEndingMode: gameTitle.defaultEndingMode,
-      defaultTargetRounds: gameTitle.defaultTargetRounds,
-      defaultScoreThreshold: gameTitle.defaultScoreThreshold,
-      defaultScoreThresholdDirection: gameTitle.defaultScoreThresholdDirection,
-      isUniversal: gameTitle.isUniversal,
-      createdByUserId: gameTitle.createdByUserId,
-      mergedIntoGameTitleId: gameTitle.mergedIntoGameTitleId,
-      createdAt: gameTitle.createdAt,
-      ownershipSource: userGameTitle.source,
-      acquiredAt: userGameTitle.acquiredAt,
-      acquiredFromUserId: userGameTitle.acquiredFromUserId,
-      acquiredFromUserFirstName: users.firstName,
-      acquiredFromUserLastName: users.lastName,
-    })
-    .from(gameTitle)
-    .leftJoin(
-      userGameTitle,
-      and(
-        eq(userGameTitle.gameTitleId, gameTitle.id),
-        eq(userGameTitle.userId, userId),
-      ),
-    )
-    .leftJoin(users, eq(users.id, userGameTitle.acquiredFromUserId))
+  const rows = await gameTitleLibrarySelect(userId)
+    .where(accessibleGameTitleWhere(userId))
+    .orderBy(asc(gameTitle.title));
+  return rows.map(mapGameTitleLibraryRow);
+}
+
+export async function getGameTitleLibraryEntryById(input: {
+  userId: string;
+  gameTitleId: string;
+}): Promise<GameTitleLibraryEntry | null> {
+  const row = await gameTitleLibrarySelect(input.userId)
     .where(
       and(
-        isNull(gameTitle.mergedIntoGameTitleId),
-        or(eq(gameTitle.isUniversal, true), isNotNull(userGameTitle.userId)),
+        accessibleGameTitleWhere(input.userId),
+        eq(gameTitle.id, input.gameTitleId),
       ),
     )
-    .orderBy(asc(gameTitle.title));
+    .limit(1);
 
-  return rows.map((row) => ({
-    id: row.id,
-    title: row.title,
-    normalizedTitle: row.normalizedTitle,
-    color: row.color,
-    imageUrl: row.imageUrl,
-    defaultScoringMode: row.defaultScoringMode,
-    defaultEndingMode: row.defaultEndingMode,
-    defaultTargetRounds: row.defaultTargetRounds,
-    defaultScoreThreshold: row.defaultScoreThreshold,
-    defaultScoreThresholdDirection: row.defaultScoreThresholdDirection,
-    isUniversal: row.isUniversal,
-    createdByUserId: row.createdByUserId,
-    mergedIntoGameTitleId: row.mergedIntoGameTitleId,
-    createdAt: row.createdAt,
-    accessSource: row.ownershipSource ?? "universal",
-    acquiredAt: row.acquiredAt ?? null,
-    acquiredFromUserId: row.acquiredFromUserId ?? null,
-    acquiredFromUserName:
-      [row.acquiredFromUserFirstName, row.acquiredFromUserLastName]
-        .filter(Boolean)
-        .join(" ")
-        .trim() || null,
-    isOwned: Boolean(row.ownershipSource),
-  }));
+  return row[0] ? mapGameTitleLibraryRow(row[0]) : null;
+}
+
+export async function searchGameTitlesByName(input: {
+  userId: string;
+  query: string;
+  limit?: number;
+}): Promise<GameTitleLibraryEntry[]> {
+  const normalizedQuery = normalizeGameTitleTitle(input.query);
+
+  if (!normalizedQuery) {
+    return [];
+  }
+
+  const rows = await gameTitleLibrarySelect(input.userId)
+    .where(
+      and(
+        accessibleGameTitleWhere(input.userId),
+        sql`lower(${gameTitle.title}) like ${`%${normalizedQuery}%`}`,
+      ),
+    )
+    .orderBy(asc(gameTitle.title))
+    .limit(input.limit ?? 10);
+
+  return rows.map(mapGameTitleLibraryRow);
+}
+
+export async function listSuggestedGameTitles(input: {
+  userId: string;
+  limit?: number;
+}): Promise<GameTitleLibraryEntry[]> {
+  const titles = await listGameTitles(input.userId);
+
+  if (titles.length === 0) {
+    return [];
+  }
+
+  const gamePlayersForUser = await db.query.gamePlayers.findMany({
+    where: eq(gamePlayers.userId, input.userId),
+    columns: {
+      gameId: true,
+    },
+  });
+
+  const currentUserGameIds = Array.from(
+    new Set(gamePlayersForUser.map((player) => player.gameId)),
+  );
+  const playedGames =
+    currentUserGameIds.length === 0
+      ? []
+      : await db.query.games.findMany({
+          where: and(
+            inArray(games.id, currentUserGameIds),
+            isNotNull(games.gameTitleId),
+          ),
+          columns: {
+            gameTitleId: true,
+            createdAt: true,
+          },
+        });
+  const allTitledGames = await db.query.games.findMany({
+    where: isNotNull(games.gameTitleId),
+    columns: {
+      gameTitleId: true,
+    },
+  });
+
+  const playedStatsByTitleId = new Map<
+    string,
+    { playCount: number; lastPlayedAt: string }
+  >();
+  for (const game of playedGames) {
+    if (!game.gameTitleId) {
+      continue;
+    }
+
+    const existing = playedStatsByTitleId.get(game.gameTitleId);
+    playedStatsByTitleId.set(game.gameTitleId, {
+      playCount: (existing?.playCount ?? 0) + 1,
+      lastPlayedAt:
+        !existing || game.createdAt > existing.lastPlayedAt
+          ? game.createdAt
+          : existing.lastPlayedAt,
+    });
+  }
+
+  const popularCountByTitleId = new Map<string, number>();
+  for (const game of allTitledGames) {
+    if (!game.gameTitleId) {
+      continue;
+    }
+
+    popularCountByTitleId.set(
+      game.gameTitleId,
+      (popularCountByTitleId.get(game.gameTitleId) ?? 0) + 1,
+    );
+  }
+
+  const sortedTitles = [...titles].sort((left, right) => {
+    const leftPlayed = playedStatsByTitleId.get(left.id);
+    const rightPlayed = playedStatsByTitleId.get(right.id);
+
+    if (leftPlayed && rightPlayed) {
+      if (leftPlayed.lastPlayedAt !== rightPlayed.lastPlayedAt) {
+        return rightPlayed.lastPlayedAt.localeCompare(leftPlayed.lastPlayedAt);
+      }
+
+      if (leftPlayed.playCount !== rightPlayed.playCount) {
+        return rightPlayed.playCount - leftPlayed.playCount;
+      }
+    } else if (leftPlayed || rightPlayed) {
+      return leftPlayed ? -1 : 1;
+    }
+
+    if (left.isOwned !== right.isOwned) {
+      return left.isOwned ? -1 : 1;
+    }
+
+    const leftPopularity = popularCountByTitleId.get(left.id) ?? 0;
+    const rightPopularity = popularCountByTitleId.get(right.id) ?? 0;
+
+    if (leftPopularity !== rightPopularity) {
+      return rightPopularity - leftPopularity;
+    }
+
+    return left.title.localeCompare(right.title);
+  });
+
+  const limitedTitles = sortedTitles.slice(0, input.limit ?? 4);
+
+  if (limitedTitles.length <= 1) {
+    return limitedTitles;
+  }
+
+  const [bestMatch, ...remainingTitles] = limitedTitles;
+  return [...remainingTitles, bestMatch];
 }
 
 export async function listAllGameTitles(): Promise<GameTitleBase[]> {

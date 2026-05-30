@@ -2,6 +2,7 @@
 
 import { loadUser } from "@/lib/auth/protected-session";
 import { getWinningUserIds } from "@/lib/game/v1";
+import { listAcceptedFriendsForUser } from "@/lib/db/store/friendship.store";
 import {
   addPlayerToGame,
   createGameRound,
@@ -13,11 +14,14 @@ import {
   getGameById,
   getGameRoundByGameAndNumber,
   getGameRoundScoreByRoundAndUser,
+  getGameTitleLibraryEntryById,
   getGameTitleById,
   grantGameTitleToGameParticipants,
+  listSuggestedGameTitles,
   mergeGameTitles,
   promoteGameTitleToUniversal,
   replaceGameWinners,
+  searchGameTitlesByName,
   shareGameTitleWithUser,
   updateGameTitleDefaults,
   updateGame,
@@ -25,6 +29,7 @@ import {
   updateGameRoundScore,
   deleteGame,
 } from "@/lib/db/store/game.store";
+import { listGuestsCreatedByUser } from "@/lib/db/store/user.store";
 import {
   gameSettingsToTitleDefaults,
   normalizeGameTitleDefaults,
@@ -76,6 +81,49 @@ async function requireGameCreator(gameId: string) {
   }
 
   return context;
+}
+
+export async function getPlayGameSnapshot(gameId: string) {
+  const { user, game, isCreator } = await requireGameMembership(gameId);
+  const [friends, guests] = await Promise.all([
+    listAcceptedFriendsForUser(user.id),
+    listGuestsCreatedByUser(user.id),
+  ]);
+
+  return {
+    currentUserId: user.id,
+    isCreator,
+    playerOptions: [...friends, ...guests],
+    game,
+  };
+}
+
+export async function getCreateGameTitleSuggestions() {
+  const user = await requireCurrentUser();
+
+  return listSuggestedGameTitles({
+    userId: user.id,
+    limit: 5,
+  });
+}
+
+export async function searchCreateGameTitles(query: string) {
+  const user = await requireCurrentUser();
+
+  return searchGameTitlesByName({
+    userId: user.id,
+    query,
+    limit: 8,
+  });
+}
+
+export async function getCreateGameTitleById(gameTitleId: string) {
+  const user = await requireCurrentUser();
+
+  return getGameTitleLibraryEntryById({
+    userId: user.id,
+    gameTitleId,
+  });
 }
 
 async function requireAdminUser() {

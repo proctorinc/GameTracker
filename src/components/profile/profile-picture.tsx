@@ -1,8 +1,9 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { getInitials } from "../utils";
 import type { UserBase } from "@/lib/db/store";
-import { ReactNode } from "react";
+import { getProfileColorSurfaceStyles } from "./profile-color-styles";
 
 interface ProfilePictureProps {
   user: Pick<UserBase, "id" | "firstName" | "lastName" | "color">;
@@ -13,11 +14,11 @@ interface ProfilePictureProps {
 }
 
 const sizeClasses = {
-  xs: "w-8 h-8 rounded-md text-xs",
-  sm: "w-10 h-10 rounded-lg",
-  md: "w-16 h-16 text-xl rounded-2xl",
-  lg: "w-24 h-24 text-3xl rounded-3xl",
-  xl: "w-32 h-32 text-6xl rounded-4xl",
+  xs: "w-8 h-8 text-xs",
+  sm: "w-10 h-10 text-sm",
+  md: "w-16 h-16 text-xl",
+  lg: "w-24 h-24 text-3xl",
+  xl: "w-32 h-32 text-5xl",
 };
 
 export default function ProfilePicture({
@@ -30,22 +31,26 @@ export default function ProfilePicture({
   const initials = getInitials(user);
   const displayName =
     [user.firstName, user.lastName].filter(Boolean).join(" ") || "User";
+  const avatarStyles = getProfileColorSurfaceStyles(user.color);
 
   const avatar = (
     <div
       className={cn(
-        "relative shrink-0 select-none overflow-hidden font-black text-slate-950 shadow-md ring-1 ring-black/8 dark:ring-white/12 flex items-center justify-center",
+        "relative isolate shrink-0 select-none overflow-hidden rounded-full flex items-center justify-center ring-1 ring-black/6 dark:ring-white/12",
         sizeClasses[size],
         linkToProfile && "transition-transform hover:scale-[1.03]",
         className,
       )}
-      style={{ backgroundColor: user.color }}
+      style={avatarStyles}
     >
-      <div className="absolute inset-0 opacity-[0.25] mix-blend-overlay pointer-events-none" />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle,rgba(255,255,255,0.5)_0%,rgba(255,255,255,0.2)_50%,transparent_100%)] dark:bg-[radial-gradient(circle,rgba(15,23,42,0.42)_0%,rgba(15,23,42,0.22)_50%,transparent_100%)]" />
-      <div className="relative flex flex-col items-center justify-center line-height-none tracking-tight">
+      <div className="pointer-events-none absolute inset-[1px] rounded-full border border-[var(--profile-surface-ring)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_28%,var(--profile-surface-highlight)_0%,transparent_58%)] dark:bg-[radial-gradient(circle_at_30%_28%,rgba(15,23,42,0.18)_0%,transparent_58%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,transparent_45%,var(--profile-surface-shade)_100%)] dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.06)_0%,rgba(15,23,42,0.22)_100%)]" />
+      <div className="relative flex flex-col items-center justify-center leading-none">
         {content}
-        {!content && <span className="leading-none ">{initials}</span>}
+        {!content && (
+          <span className="leading-none font-black uppercase">{initials}</span>
+        )}
       </div>
     </div>
   );

@@ -44,7 +44,7 @@ export function CompletedGamesSection() {
         {recentCompletedGames.length === 0 ? (
           <CardEmpty className="flex flex-col items-center gap-3">
             <p>No completed games yet.</p>
-            <Link href="/game/create" className={sectionActionClassName}>
+            <Link href="/game/create/settings" className={sectionActionClassName}>
               Start your first game
               <ArrowRight />
             </Link>

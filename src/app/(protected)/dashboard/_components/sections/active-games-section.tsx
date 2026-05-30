@@ -43,7 +43,7 @@ export function ActiveGamesSection() {
         {recentActiveGames.length === 0 ? (
           <CardEmpty className="flex flex-col items-center gap-3">
             <p>No active games yet.</p>
-            <Link href="/game/create" className={sectionActionClassName}>
+            <Link href="/game/create/settings" className={sectionActionClassName}>
               Start a game
               <ArrowRight />
             </Link>
@@ -75,10 +75,7 @@ export function ActiveGamesSection() {
                 </div>
               </div>
               <div className="mt-2 flex items-center gap-3">
-                <GamePlayerStack
-                  players={game.players}
-                  currentUserId={user.id}
-                />
+                <GamePlayerStack players={game.players} />
                 <div className="min-w-0 flex-1">
                   <p className={cn("truncate", sectionItemMetaClassName)}>
                     {game.players

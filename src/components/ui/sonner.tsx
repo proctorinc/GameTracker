@@ -9,7 +9,7 @@ export function Toaster(props: ToasterProps) {
       duration={3000}
       expand
       mobileOffset={{ bottom: 20, left: 16, right: 16 }}
-      position="bottom-center"
+      position="top-center"
       richColors
       toastOptions={{
         className:

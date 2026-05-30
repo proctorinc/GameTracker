@@ -51,7 +51,7 @@ export function EmptyDashboardStateSection() {
         </div>
 
         <Link
-          href="/game/create"
+          href="/game/create/settings"
           className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-foreground px-5 text-lg font-bold text-background transition-colors hover:opacity-90"
         >
           Start your first game

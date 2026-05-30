@@ -36,12 +36,13 @@ export default async function PlayGamePage({ params }: PageProps) {
     listAcceptedFriendsForUser(user.id),
     listGuestsCreatedByUser(user.id),
   ]);
+  const playerOptions = [...friends, ...guests];
 
   return (
     <PlayGame
       currentUserId={user.id}
       isCreator={isCreator}
-      playerOptions={[...friends, ...guests]}
+      playerOptions={playerOptions}
       game={game}
     />
   );

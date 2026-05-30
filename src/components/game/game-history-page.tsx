@@ -46,7 +46,7 @@ export default function GameHistoryPage({
               games={games}
               currentUserId={user.id}
               emptyMessage="No games match these filters yet."
-              emptyActionHref="/game/create"
+              emptyActionHref="/game/create/settings"
               emptyActionLabel="Start a new game"
             />
           </CardContent>

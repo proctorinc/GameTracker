@@ -1,12 +1,9 @@
 import CreateGameSettingsStep from "@/components/game/create-game-settings-step";
 import { loadUser } from "@/lib/auth/protected-session";
-import { listGameTitles } from "@/lib/db/store/game.store";
 import {
-  APP_GAME_SETTINGS_DEFAULTS,
-  normalizeGameTitleDefaults,
-  resolveGameSettingsDefaults,
-} from "@/lib/game/title-defaults";
-import { redirect } from "next/navigation";
+  getGameTitleLibraryEntryById,
+  listSuggestedGameTitles,
+} from "@/lib/db/store/game.store";
 
 type PageProps = {
   searchParams: Promise<{
@@ -20,43 +17,24 @@ export default async function CreateGameSettingsPage({
 }: PageProps) {
   const { user } = await loadUser();
   const { titleId, newTitle } = await searchParams;
-  const trimmedNewTitle = newTitle?.trim() ?? "";
-
-  if (!titleId && !trimmedNewTitle) {
-    redirect("/game/create");
-  }
-
-  const gameTitles = await listGameTitles(user.id);
-
-  if (titleId) {
-    const selectedTitle = gameTitles.find((title) => title.id === titleId);
-
-    if (!selectedTitle) {
-      redirect("/game/create");
-    }
-
-    return (
-      <CreateGameSettingsStep
-        draftTitle={{
-          titleId: selectedTitle.id,
-          newTitle: null,
-          label: selectedTitle.title,
-        }}
-        initialSettings={resolveGameSettingsDefaults(
-          normalizeGameTitleDefaults(selectedTitle),
-        )}
-      />
-    );
-  }
+  const [suggestedGameTitles, initialSelectedTitle] = await Promise.all([
+    listSuggestedGameTitles({
+      userId: user.id,
+      limit: 5,
+    }),
+    titleId
+      ? getGameTitleLibraryEntryById({
+          userId: user.id,
+          gameTitleId: titleId,
+        })
+      : Promise.resolve(null),
+  ]);
 
   return (
     <CreateGameSettingsStep
-      draftTitle={{
-        titleId: null,
-        newTitle: trimmedNewTitle,
-        label: trimmedNewTitle,
-      }}
-      initialSettings={APP_GAME_SETTINGS_DEFAULTS}
+      initialNewTitle={newTitle?.trim() ?? null}
+      initialSelectedTitle={initialSelectedTitle}
+      suggestedGameTitles={suggestedGameTitles}
     />
   );
 }

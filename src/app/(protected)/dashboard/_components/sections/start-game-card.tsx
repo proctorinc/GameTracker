@@ -7,7 +7,7 @@ import { Card, CardAction, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function StartGameCard() {
   return (
-    <Link href="/game/create">
+    <Link href="/game/create/settings">
       <Card>
         <CardHeader>
           <CardTitle>Start a new game</CardTitle>

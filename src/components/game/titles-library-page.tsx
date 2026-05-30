@@ -118,7 +118,7 @@ export default function TitlesLibraryPage({ data }: { data: TitlesPageData }) {
             {gameTitles.length === 0 ? (
               <CardEmpty className="col-span-full flex flex-col items-center gap-3 p-10">
                 <p>No titles matched these filters yet.</p>
-                <Link href="/game/create" className="inline-flex items-center gap-2 text-sm font-semibold text-primary transition-colors hover:text-primary/80">
+                <Link href="/game/create/settings" className="inline-flex items-center gap-2 text-sm font-semibold text-primary transition-colors hover:text-primary/80">
                   Start a game
                   <ArrowRight className="size-4" />
                 </Link>
