@@ -1,4 +1,4 @@
-type LogValue =
+export type LogValue =
   | string
   | number
   | boolean
@@ -7,7 +7,27 @@ type LogValue =
   | Record<string, unknown>
   | Array<unknown>;
 
-type LogMeta = Record<string, LogValue>;
+export type LogMeta = Record<string, LogValue>;
+
+function writeLog(level: "info" | "warn" | "error", event: string, payload: LogMeta) {
+  const entry = JSON.stringify({
+    level,
+    event,
+    ...payload,
+  });
+
+  if (level === "info") {
+    console.info(entry);
+    return;
+  }
+
+  if (level === "warn") {
+    console.warn(entry);
+    return;
+  }
+
+  console.error(entry);
+}
 
 function normalizeError(error: unknown) {
   if (error instanceof Error) {
@@ -24,24 +44,18 @@ function normalizeError(error: unknown) {
 }
 
 export function logInfo(event: string, meta: LogMeta = {}) {
-  console.info(
-    JSON.stringify({
-      level: "info",
-      event,
-      ...meta,
-    }),
-  );
+  writeLog("info", event, meta);
+}
+
+export function logWarn(event: string, meta: LogMeta = {}) {
+  writeLog("warn", event, meta);
 }
 
 export function logError(event: string, error: unknown, meta: LogMeta = {}) {
-  console.error(
-    JSON.stringify({
-      level: "error",
-      event,
-      ...meta,
-      error: normalizeError(error),
-    }),
-  );
+  writeLog("error", event, {
+    ...meta,
+    error: normalizeError(error),
+  });
 }
 
 export function redactPhoneNumber(phoneNumber?: string | null) {
@@ -55,6 +69,18 @@ export function redactPhoneNumber(phoneNumber?: string | null) {
   }
 
   return `***${digits.slice(-4)}`;
+}
+
+export function redactToken(token?: string | null) {
+  if (!token) {
+    return null;
+  }
+
+  if (token.length <= 6) {
+    return `***${token}`;
+  }
+
+  return `${token.slice(0, 3)}***${token.slice(-3)}`;
 }
 
 export function describeDatabaseTarget(databaseUrl: string) {
