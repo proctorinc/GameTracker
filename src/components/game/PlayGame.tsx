@@ -31,6 +31,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { WinnerIndicator } from "@/components/ui/winner-indicator";
 import type { GameForPlayPage } from "@/lib/db/store/game.store";
 import type { UserBase } from "@/lib/db/store/user.store";
 import {
@@ -45,14 +46,10 @@ import {
   type PlayGameSnapshot,
 } from "@/components/game/play-game-state";
 import {
-  Crown,
-  Gamepad2,
-  House,
+  DoorOpen,
   ListChecks,
   LoaderCircle,
   Plus,
-  Redo,
-  Redo2,
   Trophy,
   Undo2,
   UserPlus,
@@ -71,6 +68,8 @@ import {
   useTransition,
 } from "react";
 import { toast } from "sonner";
+import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 type PlayGameProps = {
   currentUserId: string;
@@ -810,7 +809,7 @@ export default function PlayGame(props: PlayGameProps) {
       data-testid="play-game-shell"
     >
       <div className="mx-auto flex w-full max-w-md flex-col gap-4">
-        <Card className="overflow-hidden border-border/70 p-0 shadow-sm">
+        <Card className="overflow-hidden p-0 shadow-sm">
           <CardHeader className="gap-3 p-0">
             <div
               className="relative overflow-hidden px-4 py-3"
@@ -852,10 +851,7 @@ export default function PlayGame(props: PlayGameProps) {
                     {formatEndingSummary(game)}
                   </Badge>
                   {isCompleted ? (
-                    <Badge
-                      className="border-amber-500/30 bg-amber-500/12 text-amber-700 dark:text-amber-300"
-                      variant="outline"
-                    >
+                    <Badge className="winner-badge" variant="outline">
                       Complete
                     </Badge>
                   ) : null}
@@ -866,9 +862,10 @@ export default function PlayGame(props: PlayGameProps) {
         </Card>
 
         {isCompleted ? (
-          <Card className="bg-amber-500 text-amber-200">
-            <CardHeader className="flex items-center justify-center gap-2 text-2xl font-bold">
-              <Crown className="size-6" /> {formatWinners(game)}
+          <Card className="winner-surface overflow-hidden border rounded-3xl">
+            <CardHeader className="flex items-center justify-center gap-3 text-center text-2xl font-bold text-[color:var(--winner-text)]">
+              <WinnerIndicator label="Winner" size="md" />
+              <span>{formatWinners(game)}</span>
             </CardHeader>
           </Card>
         ) : null}
@@ -915,14 +912,20 @@ export default function PlayGame(props: PlayGameProps) {
                     >
                       <ProfilePicture
                         user={player.user}
-                        className="border-none"
+                        className={cn(
+                          "border-none",
+                          isWinner && "winner-avatar-ring",
+                        )}
                       />
                     </button>
                   ) : (
                     <div className="relative z-10 flex shrink-0 items-center justify-center rounded-full">
                       <ProfilePicture
                         user={player.user}
-                        className="border-none"
+                        className={cn(
+                          "border-none",
+                          isWinner && "winner-avatar-ring",
+                        )}
                       />
                     </div>
                   )}
@@ -940,9 +943,10 @@ export default function PlayGame(props: PlayGameProps) {
                         </Badge>
                       ) : null}
                       {isWinner ? (
-                        <span className="inline-flex items-center justify-center rounded-full border border-amber-100/50 bg-amber-500/90 p-1 text-amber-100 shadow-sm w-fit">
-                          <Crown className="size-5" />
-                        </span>
+                        <WinnerIndicator
+                          label={`${getDisplayName(player.user)} won`}
+                          variant="icon"
+                        />
                       ) : null}
                     </div>
                   </div>
@@ -971,16 +975,16 @@ export default function PlayGame(props: PlayGameProps) {
         </div>
 
         {!isCreator ? (
-          <Card className="border-dashed border-slate-200 bg-white/70 p-0">
+          <Card className="border-dashed bg-card/70 p-0">
             <CardContent className="px-4 py-4 text-sm text-slate-500">
-              Only the creator can update scores and manage the game.
+              View Mode. Only the creator can update scores and manage the game.
             </CardContent>
           </Card>
         ) : null}
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-30 px-3 pb-3 sm:px-6">
-        <div className="mx-auto w-full max-w-md rounded-[2rem] border border-border/80 bg-card/95 p-3 text-card-foreground shadow-[0_-14px_45px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:shadow-[0_-18px_50px_rgba(2,6,23,0.45)]">
+        <div className="mx-auto w-full max-w-md rounded-[2rem] border border-border/80 bg-card/20 p-3 text-card-foreground shadow-[0_-14px_45px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:shadow-[0_-18px_50px_rgba(2,6,23,0.45)]">
           <div
             className={`grid gap-2 ${
               isCreator
@@ -992,14 +996,28 @@ export default function PlayGame(props: PlayGameProps) {
                   : "grid-cols-1"
             }`}
           >
-            <Button
-              className="h-16 flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase"
-              onClick={openExitConfirmation}
-              variant="outline"
-            >
-              <Undo2 className="size-5" />
-              Exit
-            </Button>
+            {!isCompleted && (
+              <Button
+                className="h-16 flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase"
+                onClick={openExitConfirmation}
+                variant="outline"
+              >
+                <Undo2 className="size-5" />
+                Exit
+              </Button>
+            )}
+
+            {isCompleted && (
+              <Link href="/dashboard">
+                <Button
+                  className="h-16 flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase"
+                  variant="outline"
+                >
+                  <DoorOpen className="size-5" />
+                  Return
+                </Button>
+              </Link>
+            )}
 
             {isCreator ? (
               <Button

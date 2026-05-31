@@ -21,7 +21,6 @@ import {
   mergeGameTitles,
   promoteGameTitleToUniversal,
   replaceGameWinners,
-  searchGameTitlesByName,
   shareGameTitleWithUser,
   updateGameTitleDefaults,
   updateGame,
@@ -104,16 +103,6 @@ export async function getCreateGameTitleSuggestions() {
   return listSuggestedGameTitles({
     userId: user.id,
     limit: 5,
-  });
-}
-
-export async function searchCreateGameTitles(query: string) {
-  const user = await requireCurrentUser();
-
-  return searchGameTitlesByName({
-    userId: user.id,
-    query,
-    limit: 8,
   });
 }
 

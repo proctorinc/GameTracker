@@ -81,7 +81,7 @@ export default async function PublicProfilePage({
   }
 
   return (
-    <main className="min-h-screen px-4 pb-8">
+    <main className="min-h-screen px-4 pb-40">
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <Card className="overflow-hidden border border-border/80 bg-card/95 pt-0 shadow-2xl">
           <div
@@ -125,9 +125,6 @@ export default async function PublicProfilePage({
                 profileName={data.profile.displayName}
                 viewerState={data.viewerState}
               />
-              <p className="text-sm text-muted-foreground">
-                Public details only. Phone number stays private.
-              </p>
             </div>
           </CardContent>
         </Card>

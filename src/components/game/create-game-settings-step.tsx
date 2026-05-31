@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  createConfiguredGame,
-  searchCreateGameTitles,
-} from "@/app/actions/game";
+import { createConfiguredGame } from "@/app/actions/game";
 import GameSettingsFields, {
   type EditableGameSettings,
 } from "@/components/game/game-settings-fields";
@@ -26,17 +23,10 @@ import {
   LoaderCircle,
   Plus,
   Redo2,
-  RefreshCw,
   Search,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import {
-  useDeferredValue,
-  useEffect,
-  useMemo,
-  useState,
-  useTransition,
-} from "react";
+import { useDeferredValue, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 type DraftTitle =
@@ -47,11 +37,29 @@ function normalizeTitleValue(value: string) {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+function resolveEditableSettings(
+  title: GameTitleLibraryEntry | null,
+): EditableGameSettings {
+  const defaults = title
+    ? resolveGameSettingsDefaults(normalizeGameTitleDefaults(title))
+    : APP_GAME_SETTINGS_DEFAULTS;
+
+  return {
+    scoringMode: defaults.scoringMode,
+    endingMode: defaults.endingMode,
+    targetRounds: String(defaults.targetRounds),
+    scoreThreshold: String(defaults.scoreThreshold),
+    scoreThresholdDirection: defaults.scoreThresholdDirection,
+  };
+}
+
 export default function CreateGameSettingsStep({
+  allGameTitles,
   initialSelectedTitle,
   initialNewTitle,
   suggestedGameTitles,
 }: {
+  allGameTitles: GameTitleLibraryEntry[];
   initialSelectedTitle: GameTitleLibraryEntry | null;
   initialNewTitle: string | null;
   suggestedGameTitles: GameTitleLibraryEntry[];
@@ -65,51 +73,23 @@ export default function CreateGameSettingsStep({
   );
   const [searchValue, setSearchValue] = useState("");
   const deferredSearchValue = useDeferredValue(searchValue);
-  const [searchResults, setSearchResults] = useState<GameTitleLibraryEntry[]>(
-    [],
-  );
-  const [isSearching, setIsSearching] = useState(false);
 
   const isChoosingTitle = !selectedTitle && !selectedNewTitle;
   const trimmedSearchValue = searchValue.trim();
   const normalizedSearchValue = normalizeTitleValue(deferredSearchValue);
-
-  useEffect(() => {
-    let isCancelled = false;
-
-    async function runSearch() {
-      if (!normalizedSearchValue || !isChoosingTitle) {
-        setSearchResults([]);
-        setIsSearching(false);
-        return;
-      }
-
-      setIsSearching(true);
-
-      try {
-        const results = await searchCreateGameTitles(deferredSearchValue);
-
-        if (!isCancelled) {
-          setSearchResults(results);
-        }
-      } catch {
-        if (!isCancelled) {
-          setSearchResults([]);
-          toast.error("Could not search games right now");
-        }
-      } finally {
-        if (!isCancelled) {
-          setIsSearching(false);
-        }
-      }
+  const searchResults = useMemo(() => {
+    if (!normalizedSearchValue || !isChoosingTitle) {
+      return [];
     }
 
-    void runSearch();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [deferredSearchValue, isChoosingTitle, normalizedSearchValue]);
+    return allGameTitles
+      .filter((title) =>
+        [title.title, title.normalizedTitle].some((value) =>
+          value.toLowerCase().includes(normalizedSearchValue),
+        ),
+      )
+      .slice(0, 8);
+  }, [allGameTitles, isChoosingTitle, normalizedSearchValue]);
 
   const hasExactSearchMatch = useMemo(
     () =>
@@ -141,9 +121,6 @@ export default function CreateGameSettingsStep({
 
     return null;
   }, [selectedNewTitle, selectedTitle]);
-  const draftTitleKey = draftTitle
-    ? (draftTitle.titleId ?? `new:${draftTitle.newTitle}`)
-    : "none";
   const initialSettings = useMemo(
     () =>
       selectedTitle
@@ -151,23 +128,9 @@ export default function CreateGameSettingsStep({
         : APP_GAME_SETTINGS_DEFAULTS,
     [selectedTitle],
   );
-  const [settings, setSettings] = useState<EditableGameSettings>(() => ({
-    scoringMode: initialSettings.scoringMode,
-    endingMode: initialSettings.endingMode,
-    targetRounds: String(initialSettings.targetRounds),
-    scoreThreshold: String(initialSettings.scoreThreshold),
-    scoreThresholdDirection: initialSettings.scoreThresholdDirection,
-  }));
-
-  useEffect(() => {
-    setSettings({
-      scoringMode: initialSettings.scoringMode,
-      endingMode: initialSettings.endingMode,
-      targetRounds: String(initialSettings.targetRounds),
-      scoreThreshold: String(initialSettings.scoreThreshold),
-      scoreThresholdDirection: initialSettings.scoreThresholdDirection,
-    });
-  }, [draftTitleKey, initialSettings]);
+  const [settings, setSettings] = useState<EditableGameSettings>(() =>
+    resolveEditableSettings(initialSelectedTitle),
+  );
 
   const scoringSummary =
     settings.scoringMode === "lowest_wins"
@@ -188,8 +151,8 @@ export default function CreateGameSettingsStep({
   function selectLibraryTitle(title: GameTitleLibraryEntry) {
     setSelectedTitle(title);
     setSelectedNewTitle(null);
+    setSettings(resolveEditableSettings(title));
     setSearchValue("");
-    setSearchResults([]);
   }
 
   function selectNewTitle(title: string) {
@@ -201,14 +164,14 @@ export default function CreateGameSettingsStep({
 
     setSelectedTitle(null);
     setSelectedNewTitle(normalizedTitle);
+    setSettings(resolveEditableSettings(null));
     setSearchValue("");
-    setSearchResults([]);
   }
 
   function resetSelection() {
     setSelectedTitle(null);
     setSelectedNewTitle(null);
-    setSearchResults([]);
+    setSettings(resolveEditableSettings(null));
     setSearchValue("");
   }
 
@@ -277,9 +240,6 @@ export default function CreateGameSettingsStep({
                     <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                       {normalizedSearchValue ? "Matches" : "Suggested games"}
                     </p>
-                    {isSearching ? (
-                      <LoaderCircle className="size-4 animate-spin text-muted-foreground" />
-                    ) : null}
                   </div>
 
                   <Separator />
@@ -406,22 +366,58 @@ export default function CreateGameSettingsStep({
               </>
             ) : draftTitle ? (
               <button
-                className="flex w-full items-center justify-between rounded-2xl border border-border bg-muted/60 px-4 py-3 text-left transition-colors hover:bg-muted"
+                className={cn(
+                  "relative flex w-full items-center justify-between overflow-hidden rounded-2xl border border-border px-4 py-4 text-left transition",
+                  selectedTitle
+                    ? "hover:scale-[1.01] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    : "bg-muted/60 transition-colors hover:bg-muted",
+                )}
                 onClick={resetSelection}
                 type="button"
+                style={
+                  selectedTitle
+                    ? {
+                        backgroundColor: selectedTitle.color,
+                      }
+                    : undefined
+                }
               >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-foreground">
+                {selectedTitle?.imageUrl ? (
+                  <div
+                    className="absolute inset-0 bg-cover bg-center opacity-55"
+                    style={{
+                      backgroundImage: `url("${selectedTitle.imageUrl}")`,
+                    }}
+                  />
+                ) : null}
+                {selectedTitle ? (
+                  <div className="absolute inset-0 bg-linear-to-r from-black/65 via-black/40 to-black/15 dark:from-black/75 dark:via-black/50 dark:to-black/20" />
+                ) : null}
+                <div className="relative z-10 min-w-0">
+                  <p
+                    className={cn(
+                      "truncate text-sm font-medium",
+                      selectedTitle ? "text-white" : "text-foreground",
+                    )}
+                  >
                     {draftTitle.label}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    {draftTitle.titleId
-                      ? "Selected from your library"
-                      : "New title"}{" "}
-                    · Tap to change
+                  <p
+                    className={cn(
+                      "text-xs",
+                      selectedTitle ? "text-white/85" : "text-muted-foreground",
+                    )}
+                  >
+                    {draftTitle.titleId ? "Selected" : "New title"} · Tap to
+                    change
                   </p>
                 </div>
-                <Redo2 className="size-4 text-muted-foreground" />
+                <Redo2
+                  className={cn(
+                    "relative z-10 size-4 shrink-0",
+                    selectedTitle ? "text-white/85" : "text-muted-foreground",
+                  )}
+                />
               </button>
             ) : null}
           </CardContent>

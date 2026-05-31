@@ -34,6 +34,7 @@
   "exclude": [
     "node_modules",
     "tests/**",
+    "scripts/**",
     "vitest.config.ts",
     "vitest.setup.ts",
     "vitest.setup.shared.ts",

@@ -21,9 +21,6 @@ export default function GameHistoryPage({
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="text-xl font-black">Filters</CardTitle>
-          </CardHeader>
           <CardContent>
             <GameHistoryFilters
               filters={filters}

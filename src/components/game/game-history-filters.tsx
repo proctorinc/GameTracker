@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { GameHistoryPageData } from "@/app/actions/pages/game-history";
 import { ChevronDown } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -27,6 +28,39 @@ export default function GameHistoryFilters({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const statusItems = [
+    { value: "all", label: "All games" },
+    { value: "active", label: "In progress" },
+    { value: "completed", label: "Completed" },
+  ] as const;
+  const gameTitleItems = [
+    { value: "all", label: "All titles" },
+    ...gameTitles.map((title) => ({
+      value: title.id,
+      label: title.title,
+    })),
+  ];
+  const friendItems = [
+    { value: "all", label: "Anyone" },
+    ...friends.map((friend) => ({
+      value: friend.id,
+      label:
+        [friend.firstName, friend.lastName].filter(Boolean).join(" ") ||
+        "Friend",
+    })),
+  ];
+  const creatorItems = [
+    { value: "all", label: "Anyone" },
+    { value: "me", label: "Created by me" },
+  ] as const;
+  const outcomeItems = [
+    { value: "all", label: "Any result" },
+    { value: "won", label: "I won" },
+  ] as const;
+  const sortItems = [
+    { value: "newest", label: "Newest first" },
+    { value: "oldest", label: "Oldest first" },
+  ] as const;
   const activeFilterCount = [
     filters.status !== "all",
     Boolean(filters.gameTitleId),
@@ -72,10 +106,10 @@ export default function GameHistoryFilters({
     <details className="group rounded-2xl border border-border bg-muted/60">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
         <div>
-          <p className="text-sm font-medium">Filter games</p>
+          <p className="text-sm font-medium">Filters</p>
           <p className="text-xs text-muted-foreground">
             {activeFilterCount > 0
-              ? `${activeFilterCount} filter${activeFilterCount === 1 ? "" : "s"} active`
+              ? `${activeFilterCount} active`
               : "Status, title, friend, creator, outcome, and sort"}
           </p>
         </div>
@@ -85,6 +119,7 @@ export default function GameHistoryFilters({
         <div className="space-y-1.5">
           <Label>Status</Label>
           <Select
+            items={statusItems}
             value={filters.status}
             onValueChange={(value) => updateFilter("status", value)}
           >
@@ -101,49 +136,32 @@ export default function GameHistoryFilters({
 
         <div className="space-y-1.5">
           <Label>Game title</Label>
-          <Select
+          <SearchableSelect
             value={filters.gameTitleId ?? "all"}
             onValueChange={(value) => updateFilter("gameTitleId", value)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All titles</SelectItem>
-              {gameTitles.map((title) => (
-                <SelectItem key={title.id} value={title.id}>
-                  {title.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            options={gameTitleItems}
+            placeholder="All titles"
+            searchPlaceholder="Search game titles"
+            emptyMessage="No titles match your search."
+          />
         </div>
 
         <div className="space-y-1.5">
           <Label>With friend</Label>
-          <Select
+          <SearchableSelect
             value={filters.friendUserId ?? "all"}
             onValueChange={(value) => updateFilter("friendUserId", value)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Anyone</SelectItem>
-              {friends.map((friend) => (
-                <SelectItem key={friend.id} value={friend.id}>
-                  {[friend.firstName, friend.lastName]
-                    .filter(Boolean)
-                    .join(" ") || "Friend"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            options={friendItems}
+            placeholder="Anyone"
+            searchPlaceholder="Search friends"
+            emptyMessage="No friends match your search."
+          />
         </div>
 
         <div className="space-y-1.5">
           <Label>Creator</Label>
           <Select
+            items={creatorItems}
             value={filters.creator}
             onValueChange={(value) => updateFilter("creator", value)}
           >
@@ -160,6 +178,7 @@ export default function GameHistoryFilters({
         <div className="space-y-1.5">
           <Label>Outcome</Label>
           <Select
+            items={outcomeItems}
             value={filters.outcome}
             onValueChange={(value) => updateFilter("outcome", value)}
           >
@@ -177,6 +196,7 @@ export default function GameHistoryFilters({
           <Label>Sort</Label>
           <div className="flex gap-2">
             <Select
+              items={sortItems}
               value={filters.sort}
               onValueChange={(value) => updateFilter("sort", value)}
             >

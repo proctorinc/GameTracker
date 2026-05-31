@@ -12,63 +12,44 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Search, ChevronDown } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 type TitleFilters = TitlesPageData["filters"];
 
 export default function TitlesLibraryFilters({
   filters,
+  onFiltersChange,
+  onClearFilters,
 }: {
   filters: TitleFilters;
+  onFiltersChange: (nextFilters: Partial<TitleFilters>) => void;
+  onClearFilters: () => void;
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const scopeItems = [
+    { value: "all", label: "All titles" },
+    { value: "mine", label: "My titles" },
+    { value: "universal", label: "Universal titles" },
+  ] as const;
+  const sourceItems = [
+    { value: "all", label: "Any source" },
+    { value: "universal", label: "Universal" },
+    { value: "created", label: "Created" },
+    { value: "played", label: "Played" },
+    { value: "shared", label: "Shared" },
+    { value: "merged", label: "Merged" },
+    { value: "admin_seed", label: "Admin seed" },
+  ] as const;
+  const sortItems = [
+    { value: "title-asc", label: "Title A-Z" },
+    { value: "title-desc", label: "Title Z-A" },
+    { value: "newest", label: "Newest first" },
+    { value: "oldest", label: "Oldest first" },
+  ] as const;
   const activeFilterCount = [
     filters.scope !== "all",
     filters.source !== "all",
     filters.sort !== "title-asc",
     Boolean(filters.query),
   ].filter(Boolean).length;
-
-  function updateFilter(
-    key: keyof TitleFilters extends infer K ? (K extends string ? K : never) : never,
-    value: string | null,
-  ) {
-    if (!value) {
-      return;
-    }
-
-    const params = new URLSearchParams(searchParams.toString());
-
-    if (
-      (key === "scope" && value === "all") ||
-      (key === "source" && value === "all") ||
-      (key === "sort" && value === "title-asc")
-    ) {
-      params.delete(key);
-    } else {
-      params.set(key, value);
-    }
-
-    router.push(params.size ? `${pathname}?${params.toString()}` : pathname);
-  }
-
-  function updateQuery(value: string) {
-    const params = new URLSearchParams(searchParams.toString());
-
-    if (value.trim()) {
-      params.set("query", value);
-    } else {
-      params.delete("query");
-    }
-
-    router.push(params.size ? `${pathname}?${params.toString()}` : pathname);
-  }
-
-  function clearFilters() {
-    router.push(pathname);
-  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -77,9 +58,13 @@ export default function TitlesLibraryFilters({
         <Input
           className="h-12 rounded-[1.2rem] pl-11"
           name="query"
-          onChange={(event) => updateQuery(event.target.value)}
+          onChange={(event) =>
+            onFiltersChange({
+              query: event.target.value,
+            })
+          }
           placeholder="Search titles by name"
-          value={searchParams.get("query") ?? ""}
+          value={filters.query}
         />
       </div>
 
@@ -99,8 +84,13 @@ export default function TitlesLibraryFilters({
           <div className="space-y-1.5">
             <Label>Scope</Label>
             <Select
+              items={scopeItems}
               value={filters.scope}
-              onValueChange={(value) => updateFilter("scope", value)}
+              onValueChange={(value) =>
+                onFiltersChange({
+                  scope: value as TitleFilters["scope"],
+                })
+              }
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
@@ -116,8 +106,13 @@ export default function TitlesLibraryFilters({
           <div className="space-y-1.5">
             <Label>Source</Label>
             <Select
+              items={sourceItems}
               value={filters.source}
-              onValueChange={(value) => updateFilter("source", value)}
+              onValueChange={(value) =>
+                onFiltersChange({
+                  source: value as TitleFilters["source"],
+                })
+              }
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
@@ -138,8 +133,13 @@ export default function TitlesLibraryFilters({
             <Label>Sort</Label>
             <div className="flex gap-2">
               <Select
+                items={sortItems}
                 value={filters.sort}
-                onValueChange={(value) => updateFilter("sort", value)}
+                onValueChange={(value) =>
+                  onFiltersChange({
+                    sort: value as TitleFilters["sort"],
+                  })
+                }
               >
                 <SelectTrigger className="w-full">
                   <SelectValue />
@@ -155,7 +155,7 @@ export default function TitlesLibraryFilters({
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={clearFilters}
+                onClick={onClearFilters}
               >
                 Reset
               </Button>

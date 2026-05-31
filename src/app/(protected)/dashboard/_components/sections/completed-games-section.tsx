@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import ProfilePicture from "@/components/profile/profile-picture";
+import { WinnerIndicator } from "@/components/ui/winner-indicator";
 import { cn } from "@/lib/utils";
 import { ArrowRight, Trophy } from "lucide-react";
 import Link from "next/link";
@@ -89,13 +90,24 @@ export function CompletedGamesSection() {
                   <div className="min-w-0 flex-1">
                     {winner ? (
                       <div className="flex items-center justify-end gap-2">
-                        <p className={cn("truncate", sectionItemMetaClassName)}>
-                          <span className="font-semibold text-foreground">
-                            {winner.label}
-                          </span>{" "}
-                          won
+                        <p
+                          className={cn(
+                            "truncate font-semibold text-[color:var(--winner-text)]",
+                            sectionItemMetaClassName,
+                          )}
+                        >
+                          {winner.label} won
                         </p>
-                        <ProfilePicture user={winner.user} size="sm" />
+                        <ProfilePicture
+                          user={winner.user}
+                          size="sm"
+                          className="winner-avatar-ring"
+                        />
+                        <WinnerIndicator
+                          aria-hidden
+                          className="hidden sm:inline-flex"
+                          label="Winner"
+                        />
                       </div>
                     ) : (
                       <p className={cn("truncate", sectionItemMetaClassName)}>

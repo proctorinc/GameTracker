@@ -2,6 +2,7 @@ import CreateGameSettingsStep from "@/components/game/create-game-settings-step"
 import { loadUser } from "@/lib/auth/protected-session";
 import {
   getGameTitleLibraryEntryById,
+  listGameTitles,
   listSuggestedGameTitles,
 } from "@/lib/db/store/game.store";
 
@@ -17,7 +18,8 @@ export default async function CreateGameSettingsPage({
 }: PageProps) {
   const { user } = await loadUser();
   const { titleId, newTitle } = await searchParams;
-  const [suggestedGameTitles, initialSelectedTitle] = await Promise.all([
+  const [allGameTitles, suggestedGameTitles, initialSelectedTitle] = await Promise.all([
+    listGameTitles(user.id),
     listSuggestedGameTitles({
       userId: user.id,
       limit: 5,
@@ -32,6 +34,7 @@ export default async function CreateGameSettingsPage({
 
   return (
     <CreateGameSettingsStep
+      allGameTitles={allGameTitles}
       initialNewTitle={newTitle?.trim() ?? null}
       initialSelectedTitle={initialSelectedTitle}
       suggestedGameTitles={suggestedGameTitles}

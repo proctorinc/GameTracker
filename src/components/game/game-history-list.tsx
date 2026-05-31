@@ -3,6 +3,7 @@ import { CalendarDays, Trophy } from "lucide-react";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Badge } from "@/components/ui/badge";
 import { CardEmpty } from "@/components/ui/card";
+import { WinnerIndicator } from "@/components/ui/winner-indicator";
 import type { GameFull } from "@/lib/db/store";
 import { cn } from "@/lib/utils";
 
@@ -107,10 +108,7 @@ export default function GameHistoryList({
                     {game.completedAt ? "Completed" : "In progress"}
                   </Badge>
                   {didWin ? (
-                    <Badge className="bg-amber-500 text-amber-950 hover:bg-amber-500">
-                      <Trophy className="mr-1 size-3.5" />
-                      Won
-                    </Badge>
+                    <WinnerIndicator label="Won" />
                   ) : null}
                   {game.creatorId === currentUserId ? (
                     <Badge variant="outline">Created by you</Badge>
@@ -152,13 +150,13 @@ export default function GameHistoryList({
                     <ProfilePicture
                       user={winner.user}
                       size="sm"
-                      className="ring-2 ring-amber-300 shadow-sm dark:ring-amber-500/50"
+                      className="winner-avatar-ring shadow-sm"
                     />
                     <div className="text-right">
-                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                      <p className="winner-muted text-xs uppercase tracking-[0.18em]">
                         Winner
                       </p>
-                      <p className="font-bold">
+                      <p className="font-bold text-[color:var(--winner-text)]">
                         {winner.userId === currentUserId
                           ? "You won"
                           : `${winner.user.firstName ?? "Player"} won`}

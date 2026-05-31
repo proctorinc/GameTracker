@@ -5,7 +5,6 @@ import CreateGameSettingsStep from "./create-game-settings-step";
 
 const routerPush = vi.fn();
 const createConfiguredGame = vi.fn();
-const searchCreateGameTitles = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -15,8 +14,6 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/app/actions/game", () => ({
   createConfiguredGame: (...args: unknown[]) => createConfiguredGame(...args),
-  searchCreateGameTitles: (...args: unknown[]) =>
-    searchCreateGameTitles(...args),
 }));
 
 const skyjoTitle = {
@@ -45,20 +42,21 @@ describe("CreateGameSettingsStep", () => {
   beforeEach(() => {
     routerPush.mockReset();
     createConfiguredGame.mockReset();
-    searchCreateGameTitles.mockReset();
-    searchCreateGameTitles.mockResolvedValue([]);
   });
 
   it("shows the game selector first when no title is preselected", () => {
     renderWithProviders(
       <CreateGameSettingsStep
+        allGameTitles={[skyjoTitle]}
         initialNewTitle={null}
         initialSelectedTitle={null}
         suggestedGameTitles={[skyjoTitle]}
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Game" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Choose game" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByPlaceholderText("Search or create a game"),
     ).toBeInTheDocument();
@@ -70,6 +68,7 @@ describe("CreateGameSettingsStep", () => {
   it("reveals settings immediately after choosing a suggested title", () => {
     renderWithProviders(
       <CreateGameSettingsStep
+        allGameTitles={[skyjoTitle]}
         initialNewTitle={null}
         initialSelectedTitle={null}
         suggestedGameTitles={[skyjoTitle]}
@@ -87,9 +86,38 @@ describe("CreateGameSettingsStep", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows selected game art while keeping the selected card clickable", () => {
+    renderWithProviders(
+      <CreateGameSettingsStep
+        allGameTitles={[skyjoTitle]}
+        initialNewTitle={null}
+        initialSelectedTitle={null}
+        suggestedGameTitles={[skyjoTitle]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Skyjo/i }));
+
+    const selectedCard = screen.getByRole("button", {
+      name: /Skyjo[\s\S]*Tap to change/i,
+    });
+
+    expect(selectedCard).toHaveStyle({ backgroundColor: "#123456" });
+    expect(selectedCard.querySelector("[style*='background-image']")).toHaveStyle({
+      backgroundImage: 'url("/images/skyjo.png")',
+    });
+
+    fireEvent.click(selectedCard);
+
+    expect(
+      screen.getByPlaceholderText("Search or create a game"),
+    ).toBeInTheDocument();
+  });
+
   it("allows creating a custom title from the same page", async () => {
     renderWithProviders(
       <CreateGameSettingsStep
+        allGameTitles={[skyjoTitle]}
         initialNewTitle={null}
         initialSelectedTitle={null}
         suggestedGameTitles={[skyjoTitle]}
@@ -101,7 +129,9 @@ describe("CreateGameSettingsStep", () => {
     });
 
     await waitFor(() => {
-      expect(searchCreateGameTitles).toHaveBeenCalledWith("My Custom Game");
+      expect(
+        screen.getByRole("button", { name: /Create "My Custom Game"/i }),
+      ).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: /Create "My Custom Game"/i }));

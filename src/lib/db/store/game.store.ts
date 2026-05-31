@@ -1,14 +1,4 @@
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  inArray,
-  isNotNull,
-  isNull,
-  or,
-  sql,
-} from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import {
   db,
   gamePlayers,
@@ -209,7 +199,7 @@ function mapGameTitleLibraryRow(row: GameTitleLibraryRow): GameTitleLibraryEntry
   };
 }
 
-function accessibleGameTitleWhere(userId: string) {
+function accessibleGameTitleWhere() {
   return and(
     isNull(gameTitle.mergedIntoGameTitleId),
     or(eq(gameTitle.isUniversal, true), isNotNull(userGameTitle.userId)),
@@ -368,7 +358,7 @@ export async function listGameTitles(
   userId: string,
 ): Promise<GameTitleLibraryEntry[]> {
   const rows = await gameTitleLibrarySelect(userId)
-    .where(accessibleGameTitleWhere(userId))
+    .where(accessibleGameTitleWhere())
     .orderBy(asc(gameTitle.title));
   return rows.map(mapGameTitleLibraryRow);
 }
@@ -380,37 +370,13 @@ export async function getGameTitleLibraryEntryById(input: {
   const row = await gameTitleLibrarySelect(input.userId)
     .where(
       and(
-        accessibleGameTitleWhere(input.userId),
+        accessibleGameTitleWhere(),
         eq(gameTitle.id, input.gameTitleId),
       ),
     )
     .limit(1);
 
   return row[0] ? mapGameTitleLibraryRow(row[0]) : null;
-}
-
-export async function searchGameTitlesByName(input: {
-  userId: string;
-  query: string;
-  limit?: number;
-}): Promise<GameTitleLibraryEntry[]> {
-  const normalizedQuery = normalizeGameTitleTitle(input.query);
-
-  if (!normalizedQuery) {
-    return [];
-  }
-
-  const rows = await gameTitleLibrarySelect(input.userId)
-    .where(
-      and(
-        accessibleGameTitleWhere(input.userId),
-        sql`lower(${gameTitle.title}) like ${`%${normalizedQuery}%`}`,
-      ),
-    )
-    .orderBy(asc(gameTitle.title))
-    .limit(input.limit ?? 10);
-
-  return rows.map(mapGameTitleLibraryRow);
 }
 
 export async function listSuggestedGameTitles(input: {

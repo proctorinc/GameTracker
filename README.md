@@ -117,7 +117,31 @@ See [`docs/auth-verification.md`](./docs/auth-verification.md) for manual verifi
 npm run db:generate   # Generate migrations from schema
 npm run db:migrate    # Apply migrations
 npm run db:studio     # Drizzle Studio
+npm run db:titles:sql -- ./path/to/game-titles.json ./game-titles.sql
 ```
+
+### Generate SQL for `game_title`
+
+If you already have title metadata in JSON, you can generate SQL inserts for Turso/libSQL:
+
+```bash
+npm run db:titles:sql -- ./data/game-titles.json ./data/game-titles.sql
+```
+
+The script expects objects like:
+
+```json
+[
+  {
+    "title": "Lost Cities",
+    "normalizedTitle": "lost cities",
+    "color": "#4338ca",
+    "imageUrl": "https://example.com/lost-cities.jpg"
+  }
+]
+```
+
+It generates `INSERT INTO game_title ... ON CONFLICT(normalized_title) DO UPDATE ...` statements, defaults missing `normalizedTitle`, `color`, and `imageUrl`, and marks imported rows as universal titles.
 
 ## Tests
 

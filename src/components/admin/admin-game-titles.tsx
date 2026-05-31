@@ -8,14 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { AdminGameTitleEntry } from "@/lib/db/store/game.store";
+  AdminGameTitleEntry,
+} from "@/lib/db/store/game.store";
 import { GitMerge, Search, Sparkles } from "lucide-react";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -56,6 +52,24 @@ export default function AdminGameTitles({
       return haystack.includes(normalizedQuery);
     });
   }, [query, titles]);
+  const mergeTargetItemsByTitleId = useMemo(
+    () =>
+      Object.fromEntries(
+        titles.map((title) => [
+          title.id,
+          [
+            { value: "none", label: "Merge into..." },
+            ...titles
+              .filter((candidate) => candidate.id !== title.id)
+              .map((candidate) => ({
+                value: candidate.id,
+                label: candidate.title,
+              })),
+          ],
+        ]),
+      ) as Record<string, { value: string; label: string }[]>,
+    [titles],
+  );
 
   function runAction(action: () => Promise<void>, successMessage: string) {
     startTransition(async () => {
@@ -177,7 +191,7 @@ export default function AdminGameTitles({
                     )}
 
                     <div className="flex gap-2">
-                      <Select
+                      <SearchableSelect
                         onValueChange={(value) =>
                           setMergeTargets((current) => ({
                             ...current,
@@ -185,24 +199,12 @@ export default function AdminGameTitles({
                           }))
                         }
                         value={mergeTargets[title.id] ?? "none"}
-                      >
-                        <SelectTrigger className="h-12 flex-1 rounded-[1.2rem]">
-                          <SelectValue placeholder="Merge into..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Merge into...</SelectItem>
-                          {titles
-                            .filter((candidate) => candidate.id !== title.id)
-                            .map((candidate) => (
-                              <SelectItem
-                                key={candidate.id}
-                                value={candidate.id}
-                              >
-                                {candidate.title}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
+                        options={mergeTargetItemsByTitleId[title.id]}
+                        placeholder="Merge into..."
+                        searchPlaceholder="Search titles to merge into"
+                        emptyMessage="No titles match your search."
+                        className="h-12 flex-1 rounded-[1.2rem]"
+                      />
                       <Button
                         className="rounded-[1.2rem]"
                         disabled={

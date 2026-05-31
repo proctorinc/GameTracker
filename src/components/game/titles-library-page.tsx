@@ -1,10 +1,20 @@
+"use client";
+
 import type { TitlesPageData } from "@/app/actions/pages/titles";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardEmpty, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import TitlesLibraryFilters from "./titles-library-filters";
+
+const DEFAULT_FILTERS: TitlesPageData["filters"] = {
+  scope: "all",
+  source: "all",
+  sort: "title-asc",
+  query: "",
+};
 
 function getSourceLabel(
   source: TitlesPageData["gameTitles"][number]["accessSource"],
@@ -28,7 +38,71 @@ function getSourceLabel(
 }
 
 export default function TitlesLibraryPage({ data }: { data: TitlesPageData }) {
-  const { gameTitles, filters } = data;
+  const { gameTitles, filters: initialFilters } = data;
+  const [filters, setFilters] = useState(initialFilters);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+
+    if (filters.scope !== "all") {
+      params.set("scope", filters.scope);
+    }
+
+    if (filters.source !== "all") {
+      params.set("source", filters.source);
+    }
+
+    if (filters.sort !== "title-asc") {
+      params.set("sort", filters.sort);
+    }
+
+    if (filters.query.trim()) {
+      params.set("query", filters.query);
+    }
+
+    const nextUrl = params.size ? `/titles?${params.toString()}` : "/titles";
+    window.history.replaceState(null, "", nextUrl);
+  }, [filters]);
+
+  const visibleTitles = useMemo(() => {
+    const normalizedQuery = filters.query.trim().toLowerCase();
+
+    return [...gameTitles]
+      .filter((title) => {
+        if (filters.scope === "mine" && !title.isOwned) {
+          return false;
+        }
+
+        if (filters.scope === "universal" && !title.isUniversal) {
+          return false;
+        }
+
+        if (filters.source !== "all" && title.accessSource !== filters.source) {
+          return false;
+        }
+
+        if (!normalizedQuery) {
+          return true;
+        }
+
+        return [title.title, title.normalizedTitle].some((value) =>
+          value.toLowerCase().includes(normalizedQuery),
+        );
+      })
+      .sort((left, right) => {
+        switch (filters.sort) {
+          case "title-desc":
+            return right.title.localeCompare(left.title);
+          case "newest":
+            return right.createdAt.localeCompare(left.createdAt);
+          case "oldest":
+            return left.createdAt.localeCompare(right.createdAt);
+          case "title-asc":
+          default:
+            return left.title.localeCompare(right.title);
+        }
+      });
+  }, [filters, gameTitles]);
 
   return (
     <div className="min-h-screen px-4 pb-24">
@@ -44,7 +118,16 @@ export default function TitlesLibraryPage({ data }: { data: TitlesPageData }) {
             <CardTitle className="text-xl font-black">Filters</CardTitle>
           </CardHeader>
           <CardContent>
-            <TitlesLibraryFilters filters={filters} />
+            <TitlesLibraryFilters
+              filters={filters}
+              onClearFilters={() => setFilters(DEFAULT_FILTERS)}
+              onFiltersChange={(nextFilters) =>
+                setFilters((currentFilters) => ({
+                  ...currentFilters,
+                  ...nextFilters,
+                }))
+              }
+            />
           </CardContent>
         </Card>
 
@@ -52,12 +135,12 @@ export default function TitlesLibraryPage({ data }: { data: TitlesPageData }) {
           <CardHeader>
             <CardTitle className="text-xl font-black">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">{gameTitles.length} titles</Badge>
+                <Badge variant="secondary">{visibleTitles.length} titles</Badge>
               </div>
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {gameTitles.map((title) => (
+            {visibleTitles.map((title) => (
               <div
                 key={title.id}
                 className="relative flex min-h-40 flex-col justify-between overflow-hidden rounded-3xl p-4 text-left shadow-sm"
@@ -115,7 +198,7 @@ export default function TitlesLibraryPage({ data }: { data: TitlesPageData }) {
               </div>
             ))}
 
-            {gameTitles.length === 0 ? (
+            {visibleTitles.length === 0 ? (
               <CardEmpty className="col-span-full flex flex-col items-center gap-3 p-10">
                 <p>No titles matched these filters yet.</p>
                 <Link href="/game/create/settings" className="inline-flex items-center gap-2 text-sm font-semibold text-primary transition-colors hover:text-primary/80">
