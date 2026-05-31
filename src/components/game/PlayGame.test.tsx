@@ -205,6 +205,46 @@ describe("PlayGame", () => {
     });
   });
 
+  it("closes the score dialog as soon as the optimistic update is queued", () => {
+    const deferred = createDeferred<void>();
+    upsertActiveRoundScore.mockReturnValue(deferred.promise);
+
+    renderComponent();
+
+    fireEvent.click(screen.getByTestId("player-score-button-user-2"));
+    fireEvent.change(screen.getByRole("spinbutton"), {
+      target: { value: "5" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Update" }));
+
+    expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
+    expect(screen.getByTestId("player-score-button-user-2")).toHaveTextContent("5");
+  });
+
+  it("does not wait for reconciliation before finishing a successful mutation", async () => {
+    const reconcileDeferred = createDeferred<{
+      currentUserId: string;
+      isCreator: boolean;
+      playerOptions: UserBase[];
+      game: GameForPlayPage;
+    }>();
+
+    upsertActiveRoundScore.mockResolvedValue(undefined);
+    getPlayGameSnapshot.mockReturnValue(reconcileDeferred.promise);
+
+    renderComponent();
+
+    fireEvent.click(screen.getByTestId("player-score-button-user-2"));
+    fireEvent.change(screen.getByRole("spinbutton"), {
+      target: { value: "5" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Update" }));
+
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith("Score updated");
+    });
+  });
+
   it("rolls back optimistic scores if the server action fails", async () => {
     const deferred = createDeferred<void>();
     upsertActiveRoundScore.mockReturnValue(deferred.promise);

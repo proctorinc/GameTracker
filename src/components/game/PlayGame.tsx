@@ -512,22 +512,16 @@ export default function PlayGame(props: PlayGameProps) {
     const remainingMutations = pendingMutationsRef.current.filter(
       (pendingEntry) => pendingEntry.id !== entry.id,
     );
-    let nextBaseSnapshot = applyPlayGameMutation(
+    const nextBaseSnapshot = applyPlayGameMutation(
       baseSnapshotRef.current,
       entry.mutation,
     );
 
-    if (remainingMutations.length === 0) {
-      try {
-        nextBaseSnapshot = await getPlayGameSnapshot(
-          baseSnapshotRef.current.game.id,
-        );
-      } catch {
-        // Keep the locally confirmed snapshot if fetch reconciliation fails.
-      }
-    }
-
     setLocalState(nextBaseSnapshot, remainingMutations);
+
+    if (remainingMutations.length === 0) {
+      void reconcileSnapshot();
+    }
   }
 
   function rollbackFailedMutation(entry: PendingMutationEntry) {
@@ -545,6 +539,7 @@ export default function PlayGame(props: PlayGameProps) {
     loadingMessage?: string;
     successMessage?: string;
     fallbackError?: string;
+    onOptimistic?: () => void;
     onSuccess?: () => void;
   }) {
     if (pendingMutationsRef.current.some((entry) => entry.key === input.key)) {
@@ -562,6 +557,7 @@ export default function PlayGame(props: PlayGameProps) {
       : null;
 
     setLocalState(baseSnapshotRef.current, nextPendingMutations);
+    input.onOptimistic?.();
 
     startTransition(async () => {
       try {
@@ -627,7 +623,7 @@ export default function PlayGame(props: PlayGameProps) {
       action: () => addGamePlayer({ gameId: game.id, userId }),
       loadingMessage: "Adding player...",
       successMessage: "Player added",
-      onSuccess: () => {
+      onOptimistic: () => {
         setIsAddPlayerOpen(false);
         setPlayerSearch("");
       },
@@ -665,7 +661,7 @@ export default function PlayGame(props: PlayGameProps) {
         }),
       loadingMessage: "Adding guest...",
       successMessage: "Guest added",
-      onSuccess: () => {
+      onOptimistic: () => {
         setIsAddPlayerOpen(false);
         setPlayerSearch("");
       },
@@ -700,7 +696,7 @@ export default function PlayGame(props: PlayGameProps) {
           scoreDelta: scoreAmount,
         }),
       successMessage: "Score updated",
-      onSuccess: () => {
+      onOptimistic: () => {
         setScoreDialogPlayerId(null);
         setScoreAmountInput("0");
       },
@@ -732,7 +728,7 @@ export default function PlayGame(props: PlayGameProps) {
         : isFreePlay
           ? "Scores updated"
           : `Round ${nextRoundNumber} complete`,
-      onSuccess: () => {
+      onOptimistic: () => {
         setIsRoundDialogOpen(false);
       },
     });
@@ -760,7 +756,7 @@ export default function PlayGame(props: PlayGameProps) {
         }),
       successMessage: "Player color updated",
       fallbackError: "Failed to update player color",
-      onSuccess: () => {
+      onOptimistic: () => {
         setColorDialogPlayerId(null);
       },
     });
