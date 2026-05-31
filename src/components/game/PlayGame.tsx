@@ -46,6 +46,7 @@ import {
   type PlayGameSnapshot,
 } from "@/components/game/play-game-state";
 import {
+  ChevronDown,
   DoorOpen,
   ListChecks,
   LoaderCircle,
@@ -124,6 +125,18 @@ function formatScoringSummary(game: GameForPlayPage) {
   return game.scoringMode === "highest_wins"
     ? "Highest score wins"
     : "Lowest score wins";
+}
+
+function formatGameMetaDate(value: string | null | undefined) {
+  if (!value) {
+    return "Unknown date";
+  }
+
+  return new Date(value).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function formatWinners(game: GameForPlayPage) {
@@ -809,56 +822,91 @@ export default function PlayGame(props: PlayGameProps) {
       data-testid="play-game-shell"
     >
       <div className="mx-auto flex w-full max-w-md flex-col gap-4">
-        <Card className="overflow-hidden p-0 shadow-sm">
-          <CardHeader className="gap-3 p-0">
-            <div
-              className="relative overflow-hidden px-4 py-3"
-              style={{
-                ["--game-header-accent" as string]:
-                  game.gameTitle?.color ?? "#64748b",
-              }}
-            >
-              {game.gameTitle?.imageUrl ? (
-                <div
-                  className="absolute inset-0 scale-110 bg-cover bg-center opacity-85 blur-[1.5px] dark:opacity-70"
-                  style={{
-                    backgroundImage: `url("${game.gameTitle.imageUrl}")`,
-                  }}
-                />
-              ) : null}
-              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.82)_0%,rgba(255,255,255,0.58)_42%,rgba(255,255,255,0.78)_100%)] dark:bg-[linear-gradient(90deg,rgba(2,6,23,0.82)_0%,rgba(2,6,23,0.5)_42%,rgba(2,6,23,0.76)_100%)]" />
-              <div className="absolute inset-0 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--game-header-accent)_28%,transparent)_0%,transparent_58%,color-mix(in_srgb,var(--game-header-accent)_18%,transparent)_100%)] dark:bg-[linear-gradient(135deg,color-mix(in_srgb,var(--game-header-accent)_30%,transparent)_0%,transparent_58%,color-mix(in_srgb,var(--game-header-accent)_22%,transparent)_100%)]" />
-              <div className="relative z-10 flex items-center justify-between gap-3">
-                <div className="min-w-0 space-y-1">
-                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-foreground/60">
-                    Game
-                  </p>
+        <Card
+          className="overflow-hidden p-0 shadow-sm"
+          style={{
+            ["--game-header-accent" as string]:
+              game.gameTitle?.color ?? "#64748b",
+          }}
+        >
+          <details className="group">
+            <summary className="flex cursor-pointer list-none items-stretch pr-4">
+              <div
+                className="relative w-20 shrink-0 overflow-hidden border-r border-border/70"
+                style={{
+                  backgroundColor: game.gameTitle?.color ?? undefined,
+                }}
+              >
+                {game.gameTitle?.imageUrl ? (
+                  <div
+                    className="absolute inset-0 bg-cover bg-center opacity-40"
+                    style={{
+                      backgroundImage: `url("${game.gameTitle.imageUrl}")`,
+                    }}
+                  />
+                ) : null}
+                <div className="absolute inset-0 bg-linear-to-t from-white/60 via-white/30 dark:from-black/80 dark:via-black/30 to-transparent" />
+                <div className="absolute inset-0 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--game-header-accent)_28%,transparent)_0%,transparent_58%,color-mix(in_srgb,var(--game-header-accent)_18%,transparent)_100%)] dark:bg-[linear-gradient(135deg,color-mix(in_srgb,var(--game-header-accent)_30%,transparent)_0%,transparent_58%,color-mix(in_srgb,var(--game-header-accent)_22%,transparent)_100%)]" />
+              </div>
+              <div className="flex min-w-0 min-h-18 flex-1 items-center gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1 space-y-1">
                   <h1 className="truncate text-lg font-black tracking-tight text-foreground">
                     {game.gameTitle?.title ?? "Untitled game"}
                   </h1>
+                  {!isFreePlay && (
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-foreground/60">
+                      Round {nextRoundNumber}
+                    </p>
+                  )}
                 </div>
-                <div className="flex flex-col shrink-0 flex-wrap justify-end gap-2">
+                <ChevronDown className="mt-1 size-4 shrink-0 self-center text-muted-foreground transition-transform group-open:rotate-180" />
+              </div>
+            </summary>
+            <div className="border-t border-border px-4 py-4">
+              <div className="flex flex-wrap gap-2">
+                <Badge
+                  className="border-border/70 bg-background/75 text-foreground backdrop-blur-md dark:bg-background/60"
+                  variant="outline"
+                >
+                  {formatScoringSummary(game)}
+                </Badge>
+                <Badge
+                  className="border-border/70 bg-background/75 text-foreground backdrop-blur-md dark:bg-background/60"
+                  variant="outline"
+                >
+                  {formatEndingSummary(game)}
+                </Badge>
+                <Badge
+                  className="border-border/70 bg-background/75 text-foreground backdrop-blur-md dark:bg-background/60"
+                  variant="outline"
+                >
+                  {game.players.length} player
+                  {game.players.length === 1 ? "" : "s"}
+                </Badge>
+                {isCompleted ? (
+                  <Badge className="winner-badge" variant="outline">
+                    Complete
+                  </Badge>
+                ) : (
                   <Badge
-                    className="border-white/45 bg-white/55 text-foreground backdrop-blur-md dark:border-white/12 dark:bg-black/20 dark:text-white"
+                    className="border-border/70 bg-background/75 text-foreground backdrop-blur-md dark:bg-background/60"
                     variant="outline"
                   >
-                    {formatScoringSummary(game)}
+                    In progress
                   </Badge>
-                  <Badge
-                    className="border-white/45 bg-white/55 text-foreground backdrop-blur-md dark:border-white/12 dark:bg-black/20 dark:text-white"
-                    variant="outline"
-                  >
-                    {formatEndingSummary(game)}
-                  </Badge>
-                  {isCompleted ? (
-                    <Badge className="winner-badge" variant="outline">
-                      Complete
-                    </Badge>
+                )}
+              </div>
+              <div className="flex justify-between mt-3 text-xs text-muted-foreground">
+                <div className="flex flex-col gap-1">
+                  {game.completedAt ? (
+                    <p>Completed {formatGameMetaDate(game.completedAt)}</p>
                   ) : null}
+                  <p>Created by {getDisplayName(game.creator)}</p>
                 </div>
+                <p>Started {formatGameMetaDate(game.createdAt)}</p>
               </div>
             </div>
-          </CardHeader>
+          </details>
         </Card>
 
         {isCompleted ? (
@@ -871,18 +919,6 @@ export default function PlayGame(props: PlayGameProps) {
         ) : null}
 
         <div className="flex flex-col gap-3">
-          {!isFreePlay ? (
-            <Card className="overflow-hidden rounded-3xl border-border/70 p-0 shadow-sm">
-              <CardContent className="px-4 py-3">
-                <p className="text-center text-lg font-black text-foreground">
-                  {isCompleted
-                    ? `Round ${game.completedRounds}`
-                    : `Round ${nextRoundNumber}`}
-                </p>
-              </CardContent>
-            </Card>
-          ) : null}
-
           {sortedPlayers.map((player) => {
             const isWinner = winnerIds.has(player.userId);
             const canEditColor = canEditGuestOrSelfColor(player);
