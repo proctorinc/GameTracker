@@ -2,9 +2,8 @@ import twilio from "twilio";
 import type { VerifyProvider, TwilioVerifyConfig } from "./types";
 
 export class TwilioVerifyProvider implements VerifyProvider {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private client: any;
-  private verifyServiceSid: string;
+  private readonly client: ReturnType<typeof twilio>;
+  private readonly verifyServiceSid: string;
 
   constructor(config: TwilioVerifyConfig) {
     this.client = twilio(config.accountSid, config.authToken);
@@ -12,26 +11,17 @@ export class TwilioVerifyProvider implements VerifyProvider {
   }
 
   async sendOtp(phoneE164: string): Promise<void> {
-    const verifyApiInstance = this.client.verify.v2(this.verifyServiceSid);
-
-    await verifyApiInstance.checkRequest({
+    await this.client.verify.v2.services(this.verifyServiceSid).verifications.create({
       to: phoneE164,
       channel: "sms",
-    });
-
-    return verifyApiInstance.createBinding({
-      to: phoneE164,
-      channel: "sms",
-      amount: 1,
     });
   }
 
   async checkOtp(phoneE164: string, code: string): Promise<boolean> {
-    const verifyApiInstance = this.client.verify.v2(this.verifyServiceSid);
-
-    const serviceCheck = await verifyApiInstance.checkAttempt({
+    const serviceCheck = await this.client.verify.v2
+      .services(this.verifyServiceSid)
+      .verificationChecks.create({
       to: phoneE164,
-      channel: "sms",
       code,
     });
 

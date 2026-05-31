@@ -55,7 +55,7 @@ Content-Type: application/json
 { "phone": "+15551234567" }
 ```
 
-Response: `204` (no content) or `400` (invalid phone) or `429` (rate limited)
+Response: `200` with `{ ok: true, dev: boolean }` or `400` (invalid phone) or `429` (rate limited)
 
 ### Verify OTP
 
@@ -114,7 +114,7 @@ All 27 tests pass including:
 curl -i -X POST http://localhost:3000/api/auth/otp/request \
   -H "Content-Type: application/json" \
   -d '{"phone":"+15551234567"}'
-# Expected: 204 OK (or SMS received in dev with mock OTP)
+# Expected: 200 OK with {"ok":true,"dev":true} in development
 ```
 
 ### Step 2: Verify OTP (without cookie first)
