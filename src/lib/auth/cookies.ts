@@ -3,6 +3,8 @@ import { getUserById } from "../db/store/user.store";
 import { hashTokenWithSecret } from "./tokens";
 import { isValidSession } from "./protected-session";
 import type { AuthUser } from "./session";
+import { logInfo, logWarn } from "../server-log";
+import { getRequestContextFromRequest } from "../server-request-context";
 
 export interface AuthContext {
   user: AuthUser;
@@ -78,14 +80,25 @@ export async function validateSession(
 ): Promise<
   { validated: false } | { validated: true; user: AuthUser; sessionId: string }
 > {
+  const requestContext = getRequestContextFromRequest(request);
   const token = getSessionTokenFromCookie(request);
   if (!token) {
+    logInfo("auth.session_validation.missing", {
+      ...requestContext,
+      reason: "missing_session_cookie",
+    });
     return { validated: false };
   }
 
   const session = await getSessionByTokenHash(hashTokenWithSecret(token));
 
   if (!session || !isValidSession(session)) {
+    logWarn("auth.session_validation.rejected", {
+      ...requestContext,
+      reason: !session ? "invalid_session" : "expired_session",
+      sessionId: session?.id ?? null,
+      userId: session?.user.id ?? null,
+    });
     return { validated: false };
   }
 
@@ -94,9 +107,20 @@ export async function validateSession(
 
   if (!userData) {
     // User no longer exists - invalidate session
+    logWarn("auth.session_validation.rejected", {
+      ...requestContext,
+      reason: "missing_user_record",
+      sessionId: session.id,
+      userId: session.user.id,
+    });
     return { validated: false };
   }
 
+  logInfo("auth.session_validation.succeeded", {
+    ...requestContext,
+    sessionId: session.id,
+    userId: userData.id,
+  });
   return { validated: true, user: userData, sessionId: session.id };
 }
 
@@ -133,19 +157,34 @@ export function clearSessionCookie(request: Request): Response {
 export async function requireAuth(
   request: Request,
 ): Promise<{ user: AuthUser; sessionId: string }> {
+  const requestContext = getRequestContextFromRequest(request);
   const token = getSessionTokenFromCookie(request);
 
   if (!token) {
+    logWarn("auth.cookies_require.rejected", {
+      ...requestContext,
+      reason: "missing_session_cookie",
+    });
     throw new Error("No session cookie found");
   }
 
   const session = await getSessionByTokenHash(hashTokenWithSecret(token));
 
   if (!session) {
+    logWarn("auth.cookies_require.rejected", {
+      ...requestContext,
+      reason: "invalid_session",
+    });
     throw new Error("Invalid or expired session");
   }
 
   if (!isValidSession(session)) {
+    logWarn("auth.cookies_require.rejected", {
+      ...requestContext,
+      reason: "expired_session",
+      sessionId: session.id,
+      userId: session.user.id,
+    });
     throw new Error("Session has expired");
   }
 
@@ -153,8 +192,19 @@ export async function requireAuth(
   const userData = await getUserById(session.user.id);
 
   if (!userData) {
+    logWarn("auth.cookies_require.rejected", {
+      ...requestContext,
+      reason: "missing_user_record",
+      sessionId: session.id,
+      userId: session.user.id,
+    });
     throw new Error("User account no longer exists");
   }
 
+  logInfo("auth.cookies_require.succeeded", {
+    ...requestContext,
+    sessionId: session.id,
+    userId: userData.id,
+  });
   return { user: userData, sessionId: session.id };
 }
