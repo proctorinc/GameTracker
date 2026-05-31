@@ -353,7 +353,6 @@ export function FriendsPageClient({
           <Button
             variant={activeTab === "friends" ? "default" : "ghost"}
             className="rounded-xl"
-            size=""
             onClick={() => setActiveTab("friends")}
           >
             <Users />
