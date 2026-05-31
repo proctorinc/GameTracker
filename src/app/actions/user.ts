@@ -9,45 +9,104 @@ import { db, users } from "@/lib/db/store";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
+import { logError, logInfo, type LogMeta } from "@/lib/server-log";
+
+function logUserActionSuccess(action: string, meta: LogMeta) {
+  logInfo(`user.${action}.succeeded`, meta);
+}
+
+function logUserActionFailure(
+  action: string,
+  error: unknown,
+  meta: LogMeta,
+) {
+  logError(`user.${action}.failed`, error, meta);
+}
 
 export async function updateUserProfile(data: {
   firstName: string;
   lastName: string;
   color?: string;
 }) {
-  const user = await loadCurrentUser();
+  let actorUserId: string | null = null;
 
-  await db
-    .update(users)
-    .set({
-      firstName: data.firstName,
-      lastName: data.lastName,
-      color: data.color,
-      isProfileComplete: true,
-    })
-    .where(eq(users.id, user.id));
+  try {
+    const user = await loadCurrentUser();
+    actorUserId = user.id;
 
-  revalidatePath("/profile");
-  revalidatePath(`/profile/${user.id}`);
+    await db
+      .update(users)
+      .set({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        color: data.color,
+        isProfileComplete: true,
+      })
+      .where(eq(users.id, user.id));
+
+    revalidatePath("/profile");
+    revalidatePath(`/profile/${user.id}`);
+    logUserActionSuccess("profile.update", {
+      actorUserId: user.id,
+      updatedColor: Boolean(data.color),
+      profileCompleted: true,
+    });
+  } catch (error) {
+    logUserActionFailure("profile.update", error, {
+      actorUserId,
+      updatedColor: Boolean(data.color),
+    });
+    throw error;
+  }
 }
 
 export async function updateProfileCard(data: { profileCardId: string }) {
-  const user = await loadCurrentUser();
+  let actorUserId: string | null = null;
 
-  await db
-    .update(users)
-    .set({
+  try {
+    const user = await loadCurrentUser();
+    actorUserId = user.id;
+
+    await db
+      .update(users)
+      .set({
+        profileCardId: data.profileCardId,
+      })
+      .where(eq(users.id, user.id));
+
+    revalidatePath("/profile");
+    revalidatePath(`/profile/${user.id}`);
+    logUserActionSuccess("profile_card.update", {
+      actorUserId: user.id,
       profileCardId: data.profileCardId,
-    })
-    .where(eq(users.id, user.id));
-
-  revalidatePath("/profile");
-  revalidatePath(`/profile/${user.id}`);
+    });
+  } catch (error) {
+    logUserActionFailure("profile_card.update", error, {
+      actorUserId,
+      profileCardId: data.profileCardId,
+    });
+    throw error;
+  }
 }
 
 export async function getUserProfile() {
-  const user = await loadCurrentUser();
-  return getUserFullById(user.id);
+  let actorUserId: string | null = null;
+
+  try {
+    const user = await loadCurrentUser();
+    actorUserId = user.id;
+    const profile = await getUserFullById(user.id);
+    logUserActionSuccess("profile.read", {
+      actorUserId: user.id,
+      foundProfile: Boolean(profile),
+    });
+    return profile;
+  } catch (error) {
+    logUserActionFailure("profile.read", error, {
+      actorUserId,
+    });
+    throw error;
+  }
 }
 
 export async function updateOwnedGuestColor(data: {
@@ -55,29 +114,48 @@ export async function updateOwnedGuestColor(data: {
   color: string;
   gameId?: string;
 }) {
-  const user = await loadCurrentUser();
-  const targetUser = await getUserById(data.guestUserId);
+  let actorUserId: string | null = null;
 
-  if (!targetUser) {
-    throw new Error("User not found");
-  }
+  try {
+    const user = await loadCurrentUser();
+    actorUserId = user.id;
+    const targetUser = await getUserById(data.guestUserId);
 
-  const isCurrentUser = targetUser.id === user.id;
-  const isOwnedGuest =
-    targetUser.isGuest && targetUser.created_by_user_id === user.id;
+    if (!targetUser) {
+      throw new Error("User not found");
+    }
 
-  if (!isCurrentUser && !isOwnedGuest) {
-    throw new Error("You can only update yourself or guests you created");
-  }
+    const isCurrentUser = targetUser.id === user.id;
+    const isOwnedGuest =
+      targetUser.isGuest && targetUser.created_by_user_id === user.id;
 
-  await updateUser(targetUser.id, {
-    color: data.color,
-  });
+    if (!isCurrentUser && !isOwnedGuest) {
+      throw new Error("You can only update yourself or guests you created");
+    }
 
-  revalidatePath("/friends");
-  revalidatePath("/dashboard");
+    await updateUser(targetUser.id, {
+      color: data.color,
+    });
 
-  if (data.gameId) {
-    revalidatePath(`/game/${data.gameId}/play`);
+    revalidatePath("/friends");
+    revalidatePath("/dashboard");
+
+    if (data.gameId) {
+      revalidatePath(`/game/${data.gameId}/play`);
+    }
+
+    logUserActionSuccess("color.update", {
+      actorUserId: user.id,
+      targetUserId: targetUser.id,
+      targetIsGuest: targetUser.isGuest,
+      gameId: data.gameId ?? null,
+    });
+  } catch (error) {
+    logUserActionFailure("color.update", error, {
+      actorUserId,
+      targetUserId: data.guestUserId,
+      gameId: data.gameId ?? null,
+    });
+    throw error;
   }
 }

@@ -31,6 +31,7 @@ type FriendsPageContextValue = {
   activeTab: TabKey;
   isInviteDialogOpen: boolean;
   activeRecentPlayer: RecentlyPlayedItem | null;
+  guestActionMode: "phone" | "merge" | null;
   guestPhoneInput: string;
   mergeFriendUserId: string;
   invitePhone: string;
@@ -45,6 +46,7 @@ type FriendsPageContextValue = {
   setIsInviteDialogOpen: (open: boolean) => void;
   setGuestPhoneInput: (value: string) => void;
   setMergeFriendUserId: (value: string) => void;
+  setGuestActionMode: (value: "phone" | "merge" | null) => void;
   setFriendToRemove: (
     friend: FriendsPageData["friends"][number] | null,
   ) => void;
@@ -80,6 +82,9 @@ export function FriendsPageProvider({
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [activeRecentPlayer, setActiveRecentPlayer] =
     useState<RecentlyPlayedItem | null>(null);
+  const [guestActionMode, setGuestActionMode] = useState<
+    "phone" | "merge" | null
+  >(null);
   const [guestPhoneInput, setGuestPhoneInput] = useState("");
   const [mergeFriendUserId, setMergeFriendUserId] = useState("");
   const [friendToRemove, setFriendToRemove] = useState<
@@ -250,12 +255,16 @@ export function FriendsPageProvider({
 
   function openRecentPlayerDialog(entry: RecentlyPlayedItem) {
     setActiveRecentPlayer(entry);
+    setGuestActionMode(null);
     setGuestPhoneInput("");
     setMergeFriendUserId("");
   }
 
   function closeRecentPlayerDialog() {
     setActiveRecentPlayer(null);
+    setGuestActionMode(null);
+    setGuestPhoneInput("");
+    setMergeFriendUserId("");
   }
 
   function handleRemoveFriendConfirm() {
@@ -285,6 +294,7 @@ export function FriendsPageProvider({
     activeTab,
     isInviteDialogOpen,
     activeRecentPlayer,
+    guestActionMode,
     guestPhoneInput,
     mergeFriendUserId,
     invitePhone,
@@ -299,6 +309,7 @@ export function FriendsPageProvider({
     setIsInviteDialogOpen,
     setGuestPhoneInput,
     setMergeFriendUserId,
+    setGuestActionMode,
     setFriendToRemove,
     toggleShowAllFriends() {
       setShowAllFriends((current) => !current);

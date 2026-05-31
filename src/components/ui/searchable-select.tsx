@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 
@@ -25,18 +26,21 @@ export interface SearchableSelectOption {
   keywords?: string[];
 }
 
-interface SearchableSelectProps {
+interface SearchableSelectProps<TOption extends SearchableSelectOption> {
   value: string | null;
-  options: SearchableSelectOption[];
+  options: TOption[];
   onValueChange: (value: string) => void;
   placeholder: string;
   searchPlaceholder: string;
   emptyMessage: string;
   disabled?: boolean;
   className?: string;
+  includeValueInSearch?: boolean;
+  renderOption?: (option: TOption) => ReactNode;
+  renderSelectedValue?: (option: TOption) => ReactNode;
 }
 
-export function SearchableSelect({
+export function SearchableSelect<TOption extends SearchableSelectOption>({
   value,
   options,
   onValueChange,
@@ -45,7 +49,10 @@ export function SearchableSelect({
   emptyMessage,
   disabled = false,
   className,
-}: SearchableSelectProps) {
+  includeValueInSearch = true,
+  renderOption,
+  renderSelectedValue,
+}: SearchableSelectProps<TOption>) {
   const [open, setOpen] = useState(false);
 
   const selectedOption =
@@ -56,33 +63,37 @@ export function SearchableSelect({
         ...option,
         searchValue: [
           option.label,
-          option.value,
+          ...(includeValueInSearch ? [option.value] : []),
           ...(option.keywords ?? []),
         ].join(" "),
       })),
-    [options],
+    [includeValueInSearch, options],
   );
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className="w-full">
-        <Button
-          type="button"
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className={cn(
-            "w-full justify-between rounded-lg border-input bg-transparent px-3 py-2 font-normal shadow-none",
-            !selectedOption && "text-muted-foreground",
-            className,
-          )}
-          disabled={disabled}
-        >
-          <span className="truncate">
-            {selectedOption ? selectedOption.label : placeholder}
-          </span>
-          <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            className={cn(
+              "w-full justify-between rounded-lg border-input bg-transparent px-3 py-2 font-normal shadow-none",
+              !selectedOption && "text-muted-foreground",
+              className,
+            )}
+          />
+        }
+        aria-expanded={open}
+        disabled={disabled}
+      >
+        <span className="min-w-0 flex-1 truncate">
+          {selectedOption
+            ? (renderSelectedValue?.(selectedOption) ?? selectedOption.label)
+            : placeholder}
+        </span>
+        <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
       </PopoverTrigger>
       <PopoverContent className="w-(--anchor-width) p-0" align="start">
         <Command>
@@ -105,7 +116,9 @@ export function SearchableSelect({
                       value === option.value ? "opacity-100" : "opacity-0",
                     )}
                   />
-                  <span className="truncate">{option.label}</span>
+                  <span className="min-w-0 flex-1 truncate">
+                    {renderOption?.(option) ?? option.label}
+                  </span>
                 </CommandItem>
               ))}
             </CommandGroup>

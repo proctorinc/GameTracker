@@ -19,6 +19,7 @@ import {
   mergeGuestUserIntoUser,
   revokePendingInvitationsForGuest,
 } from "@/lib/db/store";
+import { logError, logInfo, redactPhoneNumber, type LogMeta } from "@/lib/server-log";
 
 function nowIso() {
   return new Date().toISOString();
@@ -67,144 +68,234 @@ function revalidatePublicProfile(userId?: string | null) {
   revalidatePath(`/profile/${userId}`);
 }
 
+function logFriendsActionSuccess(action: string, meta: LogMeta) {
+  logInfo(`friends.${action}.succeeded`, meta);
+}
+
+function logFriendsActionFailure(
+  action: string,
+  error: unknown,
+  meta: LogMeta,
+) {
+  logError(`friends.${action}.failed`, error, meta);
+}
+
 export async function createFriendInvitationByUserId(input: {
   inviteeUserId: string;
   guestUserId?: string | null;
 }): Promise<{ invitationId: string; targetType: "user" }> {
-  const user = await requireCurrentUser();
+  let actorUserId: string | null = null;
   const inviteeUserId = input.inviteeUserId.trim();
   const guestUserId = input.guestUserId?.trim() || null;
 
-  if (!inviteeUserId) {
-    throw new Error("Invitee user id is required");
-  }
+  try {
+    const user = await requireCurrentUser();
+    actorUserId = user.id;
 
-  if (inviteeUserId === user.id) {
-    throw new Error("You cannot invite yourself");
-  }
+    if (!inviteeUserId) {
+      throw new Error("Invitee user id is required");
+    }
 
-  const invitee = await getUserById(inviteeUserId);
+    if (inviteeUserId === user.id) {
+      throw new Error("You cannot invite yourself");
+    }
 
-  if (!invitee) {
-    throw new Error("That user does not exist");
-  }
+    const invitee = await getUserById(inviteeUserId);
 
-  await ensureNotAlreadyFriends(user.id, inviteeUserId);
+    if (!invitee) {
+      throw new Error("That user does not exist");
+    }
 
-  const existing = await findPendingInvitationForUserTarget({
-    inviterUserId: user.id,
-    inviteeUserId,
-    guestUserId,
-  });
+    await ensureNotAlreadyFriends(user.id, inviteeUserId);
 
-  if (existing) {
+    const existing = await findPendingInvitationForUserTarget({
+      inviterUserId: user.id,
+      inviteeUserId,
+      guestUserId,
+    });
+
+    if (existing) {
+      revalidateFriendsViews();
+      revalidatePublicProfile(user.id);
+      revalidatePublicProfile(inviteeUserId);
+      logFriendsActionSuccess("invitation.create", {
+        actorUserId: user.id,
+        invitationId: existing.id,
+        targetType: "user",
+        inviteeUserId,
+        guestUserId,
+        reusedExistingInvitation: true,
+      });
+      return {
+        invitationId: existing.id,
+        targetType: "user",
+      };
+    }
+
+    const invitation = await createInvitation({
+      inviterUserId: user.id,
+      targetType: "user",
+      inviteeUserId,
+      guestUserId,
+      kind: guestUserId ? "claim_guest" : "friend",
+      status: "pending",
+    });
+
     revalidateFriendsViews();
     revalidatePublicProfile(user.id);
     revalidatePublicProfile(inviteeUserId);
+
+    logFriendsActionSuccess("invitation.create", {
+      actorUserId: user.id,
+      invitationId: invitation.id,
+      targetType: "user",
+      inviteeUserId,
+      guestUserId,
+      reusedExistingInvitation: false,
+    });
+
     return {
-      invitationId: existing.id,
+      invitationId: invitation.id,
       targetType: "user",
     };
+  } catch (error) {
+    logFriendsActionFailure("invitation.create", error, {
+      actorUserId,
+      targetType: "user",
+      inviteeUserId,
+      guestUserId,
+    });
+    throw error;
   }
-
-  const invitation = await createInvitation({
-    inviterUserId: user.id,
-    targetType: "user",
-    inviteeUserId,
-    guestUserId,
-    kind: guestUserId ? "claim_guest" : "friend",
-    status: "pending",
-  });
-
-  revalidateFriendsViews();
-  revalidatePublicProfile(user.id);
-  revalidatePublicProfile(inviteeUserId);
-
-  return {
-    invitationId: invitation.id,
-    targetType: "user",
-  };
 }
 
 export async function createFriendInvitationByPhone(
   formData: FormData,
 ): Promise<{ invitationId: string; targetType: "user" | "phone" }> {
-  const user = await requireCurrentUser();
+  let actorUserId: string | null = null;
   const phoneInput = getStringValue(formData, "phoneNumber");
   const guestUserId = getStringValue(formData, "guestUserId") || null;
-  const normalizedPhone = normalizePhoneToE164(phoneInput);
 
-  if (typeof normalizedPhone !== "string") {
-    throw new Error(normalizedPhone.message);
-  }
+  try {
+    const user = await requireCurrentUser();
+    actorUserId = user.id;
+    const normalizedPhone = normalizePhoneToE164(phoneInput);
 
-  if (user.phoneNumber && normalizedPhone === user.phoneNumber) {
-    throw new Error("You cannot invite your own phone number");
-  }
+    if (typeof normalizedPhone !== "string") {
+      throw new Error(normalizedPhone.message);
+    }
 
-  const existing = await findPendingInvitationForPhoneTarget({
-    inviterUserId: user.id,
-    inviteePhoneNumber: normalizedPhone,
-    guestUserId,
-  });
+    if (user.phoneNumber && normalizedPhone === user.phoneNumber) {
+      throw new Error("You cannot invite your own phone number");
+    }
 
-  if (existing) {
-    revalidateFriendsViews();
-    return {
-      invitationId: existing.id,
-      targetType: "phone",
-    };
-  }
-
-  const existingUser = await getUserByPhoneNumber(normalizedPhone);
-
-  if (existingUser) {
-    return createFriendInvitationByUserId({
-      inviteeUserId: existingUser.id,
+    const existing = await findPendingInvitationForPhoneTarget({
+      inviterUserId: user.id,
+      inviteePhoneNumber: normalizedPhone,
       guestUserId,
     });
+
+    if (existing) {
+      revalidateFriendsViews();
+      logFriendsActionSuccess("invitation.create", {
+        actorUserId: user.id,
+        invitationId: existing.id,
+        targetType: "phone",
+        guestUserId,
+        inviteePhoneNumber: redactPhoneNumber(normalizedPhone),
+        reusedExistingInvitation: true,
+      });
+      return {
+        invitationId: existing.id,
+        targetType: "phone",
+      };
+    }
+
+    const existingUser = await getUserByPhoneNumber(normalizedPhone);
+
+    if (existingUser) {
+      return createFriendInvitationByUserId({
+        inviteeUserId: existingUser.id,
+        guestUserId,
+      });
+    }
+
+    const invitation = await createInvitation({
+      inviterUserId: user.id,
+      targetType: "phone",
+      inviteePhoneNumber: normalizedPhone,
+      guestUserId,
+      kind: guestUserId ? "claim_guest" : "friend",
+      status: "pending",
+    });
+
+    revalidateFriendsViews();
+
+    logFriendsActionSuccess("invitation.create", {
+      actorUserId: user.id,
+      invitationId: invitation.id,
+      targetType: "phone",
+      guestUserId,
+      inviteePhoneNumber: redactPhoneNumber(normalizedPhone),
+      reusedExistingInvitation: false,
+    });
+
+    return {
+      invitationId: invitation.id,
+      targetType: "phone",
+    };
+  } catch (error) {
+    logFriendsActionFailure("invitation.create", error, {
+      actorUserId,
+      targetType: "phone",
+      guestUserId,
+      inviteePhoneNumber: redactPhoneNumber(phoneInput),
+    });
+    throw error;
   }
-
-  const invitation = await createInvitation({
-    inviterUserId: user.id,
-    targetType: "phone",
-    inviteePhoneNumber: normalizedPhone,
-    guestUserId,
-    kind: guestUserId ? "claim_guest" : "friend",
-    status: "pending",
-  });
-
-  revalidateFriendsViews();
-
-  return {
-    invitationId: invitation.id,
-    targetType: "phone",
-  };
 }
 
 export async function createFriendInvitationLink(
   formData: FormData,
 ): Promise<{ invitationId: string; invitePath: string | null }> {
-  const user = await requireCurrentUser();
+  let actorUserId: string | null = null;
   const guestUserId = getStringValue(formData, "guestUserId") || null;
 
-  const invitation = await createInvitation({
-    inviterUserId: user.id,
-    targetType: "link",
-    inviteToken: createInviteToken(),
-    guestUserId,
-    kind: guestUserId ? "claim_guest" : "friend",
-    status: "pending",
-  });
+  try {
+    const user = await requireCurrentUser();
+    actorUserId = user.id;
 
-  revalidateFriendsViews(invitation.inviteToken);
+    const invitation = await createInvitation({
+      inviterUserId: user.id,
+      targetType: "link",
+      inviteToken: createInviteToken(),
+      guestUserId,
+      kind: guestUserId ? "claim_guest" : "friend",
+      status: "pending",
+    });
 
-  return {
-    invitationId: invitation.id,
-    invitePath: invitation.inviteToken
-      ? buildInvitePath(invitation.inviteToken)
-      : null,
-  };
+    revalidateFriendsViews(invitation.inviteToken);
+
+    logFriendsActionSuccess("invitation_link.create", {
+      actorUserId: user.id,
+      invitationId: invitation.id,
+      guestUserId,
+      inviteTokenCreated: Boolean(invitation.inviteToken),
+    });
+
+    return {
+      invitationId: invitation.id,
+      invitePath: invitation.inviteToken
+        ? buildInvitePath(invitation.inviteToken)
+        : null,
+    };
+  } catch (error) {
+    logFriendsActionFailure("invitation_link.create", error, {
+      actorUserId,
+      guestUserId,
+    });
+    throw error;
+  }
 }
 
 async function resolveInvitationForRecipient(formData: FormData) {
@@ -242,154 +333,252 @@ function canUserActOnInvitation(
 }
 
 export async function acceptInvitation(formData: FormData) {
-  const user = await requireCurrentUser();
-  const invitation = await resolveInvitationForRecipient(formData);
+  let actorUserId: string | null = null;
+  const invitationId = getStringValue(formData, "invitationId");
+  const inviteTokenPresent = Boolean(getStringValue(formData, "inviteToken"));
 
-  if (invitation.status !== "pending") {
-    throw new Error("This invitation is no longer active");
-  }
+  try {
+    const user = await requireCurrentUser();
+    actorUserId = user.id;
+    const invitation = await resolveInvitationForRecipient(formData);
 
-  if (!canUserActOnInvitation(invitation, user)) {
-    throw new Error("You cannot accept this invitation");
-  }
+    if (invitation.status !== "pending") {
+      throw new Error("This invitation is no longer active");
+    }
 
-  const existingFriendship = await getFriendshipByUsers(
-    invitation.inviterUserId,
-    user.id,
-  );
+    if (!canUserActOnInvitation(invitation, user)) {
+      throw new Error("You cannot accept this invitation");
+    }
 
-  if (!existingFriendship) {
-    await createFriendship({
-      user1Id: invitation.inviterUserId,
-      user2Id: user.id,
-      inviterId: invitation.inviterUserId,
+    const existingFriendship = await getFriendshipByUsers(
+      invitation.inviterUserId,
+      user.id,
+    );
+
+    if (!existingFriendship) {
+      await createFriendship({
+        user1Id: invitation.inviterUserId,
+        user2Id: user.id,
+        inviterId: invitation.inviterUserId,
+      });
+    }
+
+    if (invitation.kind === "claim_guest" && invitation.guestUserId) {
+      await mergeGuestUserIntoUser({
+        guestUserId: invitation.guestUserId,
+        recipientUserId: user.id,
+        inviterUserId: invitation.inviterUserId,
+      });
+      await revokePendingInvitationsForGuest(invitation.guestUserId, invitation.id);
+    }
+
+    await updateInvitation(invitation.id, {
+      status: "accepted",
+      acceptedByUserId: user.id,
+      acceptedAt: nowIso(),
+      inviteeUserId: invitation.inviteeUserId ?? user.id,
     });
-  }
 
-  if (invitation.kind === "claim_guest" && invitation.guestUserId) {
-    await mergeGuestUserIntoUser({
-      guestUserId: invitation.guestUserId,
-      recipientUserId: user.id,
+    revalidateFriendsViews(invitation.inviteToken);
+    revalidatePublicProfile(invitation.inviterUserId);
+    revalidatePublicProfile(user.id);
+    logFriendsActionSuccess("invitation.accept", {
+      actorUserId: user.id,
+      invitationId: invitation.id,
       inviterUserId: invitation.inviterUserId,
+      targetType: invitation.targetType,
+      invitationKind: invitation.kind,
+      mergedGuest: invitation.kind === "claim_guest" && Boolean(invitation.guestUserId),
+      createdFriendship: !existingFriendship,
     });
-    await revokePendingInvitationsForGuest(invitation.guestUserId, invitation.id);
+  } catch (error) {
+    logFriendsActionFailure("invitation.accept", error, {
+      actorUserId,
+      invitationId: invitationId || null,
+      inviteTokenPresent,
+    });
+    throw error;
   }
-
-  await updateInvitation(invitation.id, {
-    status: "accepted",
-    acceptedByUserId: user.id,
-    acceptedAt: nowIso(),
-    inviteeUserId: invitation.inviteeUserId ?? user.id,
-  });
-
-  revalidateFriendsViews(invitation.inviteToken);
-  revalidatePublicProfile(invitation.inviterUserId);
-  revalidatePublicProfile(user.id);
 }
 
 export async function declineInvitation(formData: FormData) {
-  const user = await requireCurrentUser();
-  const invitation = await resolveInvitationForRecipient(formData);
+  let actorUserId: string | null = null;
+  const invitationId = getStringValue(formData, "invitationId");
+  const inviteTokenPresent = Boolean(getStringValue(formData, "inviteToken"));
 
-  if (invitation.status !== "pending") {
-    throw new Error("This invitation is no longer active");
+  try {
+    const user = await requireCurrentUser();
+    actorUserId = user.id;
+    const invitation = await resolveInvitationForRecipient(formData);
+
+    if (invitation.status !== "pending") {
+      throw new Error("This invitation is no longer active");
+    }
+
+    if (!canUserActOnInvitation(invitation, user)) {
+      throw new Error("You cannot decline this invitation");
+    }
+
+    await updateInvitation(invitation.id, {
+      status: "declined",
+      inviteeUserId: invitation.inviteeUserId ?? user.id,
+    });
+
+    revalidateFriendsViews(invitation.inviteToken);
+    revalidatePublicProfile(invitation.inviterUserId);
+    revalidatePublicProfile(user.id);
+    logFriendsActionSuccess("invitation.decline", {
+      actorUserId: user.id,
+      invitationId: invitation.id,
+      inviterUserId: invitation.inviterUserId,
+      targetType: invitation.targetType,
+      invitationKind: invitation.kind,
+    });
+  } catch (error) {
+    logFriendsActionFailure("invitation.decline", error, {
+      actorUserId,
+      invitationId: invitationId || null,
+      inviteTokenPresent,
+    });
+    throw error;
   }
-
-  if (!canUserActOnInvitation(invitation, user)) {
-    throw new Error("You cannot decline this invitation");
-  }
-
-  await updateInvitation(invitation.id, {
-    status: "declined",
-    inviteeUserId: invitation.inviteeUserId ?? user.id,
-  });
-
-  revalidateFriendsViews(invitation.inviteToken);
-  revalidatePublicProfile(invitation.inviterUserId);
-  revalidatePublicProfile(user.id);
 }
 
 export async function revokeInvitation(formData: FormData) {
-  const user = await requireCurrentUser();
+  let actorUserId: string | null = null;
   const invitationId = getStringValue(formData, "invitationId");
 
-  if (!invitationId) {
-    throw new Error("Invitation id is required");
+  try {
+    const user = await requireCurrentUser();
+    actorUserId = user.id;
+
+    if (!invitationId) {
+      throw new Error("Invitation id is required");
+    }
+
+    const invitation = await getInvitationFullById(invitationId);
+
+    if (!invitation) {
+      throw new Error("Invitation not found");
+    }
+
+    if (invitation.inviterUserId !== user.id) {
+      throw new Error("You cannot revoke this invitation");
+    }
+
+    if (invitation.status !== "pending") {
+      throw new Error("Only pending invitations can be revoked");
+    }
+
+    await updateInvitation(invitation.id, {
+      status: "revoked",
+    });
+
+    revalidateFriendsViews(invitation.inviteToken);
+    revalidatePublicProfile(invitation.inviterUserId);
+    revalidatePublicProfile(invitation.inviteeUserId);
+    logFriendsActionSuccess("invitation.revoke", {
+      actorUserId: user.id,
+      invitationId: invitation.id,
+      targetType: invitation.targetType,
+      invitationKind: invitation.kind,
+      inviteeUserId: invitation.inviteeUserId,
+      guestUserId: invitation.guestUserId,
+    });
+  } catch (error) {
+    logFriendsActionFailure("invitation.revoke", error, {
+      actorUserId,
+      invitationId: invitationId || null,
+    });
+    throw error;
   }
-
-  const invitation = await getInvitationFullById(invitationId);
-
-  if (!invitation) {
-    throw new Error("Invitation not found");
-  }
-
-  if (invitation.inviterUserId !== user.id) {
-    throw new Error("You cannot revoke this invitation");
-  }
-
-  if (invitation.status !== "pending") {
-    throw new Error("Only pending invitations can be revoked");
-  }
-
-  await updateInvitation(invitation.id, {
-    status: "revoked",
-  });
-
-  revalidateFriendsViews(invitation.inviteToken);
-  revalidatePublicProfile(invitation.inviterUserId);
-  revalidatePublicProfile(invitation.inviteeUserId);
 }
 
 export async function mergeGuestIntoFriend(input: {
   guestUserId: string;
   friendUserId: string;
 }): Promise<void> {
-  const user = await requireCurrentUser();
+  let actorUserId: string | null = null;
   const guestUserId = input.guestUserId.trim();
   const friendUserId = input.friendUserId.trim();
 
-  if (!guestUserId || !friendUserId) {
-    throw new Error("Guest user and friend user are required");
+  try {
+    const user = await requireCurrentUser();
+    actorUserId = user.id;
+
+    if (!guestUserId || !friendUserId) {
+      throw new Error("Guest user and friend user are required");
+    }
+
+    if (friendUserId === user.id) {
+      throw new Error("Choose one of your friends instead of your own account");
+    }
+
+    const friendship = await getFriendshipByUsers(user.id, friendUserId);
+
+    if (!friendship) {
+      throw new Error("You can only merge a guest into an existing friend");
+    }
+
+    const mergeResult = await mergeGuestUserIntoUser({
+      guestUserId,
+      recipientUserId: friendUserId,
+      inviterUserId: user.id,
+    });
+    await revokePendingInvitationsForGuest(guestUserId);
+
+    revalidateFriendsViews();
+    logFriendsActionSuccess("guest.merge", {
+      actorUserId: user.id,
+      guestUserId,
+      recipientUserId: friendUserId,
+      mergedGamePlayerCount: mergeResult.mergedGamePlayerCount,
+      deletedDuplicateGamePlayerCount: mergeResult.deletedDuplicateGamePlayerCount,
+    });
+  } catch (error) {
+    logFriendsActionFailure("guest.merge", error, {
+      actorUserId,
+      guestUserId,
+      recipientUserId: friendUserId,
+    });
+    throw error;
   }
-
-  if (friendUserId === user.id) {
-    throw new Error("Choose one of your friends instead of your own account");
-  }
-
-  const friendship = await getFriendshipByUsers(user.id, friendUserId);
-
-  if (!friendship) {
-    throw new Error("You can only merge a guest into an existing friend");
-  }
-
-  await mergeGuestUserIntoUser({
-    guestUserId,
-    recipientUserId: friendUserId,
-    inviterUserId: user.id,
-  });
-  await revokePendingInvitationsForGuest(guestUserId);
-
-  revalidateFriendsViews();
 }
 
 export async function removeFriend(input: {
   friendUserId: string;
 }): Promise<void> {
-  const user = await requireCurrentUser();
+  let actorUserId: string | null = null;
   const friendUserId = input.friendUserId.trim();
 
-  if (!friendUserId) {
-    throw new Error("Friend user id is required");
+  try {
+    const user = await requireCurrentUser();
+    actorUserId = user.id;
+
+    if (!friendUserId) {
+      throw new Error("Friend user id is required");
+    }
+
+    const friendship = await getFriendshipByUsers(user.id, friendUserId);
+
+    if (!friendship) {
+      throw new Error("Friendship not found");
+    }
+
+    await deleteFriendship(user.id, friendUserId);
+    revalidateFriendsViews();
+    revalidatePublicProfile(user.id);
+    revalidatePublicProfile(friendUserId);
+    logFriendsActionSuccess("friend.remove", {
+      actorUserId: user.id,
+      friendUserId,
+      friendshipId: friendship.id,
+    });
+  } catch (error) {
+    logFriendsActionFailure("friend.remove", error, {
+      actorUserId,
+      friendUserId,
+    });
+    throw error;
   }
-
-  const friendship = await getFriendshipByUsers(user.id, friendUserId);
-
-  if (!friendship) {
-    throw new Error("Friendship not found");
-  }
-
-  await deleteFriendship(user.id, friendUserId);
-  revalidateFriendsViews();
-  revalidatePublicProfile(user.id);
-  revalidatePublicProfile(friendUserId);
 }

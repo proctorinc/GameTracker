@@ -25,7 +25,7 @@ export function CompleteProfile({ user }: ProfileOverviewProps) {
   const router = useRouter();
   const [firstName, setFirstName] = useState(user.firstName ?? "");
   const [lastName, setLastName] = useState(user.lastName ?? "");
-  const [color, setColor] = useState(user.color);
+  const [color, setColor] = useState("");
   const [isPending, setIsPending] = useState(false);
 
   async function handleCompleteProfile(e: React.FormEvent) {
@@ -58,7 +58,13 @@ export function CompleteProfile({ user }: ProfileOverviewProps) {
             />
             <div className="flex flex-col gap-1">
               <h2 className="text-3xl font-black tracking-tight text-foreground">
-                {firstName || "First name"} {lastName || "Last name"}
+                {firstName === "" && lastName === "" ? (
+                  <>Your name</>
+                ) : (
+                  <>
+                    {firstName} {lastName}
+                  </>
+                )}
               </h2>
               <div className="rounded-2xl border border-border bg-muted/60 p-2">
                 <p>{user.phoneNumber}</p>
@@ -103,7 +109,10 @@ export function CompleteProfile({ user }: ProfileOverviewProps) {
                 type="submit"
                 size="lg"
                 disabled={
-                  isPending || firstName.trim() === "" || lastName.trim() === ""
+                  isPending ||
+                  firstName.trim() === "" ||
+                  lastName.trim() === "" ||
+                  color.trim() === ""
                 }
                 className="w-full"
               >

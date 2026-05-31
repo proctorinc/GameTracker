@@ -39,6 +39,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 import {
   AlertCircle,
   Check,
@@ -678,13 +679,10 @@ export function FriendsPageClient({
             <Field>
               <FieldLabel htmlFor="invite-phone">Phone</FieldLabel>
               <FieldContent>
-                <Input
+                <PhoneNumberInput
                   id="invite-phone"
-                  type="tel"
-                  placeholder="+1 555 123 4567"
-                  autoComplete="tel"
                   value={invitePhone}
-                  onChange={(event) => setInvitePhone(event.target.value)}
+                  onChange={setInvitePhone}
                   disabled={isPending}
                 />
                 <FieldDescription>
@@ -730,13 +728,10 @@ export function FriendsPageClient({
             <Field>
               <FieldLabel htmlFor="guest-phone">Phone</FieldLabel>
               <FieldContent>
-                <Input
+                <PhoneNumberInput
                   id="guest-phone"
-                  type="tel"
-                  placeholder="+1 555 123 4567"
-                  autoComplete="tel"
                   value={guestPhoneInput}
-                  onChange={(event) => setGuestPhoneInput(event.target.value)}
+                  onChange={setGuestPhoneInput}
                   disabled={isPending}
                 />
               </FieldContent>

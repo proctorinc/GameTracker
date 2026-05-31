@@ -1,11 +1,12 @@
 "use client";
 
 import { Phone, Users } from "lucide-react";
+import ProfilePicture from "@/components/profile/profile-picture";
 import { Button } from "@/components/ui/button";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -16,7 +17,7 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 import { useFriendsPage } from "../friends-page-provider";
 import { getDisplayName } from "../utils";
 
@@ -24,15 +25,24 @@ export function GuestActionsDialog() {
   const {
     activeRecentPlayer,
     availableFriendsForMerge,
+    guestActionMode,
     guestPhoneInput,
     mergeFriendUserId,
     isPending,
+    setGuestActionMode,
     setGuestPhoneInput,
     setMergeFriendUserId,
     closeRecentPlayerDialog,
     handleGuestPhoneInvite,
     handleGuestMerge,
   } = useFriendsPage();
+  const mergeOptions = availableFriendsForMerge.map((friend) => ({
+    value: friend.id,
+    label: getDisplayName(friend),
+    keywords: [friend.firstName, friend.lastName].filter(Boolean),
+    friend,
+  }));
+  const canMerge = availableFriendsForMerge.length > 0;
 
   return (
     <Dialog
@@ -45,75 +55,109 @@ export function GuestActionsDialog() {
     >
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>
-            {activeRecentPlayer ? getDisplayName(activeRecentPlayer.user) : "Player"}
+          <DialogTitle className="flex gap-2 items-center">
+            {activeRecentPlayer && (
+              <ProfilePicture size="xs" user={activeRecentPlayer.user} />
+            )}
+            {activeRecentPlayer
+              ? getDisplayName(activeRecentPlayer.user)
+              : "Player"}
           </DialogTitle>
-          <DialogDescription>
-            Invite this guest by phone, or merge them into an existing friend
-            if they were added twice.
-          </DialogDescription>
         </DialogHeader>
 
-        <FieldGroup>
-          <Field>
-            <FieldLabel htmlFor="guest-phone">Phone</FieldLabel>
-            <FieldContent>
-              <Input
-                id="guest-phone"
-                type="tel"
-                placeholder="+1 555 123 4567"
-                autoComplete="tel"
-                value={guestPhoneInput}
-                onChange={(event) => setGuestPhoneInput(event.target.value)}
-                disabled={isPending}
-              />
-            </FieldContent>
-          </Field>
-          <Button
-            type="button"
-            disabled={isPending}
-            onClick={handleGuestPhoneInvite}
-          >
-            <Phone /> Invite by phone
-          </Button>
-        </FieldGroup>
-
-        {availableFriendsForMerge.length > 0 ? (
+        {guestActionMode ? (
           <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="guest-merge-friend">
-                Merge with friend
-              </FieldLabel>
-              <FieldContent>
-                <Input
-                  id="guest-merge-friend"
-                  list="friend-merge-options"
-                  placeholder="Friend user id"
-                  value={mergeFriendUserId}
-                  onChange={(event) => setMergeFriendUserId(event.target.value)}
-                  disabled={isPending}
-                />
-                <datalist id="friend-merge-options">
-                  {availableFriendsForMerge.map((friend) => (
-                    <option key={friend.id} value={friend.id}>
-                      {getDisplayName(friend)}
-                    </option>
-                  ))}
-                </datalist>
-              </FieldContent>
-            </Field>
+            {guestActionMode === "phone" ? (
+              <>
+                <Field>
+                  <FieldLabel htmlFor="guest-phone">Phone</FieldLabel>
+                  <FieldContent>
+                    <PhoneNumberInput
+                      id="guest-phone"
+                      value={guestPhoneInput}
+                      onChange={setGuestPhoneInput}
+                      disabled={isPending}
+                    />
+                  </FieldContent>
+                </Field>
+              </>
+            ) : canMerge ? (
+              <>
+                <Field>
+                  <FieldLabel>Merge with friend account</FieldLabel>
+                  <FieldContent>
+                    <SearchableSelect
+                      value={mergeFriendUserId || null}
+                      onValueChange={setMergeFriendUserId}
+                      options={mergeOptions}
+                      placeholder="Search for a friend"
+                      searchPlaceholder="Type a friend's name"
+                      emptyMessage="No friends match your search."
+                      disabled={isPending}
+                      includeValueInSearch={false}
+                      renderOption={(option) => (
+                        <span className="flex min-w-0 items-center gap-2">
+                          <ProfilePicture user={option.friend} size="xs" />
+                          <span className="truncate">{option.label}</span>
+                        </span>
+                      )}
+                      renderSelectedValue={(option) => (
+                        <span className="flex min-w-0 items-center gap-2">
+                          <ProfilePicture user={option.friend} size="xs" />
+                          <span className="truncate">{option.label}</span>
+                        </span>
+                      )}
+                    />
+                  </FieldContent>
+                </Field>
+              </>
+            ) : null}
+          </FieldGroup>
+        ) : (
+          <FieldGroup>
             <Button
               type="button"
-              variant="outline"
               disabled={isPending}
-              onClick={handleGuestMerge}
+              onClick={() => setGuestActionMode("phone")}
             >
-              <Users /> Merge with friend
+              <Phone /> Invite by phone number
             </Button>
+            {canMerge ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPending}
+                onClick={() => setGuestActionMode("merge")}
+              >
+                <Users /> Merge with friend account
+              </Button>
+            ) : null}
           </FieldGroup>
-        ) : null}
+        )}
 
-        <DialogFooter showCloseButton />
+        <DialogFooter showCloseButton>
+          {guestActionMode ? (
+            <>
+              {guestActionMode === "phone" ? (
+                <Button
+                  type="button"
+                  disabled={isPending}
+                  onClick={handleGuestPhoneInvite}
+                >
+                  <Phone /> Invite by phone
+                </Button>
+              ) : canMerge ? (
+                <Button
+                  type="button"
+                  disabled={isPending}
+                  onClick={handleGuestMerge}
+                >
+                  <Users /> Merge with friend
+                </Button>
+              ) : null}
+            </>
+          ) : null}
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

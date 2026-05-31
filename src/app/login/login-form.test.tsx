@@ -16,13 +16,18 @@ vi.mock("@/components/ui/input-otp", () => ({
   InputOTP: ({
     value = "",
     onChange,
+    children,
+    containerClassName: _containerClassName,
     ...props
   }: {
     value?: string;
     onChange?: (value: string) => void;
+    children?: React.ReactNode;
+    containerClassName?: string;
     ["data-testid"]?: string;
   }) => (
     <input
+      {...props}
       data-testid={props["data-testid"]}
       value={value}
       onChange={(event) => onChange?.(event.target.value)}
@@ -114,6 +119,7 @@ describe("LoginForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send Code" }));
 
     await screen.findByText("Verification Code");
+    expect(screen.getByTestId("login-otp")).toHaveFocus();
 
     fireEvent.change(screen.getByTestId("login-otp"), {
       target: { value: "123456" },

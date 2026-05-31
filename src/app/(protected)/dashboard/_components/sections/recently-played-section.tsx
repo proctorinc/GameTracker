@@ -43,7 +43,7 @@ export function RecentlyPlayedSection() {
                 <div
                   key={`title=${gameTitle.id}`}
                   className={cn(
-                    "relative flex aspect-square h-40 shrink-0 flex-col justify-between overflow-hidden rounded-2xl border shadow-lg",
+                    "relative flex aspect-square h-40 shrink-0 flex-col justify-between overflow-hidden rounded-2xl border border-none shadow-lg",
                   )}
                   style={{ backgroundColor: gameTitle.color }}
                 >

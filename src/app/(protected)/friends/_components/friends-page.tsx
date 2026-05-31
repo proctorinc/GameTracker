@@ -10,6 +10,7 @@ import { FriendsTabContent } from "./sections/friends-tab-content";
 import { FriendsTabs } from "./sections/friends-tabs";
 import { InviteNotices } from "./sections/invite-notices";
 import { InvitationsCard } from "./sections/invitations-card";
+import { AddFriendCard } from "./sections/add-friend-card";
 
 type FriendsPageProps = {
   data: FriendsPageData;
@@ -21,10 +22,11 @@ function FriendsPageContent() {
   const { activeTab } = useFriendsPage();
 
   return (
-    <div className="min-h-screen overflow-y-auto px-4 py-6 pb-40">
+    <div className="min-h-screen overflow-y-auto px-4 pb-40">
       <div className="mx-auto flex w-full max-w-md flex-col gap-4">
         <FriendsPageHeader />
         <FriendsTabs />
+        <AddFriendCard />
         <InviteNotices />
         {activeTab === "friends" ? <FriendsTabContent /> : <InvitationsCard />}
       </div>
