@@ -13,7 +13,7 @@ import { PublicProfileCard } from "./sections/public-profile-card";
 function ProfileOverviewContent() {
   const { user } = useProfileOverview();
   return (
-    <div className="min-h-screen overflow-y-auto px-4 pb-24">
+    <div className="min-h-screen overflow-y-auto px-4 pb-40">
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <ProfileHeroCard />
         <PublicProfileCard />

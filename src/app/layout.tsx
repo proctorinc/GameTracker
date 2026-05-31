@@ -13,6 +13,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { APP_DESCRIPTION, APP_NAME } from "@/lib/app-config";
 import Link from "next/link";
+import { Gamepad } from "lucide-react";
 
 // const fontSans = Winky_Sans({
 //   subsets: ["latin"],
@@ -70,18 +71,17 @@ export default function RootLayout({
         fontDongle.variable,
       )}
     >
-      <body className="min-h-full flex bg-slate-100 bg-red-500 dark:bg-black">
+      <body className="min-h-full flex bg-slate-100 dark:bg-black">
         <ThemeProvider>
           <main className="relative flex-1 h-full overflow-auto">
-            <div className="flex h-16 w-full items-center justify-center px-4 text-center backdrop-blur-sm dark:border-white/10 dark:bg-black/30">
+            <div className="flex h-16 w-full items-center justify-center px-4 text-center backdrop-blur-sm">
               <Link
                 href="/dashboard"
                 aria-label={`${APP_NAME} home`}
-                className="group inline-flex items-center gap-3 rounded-full border border-white/30 px-4 py-2 text-foreground shadow-[0_1px_0_rgba(255,255,255,0.12)_inset,0_12px_30px_rgba(15,23,42,0.22)] transition-transform transition-colors hover:scale-[1.01] hover:border-white/40 dark:border-white/20 scale-75"
+                className="group inline-flex items-center gap-1 rounded-full border border-border px-4 py-2 text-foreground transition-transform transition-colors hover:scale-[1.01] hover:border-border/40 dark:border-white/20 scale-75"
               >
                 <span className="relative flex h-7 w-7 items-center justify-center">
-                  <span className="absolute h-4.5 w-4.5 -translate-x-[2px] -translate-y-[2px] rounded-[0.7rem] border border-white/35 bg-foreground" />
-                  <span className="absolute h-4.5 w-4.5 translate-x-[2px] translate-y-[2px] rounded-[0.7rem] border border-white/60 bg-foreground/50" />
+                  <Gamepad />
                 </span>
                 <span className="font-logo text-sm font-black uppercase tracking-[0.18em] sm:text-[0.95rem]">
                   {APP_NAME}

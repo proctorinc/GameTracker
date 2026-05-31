@@ -61,7 +61,7 @@ export default function GameTitlePage({
   const gameHistoryHref = `/game/history?titleId=${encodeURIComponent(title.id)}`;
 
   return (
-    <div className="min-h-screen px-4 pb-24">
+    <div className="min-h-screen px-4 pb-40">
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <div
           className="relative overflow-hidden rounded-[2rem] border border-black/5 p-6 text-white shadow-xl"

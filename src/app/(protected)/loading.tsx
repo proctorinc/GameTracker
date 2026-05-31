@@ -4,7 +4,7 @@ const skeletonRows = Array.from({ length: 3 }, (_, index) => index);
 
 export default function ProtectedLoading() {
   return (
-    <main className="min-h-dvh bg-background px-4 pb-28 pt-6">
+    <main className="min-h-dvh px-4 pb-28 pt-6">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
         <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
           <div className="h-4 w-24 animate-pulse rounded-full bg-muted" />

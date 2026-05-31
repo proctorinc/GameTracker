@@ -789,7 +789,7 @@ export default function PlayGame(props: PlayGameProps) {
 
   if (game.version !== "v1") {
     return (
-      <div className="min-h-screen overflow-y-auto px-3 pb-24 sm:px-6">
+      <div className="min-h-screen overflow-y-auto px-3 pb-40 sm:px-6">
         <div className="mx-auto flex w-full max-w-md flex-col gap-4">
           <Card>
             <CardHeader>
@@ -845,7 +845,7 @@ export default function PlayGame(props: PlayGameProps) {
                     }}
                   />
                 ) : null}
-                <div className="absolute inset-0 bg-linear-to-t from-white/60 via-white/30 dark:from-black/80 dark:via-black/30 to-transparent" />
+                <div className="absolute inset-0 bg-linear-to-t from-white/45 via-white/20 dark:from-black/80 dark:via-black/30 to-transparent" />
                 <div className="absolute inset-0 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--game-header-accent)_28%,transparent)_0%,transparent_58%,color-mix(in_srgb,var(--game-header-accent)_18%,transparent)_100%)] dark:bg-[linear-gradient(135deg,color-mix(in_srgb,var(--game-header-accent)_30%,transparent)_0%,transparent_58%,color-mix(in_srgb,var(--game-header-accent)_22%,transparent)_100%)]" />
               </div>
               <div className="flex min-w-0 min-h-18 flex-1 items-center gap-3 px-4 py-3">

@@ -25,7 +25,7 @@ export function ActiveGamesSection() {
   const { recentActiveGames, user } = useDashboardPage();
 
   return (
-    <Card>
+    <Card className="mx-4">
       <CardHeader>
         <CardTitle>Continue Playing</CardTitle>
         <CardAction>
@@ -43,7 +43,10 @@ export function ActiveGamesSection() {
         {recentActiveGames.length === 0 ? (
           <CardEmpty className="flex flex-col items-center gap-3">
             <p>No active games yet.</p>
-            <Link href="/game/create/settings" className={sectionActionClassName}>
+            <Link
+              href="/game/create/settings"
+              className={sectionActionClassName}
+            >
               Start a game
               <ArrowRight />
             </Link>
@@ -55,12 +58,28 @@ export function ActiveGamesSection() {
               href={`/game/${game.id}/play`}
               className={cn(
                 sectionItemClassName,
-                "transition-colors hover:bg-muted",
+                "relative overflow-hidden transition-colors hover:bg-muted/80 border-none",
               )}
+              style={{ backgroundColor: game.gameTitle?.color ?? undefined }}
             >
-              <div className="flex items-center justify-between gap-3">
+              {game.gameTitle?.imageUrl ? (
+                <>
+                  <div
+                    className="absolute inset-0 scale-105 bg-cover bg-center opacity-55 blur-[1px]"
+                    style={{
+                      backgroundImage: `url("${game.gameTitle.imageUrl}")`,
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-background/75" />
+                </>
+              ) : null}
+              <div className="relative z-10 flex items-center justify-between gap-3">
                 <h3
-                  className={cn("min-w-0 truncate", sectionItemTitleClassName)}
+                  className={cn(
+                    "min-w-0 truncate font-bold",
+                    sectionItemTitleClassName,
+                    "font-bold",
+                  )}
                 >
                   {game.gameTitle?.title ?? "New Game"}
                 </h3>
@@ -74,7 +93,7 @@ export function ActiveGamesSection() {
                   <span>{formatGameDate(game.createdAt)}</span>
                 </div>
               </div>
-              <div className="mt-2 flex items-center gap-3">
+              <div className="relative z-10 mt-2 flex items-center gap-3">
                 <GamePlayerStack players={game.players} />
                 <div className="min-w-0 flex-1">
                   <p className={cn("truncate", sectionItemMetaClassName)}>

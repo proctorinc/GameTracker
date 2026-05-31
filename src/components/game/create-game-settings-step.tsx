@@ -212,7 +212,7 @@ export default function CreateGameSettingsStep({
   }
 
   return (
-    <div className="min-h-screen overflow-y-auto px-4 pb-24">
+    <div className="min-h-screen overflow-y-auto px-4 pb-40">
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <div className="space-y-1">
           <h1 className="text-4xl font-black">Choose game</h1>
@@ -273,13 +273,13 @@ export default function CreateGameSettingsStep({
                             >
                               {title.imageUrl ? (
                                 <div
-                                  className="absolute inset-0 bg-cover bg-center opacity-55"
+                                  className="absolute inset-0 bg-cover bg-center opacity-45"
                                   style={{
                                     backgroundImage: `url("${title.imageUrl}")`,
                                   }}
                                 />
                               ) : null}
-                              <div className="absolute inset-0 bg-linear-to-r from-black/60 via-black/35 to-black/10 dark:from-black/70 dark:via-black/45 dark:to-black/20" />
+                              <div className="absolute inset-0 bg-linear-to-t from-white/45 via-white/25 dark:from-black/80 dark:via-black/35 to-transparent" />
                               <div className="relative z-10 flex w-full flex-col items-start justify-end gap-1">
                                 <p
                                   className={cn(
@@ -318,13 +318,13 @@ export default function CreateGameSettingsStep({
                           >
                             {title.imageUrl ? (
                               <div
-                                className="absolute inset-0 bg-cover bg-center opacity-55"
+                                className="absolute inset-0 bg-cover bg-center opacity-45"
                                 style={{
                                   backgroundImage: `url("${title.imageUrl}")`,
                                 }}
                               />
                             ) : null}
-                            <div className="absolute inset-0 bg-linear-to-r from-black/60 via-black/35 to-black/10 dark:from-black/70 dark:via-black/45 dark:to-black/20" />
+                            <div className="absolute inset-0 bg-linear-to-t from-white/45 via-white/25 dark:from-black/80 dark:via-black/35 to-transparent" />
                             <div className="relative z-10 flex w-full items-end justify-between gap-3">
                               <div className="min-w-0">
                                 <p className="truncate text-base font-black text-white">
@@ -384,14 +384,14 @@ export default function CreateGameSettingsStep({
               >
                 {selectedTitle?.imageUrl ? (
                   <div
-                    className="absolute inset-0 bg-cover bg-center opacity-55"
+                    className="absolute inset-0 bg-cover bg-center opacity-45"
                     style={{
                       backgroundImage: `url("${selectedTitle.imageUrl}")`,
                     }}
                   />
                 ) : null}
                 {selectedTitle ? (
-                  <div className="absolute inset-0 bg-linear-to-r from-black/65 via-black/40 to-black/15 dark:from-black/75 dark:via-black/50 dark:to-black/20" />
+                  <div className="absolute inset-0 bg-linear-to-t from-white/45 via-white/25 dark:from-black/80 dark:via-black/35 to-transparent" />
                 ) : null}
                 <div className="relative z-10 min-w-0">
                   <p

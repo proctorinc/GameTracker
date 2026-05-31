@@ -12,7 +12,7 @@ export default function GameHistoryPage({
   const { user, games, filters, friends, gameTitles } = data;
 
   return (
-    <div className="min-h-screen px-4 pb-24">
+    <div className="min-h-screen px-4 pb-40">
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <div className="space-y-2">
           <div className="space-y-1">

@@ -21,7 +21,7 @@ function FriendsPageContent() {
   const { activeTab } = useFriendsPage();
 
   return (
-    <div className="min-h-screen overflow-y-auto px-4 py-6 pb-24">
+    <div className="min-h-screen overflow-y-auto px-4 py-6 pb-40">
       <div className="mx-auto flex w-full max-w-md flex-col gap-4">
         <FriendsPageHeader />
         <FriendsTabs />

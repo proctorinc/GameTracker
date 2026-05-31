@@ -1,19 +1,22 @@
 "use client";
 
 import { sectionActionClassName } from "@/components/ui/section-styles";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Dices } from "lucide-react";
 import Link from "next/link";
 import { Card, CardAction, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function StartGameCard() {
   return (
-    <Link href="/game/create/settings">
+    <Link href="/game/create/settings" className="mx-4 -mt-4">
       <Card>
-        <CardHeader>
-          <CardTitle>Start a new game</CardTitle>
+        <CardHeader className="flex justify-between items-center">
+          <CardTitle className="flex gap-1 items-center">
+            <Dices />
+            New game
+          </CardTitle>
           <CardAction>
             <span className={sectionActionClassName}>
-              Play
+              Start
               <ArrowRight />
             </span>
           </CardAction>

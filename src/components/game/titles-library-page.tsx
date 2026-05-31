@@ -2,7 +2,13 @@
 
 import type { TitlesPageData } from "@/app/actions/pages/titles";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardEmpty, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardEmpty,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
@@ -105,7 +111,7 @@ export default function TitlesLibraryPage({ data }: { data: TitlesPageData }) {
   }, [filters, gameTitles]);
 
   return (
-    <div className="min-h-screen px-4 pb-24">
+    <div className="min-h-screen px-4 pb-40">
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <div className="space-y-1">
           <h1 className="text-4xl font-black tracking-tight">
@@ -152,7 +158,7 @@ export default function TitlesLibraryPage({ data }: { data: TitlesPageData }) {
                     style={{ backgroundImage: `url("${title.imageUrl}")` }}
                   />
                 ) : null}
-                <div className="absolute inset-0 bg-linear-to-t from-white/60 via-white/35 dark:from-black/80 dark:via-black/35 to-transparent" />
+                <div className="absolute inset-0 bg-linear-to-t from-white/45 via-white/25 dark:from-black/80 dark:via-black/35 to-transparent" />
                 <div className="relative z-10 flex h-full flex-col justify-between gap-4">
                   <div className="flex flex-wrap gap-2">
                     <Badge
@@ -201,7 +207,10 @@ export default function TitlesLibraryPage({ data }: { data: TitlesPageData }) {
             {visibleTitles.length === 0 ? (
               <CardEmpty className="col-span-full flex flex-col items-center gap-3 p-10">
                 <p>No titles matched these filters yet.</p>
-                <Link href="/game/create/settings" className="inline-flex items-center gap-2 text-sm font-semibold text-primary transition-colors hover:text-primary/80">
+                <Link
+                  href="/game/create/settings"
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-primary transition-colors hover:text-primary/80"
+                >
                   Start a game
                   <ArrowRight className="size-4" />
                 </Link>

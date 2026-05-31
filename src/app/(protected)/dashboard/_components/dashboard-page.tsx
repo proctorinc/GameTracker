@@ -25,7 +25,7 @@ function DashboardPageContent() {
       className={
         isFirstRunDashboard
           ? "min-h-screen px-4 py-6"
-          : "min-h-screen overflow-y-auto px-4 pb-24"
+          : "min-h-screen overflow-y-auto pb-40"
       }
     >
       <div
