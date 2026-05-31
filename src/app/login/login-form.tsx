@@ -16,8 +16,8 @@ import { toast } from "sonner";
 const IS_DEV = process.env.NEXT_PUBLIC_APP_ENV === "development";
 
 interface LoginFormState {
-  phone?: string;
-  otpCode?: string;
+  phone: string;
+  otpCode: string;
 }
 
 export default function LoginForm() {

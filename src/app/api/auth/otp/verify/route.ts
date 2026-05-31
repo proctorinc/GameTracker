@@ -8,13 +8,14 @@ import { resolveVerifyProvider } from "@/lib/twilio/service";
 import { isDev, isProd } from "@/lib/env";
 import { createSession } from "@/lib/db/store";
 import { logError, logInfo, logWarn, redactPhoneNumber } from "@/lib/server-log";
+import { getRequestContextFromRequest } from "@/lib/server-request-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const POST = async (request: Request) => {
   let phoneForLogs: string | null = null;
-  const path = new URL(request.url).pathname;
+  const requestContext = getRequestContextFromRequest(request);
 
   try {
     let body: { phone?: string; code?: string };
@@ -22,7 +23,7 @@ export const POST = async (request: Request) => {
       body = await request.json();
     } catch {
       logWarn("auth.otp.verify.rejected", {
-        path,
+        ...requestContext,
         reason: "invalid_json",
       });
       return NextResponse.json({ error: "invalid_json" }, { status: 400 });
@@ -33,7 +34,7 @@ export const POST = async (request: Request) => {
 
     if (!phone) {
       logWarn("auth.otp.verify.rejected", {
-        path,
+        ...requestContext,
         reason: "missing_phone",
       });
       return NextResponse.json({ error: "phone is required" }, { status: 400 });
@@ -41,7 +42,7 @@ export const POST = async (request: Request) => {
 
     if (!isDev() && !code) {
       logWarn("auth.otp.verify.rejected", {
-        path,
+        ...requestContext,
         reason: "missing_code",
         phoneNumber: redactPhoneNumber(phoneForLogs),
       });
@@ -55,7 +56,7 @@ export const POST = async (request: Request) => {
       const codeLength = code.length;
       if (codeLength < 4 || codeLength > 8) {
         logWarn("auth.otp.verify.rejected", {
-          path,
+          ...requestContext,
           reason: "invalid_code_length",
           codeLength,
           phoneNumber: redactPhoneNumber(phoneForLogs),
@@ -70,8 +71,8 @@ export const POST = async (request: Request) => {
     const result = normalizePhoneToE164(phone);
     if (typeof result !== "string") {
       logWarn("auth.otp.verify.rejected", {
-        path,
-        reason: result.error,
+        ...requestContext,
+        reason: result.message,
         phoneNumber: redactPhoneNumber(phoneForLogs),
       });
       return NextResponse.json(result, { status: 400 });
@@ -83,7 +84,7 @@ export const POST = async (request: Request) => {
 
     if (!isApproved) {
       logWarn("auth.otp.verify.rejected", {
-        path,
+        ...requestContext,
         reason: "invalid_otp",
         phoneNumber: redactPhoneNumber(phoneE164),
         verifyProvider: verifyProvider.constructor.name,
@@ -120,7 +121,7 @@ export const POST = async (request: Request) => {
     });
 
     logInfo("auth.otp.verify.succeeded", {
-      path,
+      ...requestContext,
       userId: user.id,
       phoneNumber: redactPhoneNumber(phoneE164),
       hasPendingInvitations: pendingInvitationCount > 0,
@@ -132,7 +133,7 @@ export const POST = async (request: Request) => {
     return response;
   } catch (error) {
     logError("auth.otp.verify.failed", error, {
-      path,
+      ...requestContext,
       phoneNumber: redactPhoneNumber(phoneForLogs),
     });
     return NextResponse.json(

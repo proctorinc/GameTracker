@@ -5,6 +5,8 @@ import {
   listGameTitles,
   listAcceptedFriendsForUser,
 } from "@/lib/db/store";
+import { logError, logInfo } from "@/lib/server-log";
+import { getServerRequestContext } from "@/lib/server-request-context";
 
 type SearchParamsInput = Record<string, string | string[] | undefined>;
 
@@ -69,20 +71,43 @@ export type GameHistoryPageData = Awaited<
 export async function getGameHistoryPageData(
   searchParams: SearchParamsInput,
 ) {
-  const user = await loadCurrentUser();
-  const filters = parseGameHistoryFilters(searchParams);
+  const requestContext = await getServerRequestContext();
 
-  const [games, friends, gameTitles] = await Promise.all([
-    listGameHistoryForUser(user.id, filters),
-    listAcceptedFriendsForUser(user.id),
-    listGameTitles(user.id),
-  ]);
+  try {
+    const user = await loadCurrentUser();
+    const filters = parseGameHistoryFilters(searchParams);
 
-  return {
-    user,
-    filters,
-    games,
-    friends,
-    gameTitles,
-  };
+    const [games, friends, gameTitles] = await Promise.all([
+      listGameHistoryForUser(user.id, filters),
+      listAcceptedFriendsForUser(user.id),
+      listGameTitles(user.id),
+    ]);
+
+    logInfo("game_history.page_data.read.succeeded", {
+      ...requestContext,
+      userId: user.id,
+      gameCount: games.length,
+      friendCount: friends.length,
+      gameTitleCount: gameTitles.length,
+      statusFilter: filters.status,
+      creatorFilter: filters.creator,
+      outcomeFilter: filters.outcome,
+      sortOrder: filters.sort,
+      hasFriendFilter: Boolean(filters.friendUserId),
+      hasGameTitleFilter: Boolean(filters.gameTitleId),
+    });
+
+    return {
+      user,
+      filters,
+      games,
+      friends,
+      gameTitles,
+    };
+  } catch (error) {
+    logError("game_history.page_data.read.failed", error, {
+      ...requestContext,
+    });
+    throw error;
+  }
 }

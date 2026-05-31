@@ -39,7 +39,9 @@ export function GuestActionsDialog() {
   const mergeOptions = availableFriendsForMerge.map((friend) => ({
     value: friend.id,
     label: getDisplayName(friend),
-    keywords: [friend.firstName, friend.lastName].filter(Boolean),
+    keywords: [friend.firstName, friend.lastName].filter(
+      (value): value is string => Boolean(value),
+    ),
     friend,
   }));
   const canMerge = availableFriendsForMerge.length > 0;

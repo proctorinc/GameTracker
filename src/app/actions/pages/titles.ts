@@ -1,5 +1,7 @@
 import { loadCurrentUser } from "@/lib/auth/auth-me";
 import { listGameTitles } from "@/lib/db/store";
+import { logError, logInfo } from "@/lib/server-log";
+import { getServerRequestContext } from "@/lib/server-request-context";
 
 type SearchParamsInput = Record<string, string | string[] | undefined>;
 
@@ -68,18 +70,40 @@ export function parseTitleLibraryFilters(
 export type TitlesPageData = Awaited<ReturnType<typeof getTitlesPageData>>;
 
 export async function getTitlesPageData(searchParams: SearchParamsInput) {
-  const user = await loadCurrentUser();
-  const filters = parseTitleLibraryFilters(searchParams);
-  const gameTitles = await listGameTitles(user.id);
+  const requestContext = await getServerRequestContext();
 
-  return {
-    user,
-    filters,
-    gameTitles,
-    counts: {
+  try {
+    const user = await loadCurrentUser();
+    const filters = parseTitleLibraryFilters(searchParams);
+    const gameTitles = await listGameTitles(user.id);
+    const counts = {
       all: gameTitles.length,
       mine: gameTitles.filter((title) => title.isOwned).length,
       universal: gameTitles.filter((title) => title.isUniversal).length,
-    },
-  };
+    };
+
+    logInfo("titles.page_data.read.succeeded", {
+      ...requestContext,
+      userId: user.id,
+      gameTitleCount: gameTitles.length,
+      scopeFilter: filters.scope,
+      sourceFilter: filters.source,
+      sortOrder: filters.sort,
+      hasQuery: Boolean(filters.query),
+      ownedCount: counts.mine,
+      universalCount: counts.universal,
+    });
+
+    return {
+      user,
+      filters,
+      gameTitles,
+      counts,
+    };
+  } catch (error) {
+    logError("titles.page_data.read.failed", error, {
+      ...requestContext,
+    });
+    throw error;
+  }
 }

@@ -572,7 +572,8 @@ export async function removeFriend(input: {
     logFriendsActionSuccess("friend.remove", {
       actorUserId: user.id,
       friendUserId,
-      friendshipId: friendship.id,
+      friendshipUser1Id: friendship.user1Id,
+      friendshipUser2Id: friendship.user2Id,
     });
   } catch (error) {
     logFriendsActionFailure("friend.remove", error, {

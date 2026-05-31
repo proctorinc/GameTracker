@@ -3,16 +3,18 @@ import type { NextRequest } from "next/server";
 import { requireAuth, UnauthorizedError } from "@/lib/auth/require-auth";
 import { loadAuthMeData } from "@/lib/auth/auth-me";
 import { logError, logInfo, logWarn } from "@/lib/server-log";
+import { getRequestContextFromRequest } from "@/lib/server-request-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const GET = async (request: NextRequest) => {
+  const requestContext = getRequestContextFromRequest(request);
   try {
     const auth = await requireAuth(request);
     const authMe = await loadAuthMeData(auth.user);
     logInfo("auth.me.succeeded", {
-      path: request.nextUrl.pathname,
+      ...requestContext,
       userId: auth.user.id,
       sessionId: auth.sessionId,
       networkSize: authMe.network.length,
@@ -21,13 +23,13 @@ export const GET = async (request: NextRequest) => {
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       logWarn("auth.me.rejected", {
-        path: request.nextUrl.pathname,
+        ...requestContext,
         reason: error.message,
       });
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
     logError("auth.me.failed", error, {
-      path: request.nextUrl.pathname,
+      ...requestContext,
     });
     return NextResponse.json({ error: "internal_server_error" }, { status: 500 });
   }

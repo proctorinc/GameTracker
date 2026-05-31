@@ -4,13 +4,14 @@ import { checkRateLimit } from "@/lib/auth/rate-limiter";
 import { resolveVerifyProvider } from "@/lib/twilio/service";
 import { isDev } from "@/lib/env";
 import { logError, logInfo, logWarn, redactPhoneNumber } from "@/lib/server-log";
+import { getRequestContextFromRequest } from "@/lib/server-request-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const POST = async (request: Request) => {
   let phoneForLogs: string | null = null;
-  const path = new URL(request.url).pathname;
+  const requestContext = getRequestContextFromRequest(request);
 
   try {
     let body: { phone?: string };
@@ -18,7 +19,7 @@ export const POST = async (request: Request) => {
       body = await request.json();
     } catch {
       logWarn("auth.otp.request.rejected", {
-        path,
+        ...requestContext,
         reason: "invalid_json",
       });
       return NextResponse.json({ error: "invalid_json" }, { status: 400 });
@@ -29,7 +30,7 @@ export const POST = async (request: Request) => {
 
     if (!phone) {
       logWarn("auth.otp.request.rejected", {
-        path,
+        ...requestContext,
         reason: "missing_phone",
       });
       return NextResponse.json({ error: "phone is required" }, { status: 400 });
@@ -38,8 +39,8 @@ export const POST = async (request: Request) => {
     const result = normalizePhoneToE164(phone);
     if (typeof result !== "string") {
       logWarn("auth.otp.request.rejected", {
-        path,
-        reason: result.error,
+        ...requestContext,
+        reason: result.message,
         phoneNumber: redactPhoneNumber(phoneForLogs),
       });
       return NextResponse.json(result, { status: 400 });
@@ -50,7 +51,7 @@ export const POST = async (request: Request) => {
     const rateLimitResult = await checkRateLimit(phoneE164);
     if (!rateLimitResult.allowed) {
       logWarn("auth.otp.request.rate_limited", {
-        path,
+        ...requestContext,
         phoneNumber: redactPhoneNumber(phoneE164),
         reason: rateLimitResult.reason ?? "rate_limit_exceeded",
       });
@@ -64,7 +65,7 @@ export const POST = async (request: Request) => {
     await verifyProvider.sendOtp(phoneE164);
 
     logInfo("auth.otp.request.succeeded", {
-      path,
+      ...requestContext,
       phoneNumber: redactPhoneNumber(phoneE164),
       verifyProvider: verifyProvider.constructor.name,
       devMode: isDev(),
@@ -73,7 +74,7 @@ export const POST = async (request: Request) => {
     return NextResponse.json({ ok: true, dev: isDev() }, { status: 200 });
   } catch (error) {
     logError("auth.otp.request.failed", error, {
-      path,
+      ...requestContext,
       phoneNumber: redactPhoneNumber(phoneForLogs),
     });
     return NextResponse.json({ error: "internal_server_error" }, { status: 500 });
