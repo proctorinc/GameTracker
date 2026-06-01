@@ -1,19 +1,23 @@
 import { APP_NAME } from "@/lib/app-config";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 
-export default function AppLogo({
-  className,
-}: {
-  className?: string;
-}) {
+export default function AppLogo({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "font-logo text-5xl font-black uppercase tracking-[0.08em] text-foreground sm:text-6xl",
+        "flex gap-3 items-center font-logo text-3xl font-black tracking-[0.08em] text-foreground sm:text-6xl",
         className,
       )}
     >
-      {APP_NAME}
+      <Image
+        src="/score-loser.png"
+        alt={`${APP_NAME} logo`}
+        width={120}
+        height={120}
+        className="size-14 object-contain"
+        unoptimized
+      />
     </span>
   );
 }

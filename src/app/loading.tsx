@@ -8,27 +8,8 @@ export default function Loading() {
       <div className="absolute inset-0 -z-20 bg-background" />
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.65),transparent_45%)] dark:bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_35%)]" />
 
-      <section className="w-full max-w-md px-6">
-        <div className="rounded-3xl border border-border bg-card px-8 py-10 text-center text-card-foreground shadow-lg">
-          <div className="animate-pulse">
-            <AppLogo className="text-card-foreground" />
-
-            <div className="mt-8 flex items-center justify-center gap-4">
-              <div className="flex items-center gap-2" aria-hidden="true">
-                {loadingTicks.map((tick) => (
-                  <span
-                    key={tick}
-                    className="h-3 w-3 animate-bounce rounded-full bg-foreground"
-                    style={{ animationDelay: `${tick * 180}ms` }}
-                  />
-                ))}
-              </div>
-              <span className="font-mono text-sm font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                Loading
-              </span>
-            </div>
-          </div>
-        </div>
+      <section className="w-full flex justify-center max-w-md px-6">
+        <AppLogo className="text-card-foreground animate-pulse" />
       </section>
     </main>
   );
