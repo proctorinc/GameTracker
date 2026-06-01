@@ -19,6 +19,7 @@ describe("title defaults helpers", () => {
       ...APP_GAME_SETTINGS_DEFAULTS,
       scoringMode: "lowest_wins",
       endingMode: "score_threshold",
+      trackRounds: true,
     });
   });
 
@@ -27,6 +28,7 @@ describe("title defaults helpers", () => {
       normalizeGameTitleDefaults({
         defaultScoringMode: "highest_wins",
         defaultEndingMode: "round_count",
+        defaultTrackRounds: false,
         defaultTargetRounds: 5,
         defaultScoreThreshold: 100,
         defaultScoreThresholdDirection: "at_most",
@@ -34,6 +36,7 @@ describe("title defaults helpers", () => {
     ).toEqual({
       defaultScoringMode: "highest_wins",
       defaultEndingMode: "round_count",
+      defaultTrackRounds: null,
       defaultTargetRounds: 5,
       defaultScoreThreshold: null,
       defaultScoreThresholdDirection: null,
@@ -45,6 +48,7 @@ describe("title defaults helpers", () => {
       gameSettingsToTitleDefaults({
         scoringMode: "lowest_wins",
         endingMode: "score_threshold",
+        trackRounds: true,
         targetRounds: 1,
         scoreThreshold: 100,
         scoreThresholdDirection: "at_least",
@@ -52,9 +56,30 @@ describe("title defaults helpers", () => {
     ).toEqual({
       defaultScoringMode: "lowest_wins",
       defaultEndingMode: "score_threshold",
+      defaultTrackRounds: null,
       defaultTargetRounds: null,
       defaultScoreThreshold: 100,
       defaultScoreThresholdDirection: "at_least",
+    });
+  });
+
+  it("preserves the free-play rounds toggle in defaults", () => {
+    expect(
+      gameSettingsToTitleDefaults({
+        scoringMode: "highest_wins",
+        endingMode: "none",
+        trackRounds: true,
+        targetRounds: 1,
+        scoreThreshold: 100,
+        scoreThresholdDirection: "at_least",
+      }),
+    ).toEqual({
+      defaultScoringMode: "highest_wins",
+      defaultEndingMode: "none",
+      defaultTrackRounds: true,
+      defaultTargetRounds: null,
+      defaultScoreThreshold: null,
+      defaultScoreThresholdDirection: null,
     });
   });
 });

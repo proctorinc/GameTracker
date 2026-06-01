@@ -24,6 +24,8 @@
     "staging:ready": "npm run test && npm run build",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate:test": "node --env-file=.env.test ./node_modules/drizzle-kit/bin.cjs migrate",
+    "db:migrate:prod": "node --env-file=.env.production ./node_modules/drizzle-kit/bin.cjs migrate",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {

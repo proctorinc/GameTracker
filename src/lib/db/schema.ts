@@ -32,7 +32,11 @@ export type GameTitleAcquisitionSource =
   (typeof gameTitleAcquisitionSources)[number];
 export const gameVersions = ["v1"] as const;
 export type GameVersion = (typeof gameVersions)[number];
-export const gameScoringModes = ["highest_wins", "lowest_wins"] as const;
+export const gameScoringModes = [
+  "highest_wins",
+  "lowest_wins",
+  "no_score",
+] as const;
 export type GameScoringMode = (typeof gameScoringModes)[number];
 export const gameEndingModes = [
   "none",
@@ -211,6 +215,7 @@ export const gameTitle = sqliteTable("game_title", {
   imageUrl: text("image_url").notNull().default("/images/skyjo.png"),
   defaultScoringMode: text("default_scoring_mode").$type<GameScoringMode>(),
   defaultEndingMode: text("default_ending_mode").$type<GameEndingMode>(),
+  defaultTrackRounds: integer("default_track_rounds", { mode: "boolean" }),
   defaultTargetRounds: integer("default_target_rounds"),
   defaultScoreThreshold: integer("default_score_threshold"),
   defaultScoreThresholdDirection: text(
@@ -279,6 +284,9 @@ export const games = sqliteTable("games", {
     .$type<GameEndingMode>()
     .notNull()
     .default("none"),
+  trackRounds: integer("track_rounds", { mode: "boolean" })
+    .notNull()
+    .default(false),
   targetRounds: integer("target_rounds"),
   scoreThreshold: integer("score_threshold"),
   scoreThresholdDirection: text(

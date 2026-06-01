@@ -1,4 +1,4 @@
-export type GameScoringMode = "highest_wins" | "lowest_wins";
+export type GameScoringMode = "highest_wins" | "lowest_wins" | "no_score";
 export type GameEndingMode = "none" | "round_count" | "score_threshold";
 export type GameScoreThresholdDirection = "at_least" | "at_most" | null;
 
@@ -56,6 +56,10 @@ export function getWinningUserIds(
   game: Pick<V1GameLike, "players" | "scoringMode">,
 ) {
   if (game.players.length === 0) {
+    return [];
+  }
+
+  if (game.scoringMode === "no_score") {
     return [];
   }
 

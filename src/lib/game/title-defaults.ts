@@ -7,6 +7,7 @@ import type {
 export type ConcreteGameSettings = {
   scoringMode: GameScoringMode;
   endingMode: GameEndingMode;
+  trackRounds: boolean;
   targetRounds: number;
   scoreThreshold: number;
   scoreThresholdDirection: GameScoreThresholdDirection;
@@ -15,6 +16,7 @@ export type ConcreteGameSettings = {
 export type GameTitleDefaultSettings = {
   defaultScoringMode: GameScoringMode | null;
   defaultEndingMode: GameEndingMode | null;
+  defaultTrackRounds: boolean | null;
   defaultTargetRounds: number | null;
   defaultScoreThreshold: number | null;
   defaultScoreThresholdDirection: GameScoreThresholdDirection | null;
@@ -23,6 +25,7 @@ export type GameTitleDefaultSettings = {
 export const APP_GAME_SETTINGS_DEFAULTS: ConcreteGameSettings = {
   scoringMode: "highest_wins",
   endingMode: "none",
+  trackRounds: false,
   targetRounds: 1,
   scoreThreshold: 100,
   scoreThresholdDirection: "at_least",
@@ -45,6 +48,11 @@ export function resolveGameSettingsDefaults(
       defaults?.defaultScoringMode ?? APP_GAME_SETTINGS_DEFAULTS.scoringMode,
     endingMode:
       defaults?.defaultEndingMode ?? APP_GAME_SETTINGS_DEFAULTS.endingMode,
+    trackRounds:
+      defaults?.defaultEndingMode === "none"
+        ? (defaults.defaultTrackRounds ??
+          APP_GAME_SETTINGS_DEFAULTS.trackRounds)
+        : true,
     targetRounds:
       normalizePositiveInteger(defaults?.defaultTargetRounds) ??
       APP_GAME_SETTINGS_DEFAULTS.targetRounds,
@@ -65,6 +73,8 @@ export function normalizeGameTitleDefaults(
   return {
     defaultScoringMode: input.defaultScoringMode ?? null,
     defaultEndingMode,
+    defaultTrackRounds:
+      defaultEndingMode === "none" ? (input.defaultTrackRounds ?? null) : null,
     defaultTargetRounds:
       defaultEndingMode === "round_count"
         ? normalizePositiveInteger(input.defaultTargetRounds)
@@ -85,6 +95,7 @@ export function gameSettingsToTitleDefaults(
     ConcreteGameSettings,
     | "scoringMode"
     | "endingMode"
+    | "trackRounds"
     | "targetRounds"
     | "scoreThreshold"
     | "scoreThresholdDirection"
@@ -93,6 +104,7 @@ export function gameSettingsToTitleDefaults(
   return normalizeGameTitleDefaults({
     defaultScoringMode: settings.scoringMode,
     defaultEndingMode: settings.endingMode,
+    defaultTrackRounds: settings.trackRounds,
     defaultTargetRounds: settings.targetRounds,
     defaultScoreThreshold: settings.scoreThreshold,
     defaultScoreThresholdDirection: settings.scoreThresholdDirection,
@@ -101,16 +113,18 @@ export function gameSettingsToTitleDefaults(
 
 export function formatResolvedEndingSummary(settings: ConcreteGameSettings) {
   if (settings.endingMode === "round_count") {
-    return `${settings.targetRounds} round${
+    return `End after ${settings.targetRounds} round${
       settings.targetRounds === 1 ? "" : "s"
     }`;
   }
 
   if (settings.endingMode === "score_threshold") {
-    return `${
-      settings.scoreThresholdDirection === "at_least" ? "At least" : "At most"
-    } ${settings.scoreThreshold}`;
+    return settings.scoreThresholdDirection === "at_least"
+      ? `End when a score reaches ${settings.scoreThreshold}`
+      : `End when a score drops to ${settings.scoreThreshold}`;
   }
 
-  return "No rounds free play";
+  return settings.trackRounds
+    ? "Free play with rounds"
+    : "Free play without rounds";
 }

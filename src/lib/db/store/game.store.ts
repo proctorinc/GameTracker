@@ -66,6 +66,7 @@ type GameTitleLibraryRow = {
   imageUrl: string;
   defaultScoringMode: GameTitleBase["defaultScoringMode"];
   defaultEndingMode: GameTitleBase["defaultEndingMode"];
+  defaultTrackRounds: GameTitleBase["defaultTrackRounds"];
   defaultTargetRounds: GameTitleBase["defaultTargetRounds"];
   defaultScoreThreshold: GameTitleBase["defaultScoreThreshold"];
   defaultScoreThresholdDirection: GameTitleBase["defaultScoreThresholdDirection"];
@@ -180,6 +181,7 @@ function mapGameTitleLibraryRow(row: GameTitleLibraryRow): GameTitleLibraryEntry
     imageUrl: row.imageUrl,
     defaultScoringMode: row.defaultScoringMode,
     defaultEndingMode: row.defaultEndingMode,
+    defaultTrackRounds: row.defaultTrackRounds,
     defaultTargetRounds: row.defaultTargetRounds,
     defaultScoreThreshold: row.defaultScoreThreshold,
     defaultScoreThresholdDirection: row.defaultScoreThresholdDirection,
@@ -216,6 +218,7 @@ function gameTitleLibrarySelect(userId: string) {
       imageUrl: gameTitle.imageUrl,
       defaultScoringMode: gameTitle.defaultScoringMode,
       defaultEndingMode: gameTitle.defaultEndingMode,
+      defaultTrackRounds: gameTitle.defaultTrackRounds,
       defaultTargetRounds: gameTitle.defaultTargetRounds,
       defaultScoreThreshold: gameTitle.defaultScoreThreshold,
       defaultScoreThresholdDirection: gameTitle.defaultScoreThresholdDirection,
@@ -1104,6 +1107,7 @@ export async function createOrFindGameTitle(input: {
       imageUrl: "",
       defaultScoringMode: input.defaultSettings?.defaultScoringMode ?? null,
       defaultEndingMode: input.defaultSettings?.defaultEndingMode ?? null,
+      defaultTrackRounds: input.defaultSettings?.defaultTrackRounds ?? null,
       defaultTargetRounds: input.defaultSettings?.defaultTargetRounds ?? null,
       defaultScoreThreshold:
         input.defaultSettings?.defaultScoreThreshold ?? null,
@@ -1158,6 +1162,7 @@ export async function updateGameTitleDefaults(
     .set({
       defaultScoringMode: defaults.defaultScoringMode,
       defaultEndingMode: defaults.defaultEndingMode,
+      defaultTrackRounds: defaults.defaultTrackRounds,
       defaultTargetRounds: defaults.defaultTargetRounds,
       defaultScoreThreshold: defaults.defaultScoreThreshold,
       defaultScoreThresholdDirection: defaults.defaultScoreThresholdDirection,

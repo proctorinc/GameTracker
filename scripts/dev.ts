@@ -28,6 +28,12 @@ async function main() {
     shell: process.platform === "win32",
   });
 
+  console.log("[dev] Seeding games…");
+  execSync(
+    "npm run db:titles:import -- ./data/bgg-browse-boardgames-numvoters-pages-1-10.json",
+    { stdio: "inherit", env: process.env },
+  );
+
   child.on("exit", (code) => process.exit(code ?? 0));
 }
 
