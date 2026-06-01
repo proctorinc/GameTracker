@@ -36,6 +36,10 @@ export type PlayGameMutation =
       gamePlayerId: string;
     }
   | {
+      type: "remove-player";
+      userId: string;
+    }
+  | {
       type: "update-color";
       userId: string;
       color: string;
@@ -60,6 +64,8 @@ export function applyPlayGameMutation(
     case "add-player":
     case "add-guest":
       return applyOptimisticPlayer(snapshot, mutation);
+    case "remove-player":
+      return applyOptimisticPlayerRemoval(snapshot, mutation);
     case "update-color":
       return applyOptimisticColor(snapshot, mutation);
     default:
@@ -288,6 +294,28 @@ function applyOptimisticColor(
               }
             : score,
         ),
+      })),
+    },
+  };
+}
+
+function applyOptimisticPlayerRemoval(
+  snapshot: PlayGameSnapshot,
+  mutation: Extract<PlayGameMutation, { type: "remove-player" }>,
+) {
+  return {
+    ...snapshot,
+    game: {
+      ...snapshot.game,
+      players: snapshot.game.players.filter(
+        (player) => player.userId !== mutation.userId,
+      ),
+      winners: snapshot.game.winners.filter(
+        (winner) => winner.userId !== mutation.userId,
+      ),
+      rounds: snapshot.game.rounds.map((round) => ({
+        ...round,
+        scores: round.scores.filter((score) => score.userId !== mutation.userId),
       })),
     },
   };

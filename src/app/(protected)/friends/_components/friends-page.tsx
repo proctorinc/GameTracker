@@ -2,7 +2,6 @@
 
 import type { FriendsPageData } from "@/app/actions/pages/friends";
 import { FriendsPageProvider, useFriendsPage } from "./friends-page-provider";
-import { AddFriendDialog } from "./dialogs/add-friend-dialog";
 import { GuestActionsDialog } from "./dialogs/guest-actions-dialog";
 import { RemoveFriendDialog } from "./dialogs/remove-friend-dialog";
 import { FriendsPageHeader } from "./sections/friends-page-header";
@@ -30,7 +29,6 @@ function FriendsPageContent() {
         {activeTab === "friends" ? <FriendsTabContent /> : <InvitationsCard />}
       </div>
 
-      <AddFriendDialog />
       <GuestActionsDialog />
       <RemoveFriendDialog />
     </div>

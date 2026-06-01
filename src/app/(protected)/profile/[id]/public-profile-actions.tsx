@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Send } from "lucide-react";
+import { Send, Share2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
@@ -68,7 +68,7 @@ export function PublicProfileActions({
         <span className="flex w-full items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-foreground text-background">
-              <Send className="size-4" />
+              <Share2 className="size-4" />
             </div>
             <div>
               <p className="text-sm font-medium">Share profile</p>
@@ -142,7 +142,9 @@ export function PublicProfileActions({
       disabled={isPending}
       onClick={() => {
         startTransition(async () => {
-          const loadingId = toast.loading(`Sending invite to ${profileName}...`);
+          const loadingId = toast.loading(
+            `Sending invite to ${profileName}...`,
+          );
 
           try {
             await createFriendInvitationByUserId({ inviteeUserId: profileId });
@@ -152,7 +154,9 @@ export function PublicProfileActions({
           } catch (error) {
             toast.dismiss(loadingId);
             toast.error(
-              error instanceof Error ? error.message : "Unable to send invitation",
+              error instanceof Error
+                ? error.message
+                : "Unable to send invitation",
             );
           }
         });

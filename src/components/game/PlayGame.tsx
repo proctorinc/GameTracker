@@ -5,6 +5,7 @@ import {
   addGuestGamePlayer,
   commitGameRound,
   getPlayGameSnapshot,
+  removeGamePlayer,
   upsertActiveRoundScore,
 } from "@/app/actions/game";
 import { updateOwnedGuestColor } from "@/app/actions/user";
@@ -51,9 +52,12 @@ import {
   ListChecks,
   LoaderCircle,
   Plus,
+  Settings2,
+  Trash2,
   Trophy,
   Undo2,
   UserPlus,
+  Users,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -127,7 +131,9 @@ function formatEndingSummary(game: GameForPlayPage) {
         ? `End when a score drops to ${game.scoreThreshold}`
         : `End when a score reaches ${game.scoreThreshold}`;
     default:
-      return game.trackRounds ? "Free play with rounds" : "Free play without rounds";
+      return game.trackRounds
+        ? "Free play with rounds"
+        : "Free play without rounds";
   }
 }
 
@@ -273,6 +279,10 @@ export default function PlayGame(props: PlayGameProps) {
   );
   const [scoreAmountInput, setScoreAmountInput] = useState("0");
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
+  const [isAddPlayerMode, setIsAddPlayerMode] = useState(false);
+  const [removePlayerUserId, setRemovePlayerUserId] = useState<string | null>(
+    null,
+  );
   const [isRoundDialogOpen, setIsRoundDialogOpen] = useState(false);
   const [isRoundHistoryOpen, setIsRoundHistoryOpen] = useState(false);
   const [isExitConfirmOpen, setIsExitConfirmOpen] = useState(false);
@@ -436,6 +446,12 @@ export default function PlayGame(props: PlayGameProps) {
       game.players.find((player) => player.userId === colorDialogPlayerId) ??
       null,
     [colorDialogPlayerId, game.players],
+  );
+  const removePlayerDialogPlayer = useMemo(
+    () =>
+      game.players.find((player) => player.userId === removePlayerUserId) ??
+      null,
+    [game.players, removePlayerUserId],
   );
   const scorecardPlayers = useMemo(() => [...sortedPlayers], [sortedPlayers]);
   const shouldOfferRoundPrompt = useMemo(
@@ -698,7 +714,7 @@ export default function PlayGame(props: PlayGameProps) {
       },
       action: () => addGamePlayer({ gameId: game.id, userId }),
       onOptimistic: () => {
-        setIsAddPlayerOpen(false);
+        setIsAddPlayerMode(false);
         setPlayerSearch("");
       },
     });
@@ -734,8 +750,43 @@ export default function PlayGame(props: PlayGameProps) {
           lastName,
         }),
       onOptimistic: () => {
-        setIsAddPlayerOpen(false);
+        setIsAddPlayerMode(false);
         setPlayerSearch("");
+      },
+    });
+  }
+
+  function openRemovePlayerDialog(userId: string) {
+    if (isCompleted) {
+      return;
+    }
+
+    setRemovePlayerUserId(userId);
+  }
+
+  function handleRemovePlayer() {
+    if (!removePlayerDialogPlayer) {
+      return;
+    }
+
+    if (game.players.length <= 1) {
+      toast.error("A game needs at least one player");
+      return;
+    }
+
+    runMutation({
+      key: `remove-player:${removePlayerDialogPlayer.userId}`,
+      mutation: {
+        type: "remove-player",
+        userId: removePlayerDialogPlayer.userId,
+      },
+      action: () =>
+        removeGamePlayer({
+          gameId: game.id,
+          userId: removePlayerDialogPlayer.userId,
+        }),
+      onOptimistic: () => {
+        setRemovePlayerUserId(null);
       },
     });
   }
@@ -883,6 +934,9 @@ export default function PlayGame(props: PlayGameProps) {
   const addGuestPending = pendingKeySet.has(
     `add-guest:${normalizeValue(playerSearch)}`,
   );
+  const removePlayerPending = removePlayerUserId
+    ? pendingKeySet.has(`remove-player:${removePlayerUserId}`)
+    : false;
   const canOpenScoreFromCard = isCreator && !isCompleted && !isNoScoreMode;
 
   return (
@@ -931,7 +985,7 @@ export default function PlayGame(props: PlayGameProps) {
                 <ChevronDown className="mt-1 size-4 shrink-0 self-center text-muted-foreground transition-transform group-open:rotate-180" />
               </div>
             </summary>
-            <div className="border-t border-border px-4 py-4">
+            <div className="flex flex-col border-t border-border px-4 py-4 gap-3">
               <div className="flex flex-wrap gap-2">
                 <Badge
                   className="border-border/70 bg-background/75 text-foreground backdrop-blur-md dark:bg-background/60"
@@ -965,14 +1019,29 @@ export default function PlayGame(props: PlayGameProps) {
                   </Badge>
                 )}
               </div>
-              <div className="flex justify-between mt-3 text-xs text-muted-foreground">
-                <div className="flex flex-col gap-1">
-                  {game.completedAt ? (
-                    <p>Completed {formatGameMetaDate(game.completedAt)}</p>
-                  ) : null}
-                  <p>Created by {getDisplayName(game.creator)}</p>
+              <div className="flex w-full justify-between items-center">
+                <div className="flex flex-col text-xs text-muted-foreground">
+                  <div className="flex flex-col gap-1">
+                    {game.completedAt ? (
+                      <p>Completed {formatGameMetaDate(game.completedAt)}</p>
+                    ) : null}
+                    <p>Created by {getDisplayName(game.creator)}</p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <p>Started {formatGameMetaDate(game.createdAt)}</p>
+                  </div>
                 </div>
-                <p>Started {formatGameMetaDate(game.createdAt)}</p>
+                {isCreator && (
+                  <Link
+                    aria-label="Game settings"
+                    href={`/game/${game.id}/settings`}
+                  >
+                    <Button size="sm">
+                      <Settings2 className="size-4" />
+                      Edit
+                    </Button>
+                  </Link>
+                )}
               </div>
             </div>
           </details>
@@ -1171,8 +1240,8 @@ export default function PlayGame(props: PlayGameProps) {
                 }}
                 variant="outline"
               >
-                <UserPlus className="size-5" />
-                Add
+                <Users className="size-5" />
+                Players
               </Button>
             ) : null}
 
@@ -1190,8 +1259,8 @@ export default function PlayGame(props: PlayGameProps) {
                     : showsRounds
                       ? "Round"
                       : isFreePlay
-                      ? "Score"
-                      : "Round"}
+                        ? "Score"
+                        : "Round"}
               </Button>
             ) : null}
 
@@ -1217,8 +1286,8 @@ export default function PlayGame(props: PlayGameProps) {
             </DialogTitle>
             <DialogDescription className="text-base">
               {isCompleted
-                ? "You&apos;re just leaving the play screen. This game will still be here later if you want to review it again."
-                : "You&apos;re just leaving the play screen. Nothing will be deleted, and you can always resume the game later."}
+                ? "You're just leaving the play screen. This game will still be here later if you want to review it again."
+                : "You're just leaving the play screen. You can always resume the game later."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="bg-transparent p-0 pt-2">
@@ -1362,6 +1431,7 @@ export default function PlayGame(props: PlayGameProps) {
         onOpenChange={(open) => {
           setIsAddPlayerOpen(open);
           if (!open) {
+            setIsAddPlayerMode(false);
             setPlayerSearch("");
           }
         }}
@@ -1370,89 +1440,227 @@ export default function PlayGame(props: PlayGameProps) {
         <DialogContent className="max-w-[calc(100%-1.5rem)] rounded-[2rem] p-0">
           <DialogHeader className="p-5 pb-0">
             <DialogTitle className="text-2xl font-black">
-              Add player
+              {isAddPlayerMode ? "Add user" : "Manage users"}
             </DialogTitle>
-            <DialogDescription className="text-base">
-              Search for a friend or add a new guest
-            </DialogDescription>
           </DialogHeader>
-          <Command className="border-0 bg-transparent">
-            <CommandInput
-              className="text-lg"
-              onValueChange={setPlayerSearch}
-              placeholder="Search friends or guests"
-              value={playerSearch}
-            />
-            <CommandList className="max-h-[50vh]">
-              <CommandGroup
-                heading={playerSearch.trim() ? "Matches" : "People"}
-              >
-                {filteredPlayers.map((player) => {
-                  const playerPending = pendingKeySet.has(
-                    `add-player:${player.id}`,
-                  );
+          {isAddPlayerMode ? (
+            <>
+              <div className="px-5">
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    setIsAddPlayerMode(false);
+                    setPlayerSearch("");
+                  }}
+                  type="button"
+                  variant="outline"
+                >
+                  Back to users
+                </Button>
+              </div>
+              <Command className="border-0 bg-transparent px-4">
+                <CommandInput
+                  className="text-lg"
+                  onValueChange={setPlayerSearch}
+                  placeholder="Search friends or guests"
+                  value={playerSearch}
+                />
+                <CommandList className="max-h-[50vh]">
+                  <CommandGroup
+                    heading={
+                      playerSearch.trim() ? "Matches" : "Suggested players"
+                    }
+                  >
+                    {filteredPlayers.slice(0, 5).map((player) => {
+                      const playerPending = pendingKeySet.has(
+                        `add-player:${player.id}`,
+                      );
 
-                  return (
-                    <CommandItem
-                      key={player.id}
-                      onSelect={() => {
-                        if (!playerPending) {
-                          handleAddExistingPlayer(player.id);
-                        }
-                      }}
-                      value={`${player.firstName ?? ""} ${player.lastName ?? ""}`}
-                    >
+                      return (
+                        <CommandItem
+                          key={player.id}
+                          onSelect={() => {
+                            if (!playerPending) {
+                              handleAddExistingPlayer(player.id);
+                            }
+                          }}
+                          value={`${player.firstName ?? ""} ${player.lastName ?? ""}`}
+                        >
+                          <div
+                            className={`flex w-full items-center justify-between gap-3 py-2 ${playerPending ? "opacity-60" : ""}`}
+                          >
+                            <div className="flex min-w-0 items-center gap-3">
+                              <ProfilePicture
+                                className="border-none"
+                                size="xs"
+                                user={player}
+                              />
+                              <p className="truncate text-base font-bold text-foreground">
+                                {getDisplayName(player)}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline">
+                                {player.isGuest ? "Guest" : "Friend"}
+                              </Badge>
+                              {playerPending ? (
+                                <LoaderCircle className="size-5 animate-spin text-muted-foreground" />
+                              ) : (
+                                <Users className="size-5 text-muted-foreground" />
+                              )}
+                            </div>
+                          </div>
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandGroup>
+                  {filteredPlayers.length === 0 ? (
+                    <CommandEmpty>
+                      <Button
+                        className="h-14 w-full rounded-[1.4rem]"
+                        disabled={!playerSearch.trim() || addGuestPending}
+                        onClick={handleAddGuest}
+                      >
+                        {addGuestPending ? (
+                          <LoaderCircle className="animate-spin" />
+                        ) : (
+                          <Plus className="size-5" />
+                        )}
+                        Add {playerSearch} as guest
+                      </Button>
+                    </CommandEmpty>
+                  ) : null}
+                </CommandList>
+              </Command>
+            </>
+          ) : (
+            <div className="px-5 pb-4">
+              <div className="rounded-3xl border border-border bg-muted/40 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                    Players
+                  </p>
+                  <Button
+                    className="rounded-xl"
+                    onClick={() => setIsAddPlayerMode(true)}
+                    size="sm"
+                    type="button"
+                  >
+                    <Plus className="size-4" />
+                    Player
+                  </Button>
+                </div>
+                <div className="mt-3 flex flex-col gap-2">
+                  {game.players.map((player) => {
+                    const playerPending = pendingKeySet.has(
+                      `remove-player:${player.userId}`,
+                    );
+                    const canRemoveSelf = player.userId !== currentUserId;
+                    const disableRemoval =
+                      game.players.length <= 1 || playerPending;
+
+                    return (
                       <div
-                        className={`flex w-full items-center justify-between gap-3 py-2 ${playerPending ? "opacity-60" : ""}`}
+                        key={player.id}
+                        className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-background px-3 py-3"
                       >
                         <div className="flex min-w-0 items-center gap-3">
                           <ProfilePicture
                             className="border-none"
                             size="xs"
-                            user={player}
+                            user={player.user}
                           />
-                          <p className="truncate text-base font-bold text-foreground">
-                            {getDisplayName(player)}
-                          </p>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-bold text-foreground">
+                              {getDisplayName(player.user)}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {player.user.isGuest ? "Guest" : "Player"}
+                            </p>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">
-                            {player.isGuest ? "Guest" : "Friend"}
-                          </Badge>
-                          {playerPending ? (
-                            <LoaderCircle className="size-5 animate-spin text-muted-foreground" />
-                          ) : (
-                            <UserPlus className="size-5 text-muted-foreground" />
-                          )}
-                        </div>
+                        {canRemoveSelf ? (
+                          <Button
+                            className="rounded-xl"
+                            data-testid={`remove-player-button-${player.userId}`}
+                            disabled={disableRemoval}
+                            onClick={() =>
+                              openRemovePlayerDialog(player.userId)
+                            }
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            {playerPending ? (
+                              <LoaderCircle className="animate-spin" />
+                            ) : (
+                              <Trash2 className="size-4" />
+                            )}
+                            Remove
+                          </Button>
+                        ) : (
+                          <Badge variant="outline">You</Badge>
+                        )}
                       </div>
-                    </CommandItem>
-                  );
-                })}
-              </CommandGroup>
-              {filteredPlayers.length === 0 ? (
-                <CommandEmpty>
-                  <div className="flex flex-col items-center gap-4 px-4 py-6">
-                    <p className="text-center text-sm text-muted-foreground">
-                      No match. Add this user as a guest instead.
-                    </p>
-                    <Button
-                      className="h-14 w-full rounded-[1.4rem]"
-                      disabled={!playerSearch.trim() || addGuestPending}
-                      onClick={handleAddGuest}
-                    >
-                      {addGuestPending ? (
-                        <LoaderCircle className="animate-spin" />
-                      ) : (
-                        <Plus className="size-5" />
-                      )}
-                      Add guest
-                    </Button>
-                  </div>
-                </CommandEmpty>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="pt-4">
+                <Button
+                  className="w-full"
+                  onClick={() => setIsAddPlayerOpen(false)}
+                  type="button"
+                  variant="outline"
+                >
+                  Back to game
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        onOpenChange={(open) => {
+          if (!open) {
+            setRemovePlayerUserId(null);
+          }
+        }}
+        open={Boolean(removePlayerDialogPlayer)}
+      >
+        <DialogContent className="max-w-[calc(100%-1.5rem)] rounded-[2rem] p-5">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black">
+              Remove this user?
+            </DialogTitle>
+            <DialogDescription className="text-base">
+              {removePlayerDialogPlayer
+                ? `${getDisplayName(removePlayerDialogPlayer.user)} will be removed from this game. Their recorded scores in this game will be removed too.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="bg-transparent p-0 pt-2">
+            <Button
+              disabled={removePlayerPending}
+              onClick={() => setRemovePlayerUserId(null)}
+              type="button"
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={removePlayerPending}
+              onClick={handleRemovePlayer}
+              type="button"
+              variant="destructive"
+            >
+              {removePlayerPending ? (
+                <LoaderCircle className="animate-spin" />
               ) : null}
-            </CommandList>
-          </Command>
+              Remove user
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1586,8 +1794,7 @@ export default function PlayGame(props: PlayGameProps) {
                 <Button
                   disabled={
                     commitRoundPending ||
-                    (isNoScoreMode &&
-                      selectedWinnerUserIds.length === 0)
+                    (isNoScoreMode && selectedWinnerUserIds.length === 0)
                   }
                   onClick={() => handleCommitRound(true)}
                 >

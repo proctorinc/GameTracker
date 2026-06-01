@@ -9,6 +9,7 @@
     "db:seed:staging": "node --import tsx scripts/seed-staging.ts",
     "db:reset": "node --import tsx scripts/reset-dev-db.ts",
     "db:titles:import": "node --import tsx scripts/import-game-titles.ts",
+    "bgg:image:resolve": "node --import tsx scripts/resolve-bgg-image.ts",
     "build": "APP_ENV=production next build",
     "start": "APP_ENV=production next start",
     "lint": "eslint",

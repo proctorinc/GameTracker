@@ -1,6 +1,6 @@
 "use client";
 
-import { Phone, Users } from "lucide-react";
+import { Users } from "lucide-react";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Button } from "@/components/ui/button";
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -17,7 +17,6 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
-import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 import { useFriendsPage } from "../friends-page-provider";
 import { getDisplayName } from "../utils";
 
@@ -26,14 +25,11 @@ export function GuestActionsDialog() {
     activeRecentPlayer,
     availableFriendsForMerge,
     guestActionMode,
-    guestPhoneInput,
     mergeFriendUserId,
     isPending,
     setGuestActionMode,
-    setGuestPhoneInput,
     setMergeFriendUserId,
     closeRecentPlayerDialog,
-    handleGuestPhoneInvite,
     handleGuestMerge,
   } = useFriendsPage();
   const mergeOptions = availableFriendsForMerge.map((friend) => ({
@@ -67,23 +63,9 @@ export function GuestActionsDialog() {
           </DialogTitle>
         </DialogHeader>
 
-        {guestActionMode ? (
+        {guestActionMode === "merge" ? (
           <FieldGroup>
-            {guestActionMode === "phone" ? (
-              <>
-                <Field>
-                  <FieldLabel htmlFor="guest-phone">Phone</FieldLabel>
-                  <FieldContent>
-                    <PhoneNumberInput
-                      id="guest-phone"
-                      value={guestPhoneInput}
-                      onChange={setGuestPhoneInput}
-                      disabled={isPending}
-                    />
-                  </FieldContent>
-                </Field>
-              </>
-            ) : canMerge ? (
+            {canMerge ? (
               <>
                 <Field>
                   <FieldLabel>Merge with friend account</FieldLabel>
@@ -117,13 +99,6 @@ export function GuestActionsDialog() {
           </FieldGroup>
         ) : (
           <FieldGroup>
-            <Button
-              type="button"
-              disabled={isPending}
-              onClick={() => setGuestActionMode("phone")}
-            >
-              <Phone /> Invite by phone number
-            </Button>
             {canMerge ? (
               <Button
                 type="button"
@@ -138,26 +113,14 @@ export function GuestActionsDialog() {
         )}
 
         <DialogFooter showCloseButton>
-          {guestActionMode ? (
-            <>
-              {guestActionMode === "phone" ? (
-                <Button
-                  type="button"
-                  disabled={isPending}
-                  onClick={handleGuestPhoneInvite}
-                >
-                  <Phone /> Invite by phone
-                </Button>
-              ) : canMerge ? (
-                <Button
-                  type="button"
-                  disabled={isPending}
-                  onClick={handleGuestMerge}
-                >
-                  <Users /> Merge with friend
-                </Button>
-              ) : null}
-            </>
+          {guestActionMode === "merge" && canMerge ? (
+            <Button
+              type="button"
+              disabled={isPending}
+              onClick={handleGuestMerge}
+            >
+              <Users /> Merge with friend
+            </Button>
           ) : null}
         </DialogFooter>
       </DialogContent>

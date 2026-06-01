@@ -44,22 +44,22 @@ function StatCard(props: {
   return (
     <Card
       size="sm"
-      className="min-h-32 border border-border/80 bg-card/95 sm:min-h-36"
+      className="relative min-h-36 border border-border/80 bg-card/95 sm:min-h-40"
     >
-      <CardHeader className="flex flex-row items-start justify-between gap-2 pb-1">
-        <CardTitle className="pl-0 text-[11px] leading-tight font-semibold text-muted-foreground sm:text-xs">
+      <CardHeader className="pb-0">
+        <CardTitle className="pl-0 text-center text-[11px] leading-tight font-semibold text-muted-foreground sm:text-xs">
           {props.label}
         </CardTitle>
-        <div className="rounded-2xl bg-muted p-1.5 text-foreground sm:p-2">
+        <div className="absolute top-3 right-3 rounded-2xl bg-muted p-1.5 text-foreground sm:top-4 sm:right-4 sm:p-2">
           <div className="size-3.5 sm:size-4">{props.icon}</div>
         </div>
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col justify-end space-y-1 pt-0">
-        <p className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
+      <CardContent className="flex flex-1 flex-col items-center justify-center gap-2 pt-0 text-center">
+        <p className="text-4xl font-black tracking-tight text-foreground sm:text-5xl">
           {props.value}
         </p>
         {props.hint ? (
-          <p className="text-[11px] leading-tight text-muted-foreground sm:text-xs">
+          <p className="max-w-[12rem] text-[11px] leading-tight text-muted-foreground sm:max-w-none sm:text-xs">
             {props.hint}
           </p>
         ) : null}
@@ -90,7 +90,7 @@ export default async function PublicProfilePage({
               background: `linear-gradient(135deg, ${data.profile.color}, rgba(15,23,42,0.18))`,
             }}
           />
-          <CardContent className="-mt-14 flex flex-col gap-5 pb-6">
+          <CardContent className="-mt-14 flex flex-col gap-5">
             <div className="flex flex-col gap-4">
               <ProfilePicture
                 size="xl"
@@ -149,13 +149,13 @@ export default async function PublicProfilePage({
           <StatCard
             label="Friends"
             value={data.stats.friendCount}
-            hint="Built through games and invites"
+            hint="The more the merrier!"
             icon={<Users className="size-4" />}
           />
           <StatCard
             label="Hosted"
             value={data.stats.gamesHosted}
-            hint="Games started from this account"
+            hint="Games started"
             icon={<Sparkles className="size-4" />}
           />
         </section>

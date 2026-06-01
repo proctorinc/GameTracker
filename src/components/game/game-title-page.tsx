@@ -34,14 +34,14 @@ function StatCard(props: { label: string; value: string | number }) {
   return (
     <Card
       size="sm"
-      className="min-h-30 border border-border/80 bg-card/95 sm:min-h-32"
+      className="min-h-36 border border-border/80 bg-card/95 sm:min-h-40"
     >
-      <CardHeader className="pb-1">
-        <CardTitle className="pl-0 text-[11px] leading-tight font-medium text-muted-foreground sm:text-xs">
+      <CardHeader className="pb-0">
+        <CardTitle className="pl-0 text-center text-[11px] leading-tight font-medium text-muted-foreground sm:text-xs">
           {props.label}
         </CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-1 items-end pt-0 text-2xl font-black tracking-tight sm:text-3xl">
+      <CardContent className="flex flex-1 items-center justify-center pt-0 text-center text-4xl font-black tracking-tight sm:text-5xl">
         {props.value}
       </CardContent>
     </Card>

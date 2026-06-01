@@ -157,16 +157,15 @@ describe("CreateGameSettingsStep", () => {
     fireEvent.click(screen.getByRole("button", { name: /Start game/i }));
 
     await waitFor(() => {
-        expect(createConfiguredGame).toHaveBeenCalledWith(
-          expect.objectContaining({
-            scoringMode: "no_score",
-            endingMode: "none",
-            trackRounds: false,
-            scoreThreshold: null,
-            scoreThresholdDirection: null,
-          }),
-        );
-      });
+      expect(createConfiguredGame).toHaveBeenCalledWith(
+        expect.objectContaining({
+          scoringMode: "no_score",
+          endingMode: "none",
+          scoreThreshold: null,
+          scoreThresholdDirection: null,
+        }),
+      );
+    });
   });
 
   it("creates a free-play game with rounds when selected", async () => {

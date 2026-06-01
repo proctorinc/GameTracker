@@ -34,10 +34,22 @@ function compactOptionClassName(isActive: boolean) {
 
 export default function GameSettingsFields({
   allowUnset,
+  disabledScoringMode,
+  disabledEndingMode,
+  disabledTrackRounds,
+  scoringModeHelpText,
+  endingModeHelpText,
+  trackRoundsHelpText,
   value,
   onChange,
 }: {
   allowUnset: boolean;
+  disabledScoringMode?: boolean;
+  disabledEndingMode?: boolean;
+  disabledTrackRounds?: boolean;
+  scoringModeHelpText?: string | null;
+  endingModeHelpText?: string | null;
+  trackRoundsHelpText?: string | null;
   value: EditableGameSettings;
   onChange: (nextValue: EditableGameSettings) => void;
 }) {
@@ -57,10 +69,14 @@ export default function GameSettingsFields({
     <div className="flex flex-col gap-6">
       <div className="space-y-3">
         <h3 className="text-lg font-black">Who wins?</h3>
+        {scoringModeHelpText ? (
+          <p className="text-sm text-muted-foreground">{scoringModeHelpText}</p>
+        ) : null}
         <div className="flex flex-col gap-3">
           {allowUnset ? (
             <button
               className={optionClassName(value.scoringMode === null)}
+              disabled={disabledScoringMode}
               onClick={() => update("scoringMode", null)}
               type="button"
             >
@@ -72,6 +88,7 @@ export default function GameSettingsFields({
           ) : null}
           <button
             className={optionClassName(value.scoringMode === "lowest_wins")}
+            disabled={disabledScoringMode}
             onClick={() => update("scoringMode", "lowest_wins")}
             type="button"
           >
@@ -82,6 +99,7 @@ export default function GameSettingsFields({
           </button>
           <button
             className={optionClassName(value.scoringMode === "highest_wins")}
+            disabled={disabledScoringMode}
             onClick={() => update("scoringMode", "highest_wins")}
             type="button"
           >
@@ -92,6 +110,7 @@ export default function GameSettingsFields({
           </button>
           <button
             className={optionClassName(value.scoringMode === "no_score")}
+            disabled={disabledScoringMode}
             onClick={() =>
               onChange({
                 ...value,
@@ -120,10 +139,14 @@ export default function GameSettingsFields({
 
       <div className="space-y-3">
         <h3 className="text-lg font-black">When should the game end?</h3>
+        {endingModeHelpText ? (
+          <p className="text-sm text-muted-foreground">{endingModeHelpText}</p>
+        ) : null}
         <div className="flex flex-col gap-3">
           {allowUnset ? (
             <button
               className={optionClassName(value.endingMode === null)}
+              disabled={disabledEndingMode}
               onClick={() =>
                 onChange({
                   ...value,
@@ -141,6 +164,7 @@ export default function GameSettingsFields({
 
           <button
             className={optionClassName(value.endingMode === "round_count")}
+            disabled={disabledEndingMode}
             onClick={() =>
               onChange({
                 ...value,
@@ -173,6 +197,7 @@ export default function GameSettingsFields({
                 className={optionClassName(
                   value.endingMode === "score_threshold",
                 )}
+                disabled={disabledEndingMode}
                 onClick={() =>
                   onChange({
                     ...value,
@@ -250,6 +275,7 @@ export default function GameSettingsFields({
 
           <button
             className={optionClassName(value.endingMode === "none")}
+            disabled={disabledEndingMode}
             onClick={() =>
               onChange({
                 ...value,
@@ -268,35 +294,45 @@ export default function GameSettingsFields({
             </p>
           </button>
           {value.endingMode === "none" ? (
-            <div
-              className={`grid gap-2 ${
-                allowUnset ? "grid-cols-3" : "grid-cols-2"
-              }`}
-            >
-              {allowUnset ? (
+            <>
+              {trackRoundsHelpText ? (
+                <p className="text-sm text-muted-foreground">
+                  {trackRoundsHelpText}
+                </p>
+              ) : null}
+              <div
+                className={`grid gap-2 ${
+                  allowUnset ? "grid-cols-3" : "grid-cols-2"
+                }`}
+              >
+                {allowUnset ? (
+                  <button
+                    className={compactOptionClassName(value.trackRounds === null)}
+                    disabled={disabledTrackRounds}
+                    onClick={() => update("trackRounds", null)}
+                    type="button"
+                  >
+                    Default
+                  </button>
+                ) : null}
                 <button
-                  className={compactOptionClassName(value.trackRounds === null)}
-                  onClick={() => update("trackRounds", null)}
+                  className={compactOptionClassName(value.trackRounds === false)}
+                  disabled={disabledTrackRounds}
+                  onClick={() => update("trackRounds", false)}
                   type="button"
                 >
-                  Default
+                  No rounds
                 </button>
-              ) : null}
-              <button
-                className={compactOptionClassName(value.trackRounds === false)}
-                onClick={() => update("trackRounds", false)}
-                type="button"
-              >
-                No rounds
-              </button>
-              <button
-                className={compactOptionClassName(value.trackRounds === true)}
-                onClick={() => update("trackRounds", true)}
-                type="button"
-              >
-                Include rounds
-              </button>
-            </div>
+                <button
+                  className={compactOptionClassName(value.trackRounds === true)}
+                  disabled={disabledTrackRounds}
+                  onClick={() => update("trackRounds", true)}
+                  type="button"
+                >
+                  Include rounds
+                </button>
+              </div>
+            </>
           ) : null}
         </div>
       </div>

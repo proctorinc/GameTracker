@@ -30,6 +30,7 @@ import {
   mergeGameTitles,
   promoteGameTitleToUniversal,
   replaceGameWinners,
+  removePlayerFromGame,
   shareGameTitleWithUser,
   updateGameTitleDefaults,
   updateGame,
@@ -699,6 +700,50 @@ export async function addGuestGamePlayer(input: {
   );
 }
 
+export async function removeGamePlayer(input: {
+  gameId: string;
+  userId: string;
+}) {
+  const { gameId, userId } = input;
+  const meta: LogMeta = { gameId, playerUserId: userId, actorUserId: null };
+  return runGameAction(
+    "player.remove",
+    meta,
+    async () => {
+      const { user, game } = await requireGameCreator(gameId);
+      meta.actorUserId = user.id;
+
+      if (game.completedAt) {
+        throw new Error("Completed games can't be changed");
+      }
+
+      if (game.players.length <= 1) {
+        throw new Error("A game needs at least one player");
+      }
+
+      const existing = await getGamePlayerByGameAndUserId(gameId, userId);
+
+      if (!existing) {
+        throw new Error("That player is no longer in the game");
+      }
+
+      const result = await removePlayerFromGame({ gameId, userId });
+      const { game: updatedGame } = await requireGameMembership(gameId);
+
+      revalidateDashboardPages([...getDashboardUserIdsForGame(updatedGame), userId]);
+      revalidateGameHistoryPages([
+        ...getDashboardUserIdsForGame(updatedGame),
+        userId,
+      ]);
+
+      return result;
+    },
+    (result) => ({
+      gamePlayerId: result?.id ?? null,
+    }),
+  );
+}
+
 export async function updateGameDetails(input: {
   gameId: string;
   gameTitleId: string | null;
@@ -765,6 +810,92 @@ export async function updateGameDetails(input: {
     },
     (result) => ({
       updatedGameTitleId: result?.gameTitleId ?? null,
+    }),
+  );
+}
+
+export async function updateGameSettings(input: {
+  gameId: string;
+  scoringMode: "highest_wins" | "lowest_wins" | "no_score";
+  endingMode: "none" | "round_count" | "score_threshold";
+  trackRounds?: boolean | null;
+  targetRounds?: number | null;
+  scoreThreshold?: number | null;
+  scoreThresholdDirection?: "at_least" | "at_most" | null;
+}) {
+  const meta: LogMeta = {
+    actorUserId: null,
+    gameId: input.gameId,
+    scoringMode: input.scoringMode,
+    endingMode: input.endingMode,
+  };
+
+  return runGameAction(
+    "settings.update",
+    meta,
+    async () => {
+      const { user, game } = await requireGameCreator(input.gameId);
+      meta.actorUserId = user.id;
+
+      if (game.completedAt) {
+        throw new Error("Completed games can't be changed");
+      }
+
+      const hasRecordedActivity =
+        game.completedRounds > 0 ||
+        game.players.some((player) => player.score !== 0) ||
+        game.rounds.some((round) => round.scores.length > 0);
+
+      if (hasRecordedActivity) {
+        if (input.scoringMode !== game.scoringMode) {
+          throw new Error(
+            "Scoring mode can't be changed after scorekeeping has started",
+          );
+        }
+
+        if (input.endingMode !== game.endingMode) {
+          throw new Error(
+            "Ending mode can't be changed after rounds or scores are recorded",
+          );
+        }
+
+        if (game.endingMode === "none" && input.trackRounds !== game.trackRounds) {
+          throw new Error(
+            "Round tracking can't be changed after rounds or scores are recorded",
+          );
+        }
+      }
+
+      const validatedSettings = validateGameSettings(input);
+
+      if (
+        input.endingMode === "round_count" &&
+        validatedSettings.targetRounds !== null &&
+        validatedSettings.targetRounds <= game.completedRounds
+      ) {
+        throw new Error("Target rounds must be greater than completed rounds");
+      }
+
+      meta.targetRounds = validatedSettings.targetRounds;
+      meta.scoreThreshold = validatedSettings.scoreThreshold;
+      meta.scoreThresholdDirection = validatedSettings.scoreThresholdDirection;
+
+      const result = await updateGame(game.id, {
+        scoringMode: input.scoringMode,
+        endingMode: input.endingMode,
+        trackRounds: validatedSettings.trackRounds,
+        targetRounds: validatedSettings.targetRounds,
+        scoreThreshold: validatedSettings.scoreThreshold,
+        scoreThresholdDirection: validatedSettings.scoreThresholdDirection,
+      });
+
+      revalidateDashboardPages(getDashboardUserIdsForGame(game));
+      revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
+
+      return result;
+    },
+    (result) => ({
+      updatedGameId: result?.id ?? null,
     }),
   );
 }

@@ -1,51 +1,34 @@
 "use client";
 
-import { Link2, MessageSquareMore, Phone, Plus } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Share2, UserPlus } from "lucide-react";
 import { useFriendsPage } from "../friends-page-provider";
 
 export function AddFriendCard() {
-  const { copyLink, isPending, data, setIsInviteDialogOpen } = useFriendsPage();
+  const { handleSharePublicProfile, isPending } = useFriendsPage();
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex justify-between items-center">
-          Add a friend
-          <div className="flex gap-2">
-            <Button
-              size="icon"
-              type="button"
-              variant="outline"
-              disabled={isPending}
-              onClick={() => {
-                const publicProfileUrl = `${window.location.origin}/profile/${data.user.id}`;
-                copyLink(publicProfileUrl).then(() => {
-                  toast.success("Public profile link copied");
-                });
-              }}
-            >
-              <Link2 />
-            </Button>
-            <Button
-              size="icon"
-              type="button"
-              disabled={isPending}
-              onClick={() => setIsInviteDialogOpen(true)}
-            >
-              <MessageSquareMore />
-            </Button>
+    <button
+      type="button"
+      className="group w-full rounded-2xl border border-border bg-muted/60 text-left transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+      disabled={isPending}
+      onClick={() => {
+        void handleSharePublicProfile();
+      }}
+    >
+      <span className="flex w-full items-center justify-between gap-3 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-foreground text-background">
+            <UserPlus className="size-4" />
           </div>
-        </CardTitle>
-      </CardHeader>
-    </Card>
+          <div>
+            <p className="text-sm font-medium">Share with friends</p>
+            <p className="text-xs text-muted-foreground">
+              Send your public profile for them to friend you
+            </p>
+          </div>
+        </div>
+        <Share2 className="size-4 text-muted-foreground" />
+      </span>
+    </button>
   );
 }

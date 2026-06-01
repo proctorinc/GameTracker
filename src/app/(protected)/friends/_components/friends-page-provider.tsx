@@ -50,6 +50,7 @@ type FriendsPageContextValue = {
   toggleShowAllFriends: () => void;
   toggleShowAllRecentlyPlayed: () => void;
   copyLink: (value: string) => Promise<void>;
+  handleSharePublicProfile: () => Promise<void>;
   handleInviteByPhone: () => void;
   handleQuickInviteUser: (userId: string) => void;
   handleGuestPhoneInvite: () => void;
@@ -135,6 +136,38 @@ export function FriendsPageProvider({
     }
 
     return Promise.resolve();
+  }
+
+  async function handleSharePublicProfile() {
+    const publicProfileUrl = `${window.location.origin}/profile/${data.user.id}`;
+    const profileName =
+      [data.user.firstName, data.user.lastName].filter(Boolean).join(" ") ||
+      "this player";
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `${profileName} on Skyjo`,
+          text: `Check out ${profileName}'s public profile on Skyjo.`,
+          url: publicProfileUrl,
+        });
+        return;
+      }
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(publicProfileUrl);
+        toast.success("Public profile link copied");
+        return;
+      }
+
+      toast.error("Sharing is not supported on this device");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+
+      toast.error("Unable to share your public profile");
+    }
   }
 
   function handleInviteByPhone() {
@@ -311,6 +344,7 @@ export function FriendsPageProvider({
       setShowAllRecentlyPlayed((current) => !current);
     },
     copyLink,
+    handleSharePublicProfile,
     handleInviteByPhone,
     handleQuickInviteUser,
     handleGuestPhoneInvite,

@@ -15,6 +15,7 @@ const addGamePlayer = vi.fn();
 const addGuestGamePlayer = vi.fn();
 const commitGameRound = vi.fn();
 const getPlayGameSnapshot = vi.fn();
+const removeGamePlayer = vi.fn();
 const upsertActiveRoundScore = vi.fn();
 const updateOwnedGuestColor = vi.fn();
 
@@ -38,6 +39,7 @@ vi.mock("@/app/actions/game", () => ({
   addGuestGamePlayer: (...args: unknown[]) => addGuestGamePlayer(...args),
   commitGameRound: (...args: unknown[]) => commitGameRound(...args),
   getPlayGameSnapshot: (...args: unknown[]) => getPlayGameSnapshot(...args),
+  removeGamePlayer: (...args: unknown[]) => removeGamePlayer(...args),
   upsertActiveRoundScore: (...args: unknown[]) => upsertActiveRoundScore(...args),
 }));
 
@@ -246,6 +248,7 @@ describe("PlayGame", () => {
     addGuestGamePlayer.mockReset();
     commitGameRound.mockReset();
     getPlayGameSnapshot.mockReset();
+    removeGamePlayer.mockReset();
     upsertActiveRoundScore.mockReset();
     updateOwnedGuestColor.mockReset();
     vi.useRealTimers();
@@ -544,6 +547,105 @@ describe("PlayGame", () => {
         gameId: "game-1",
         completeGame: true,
         winnerUserIds: ["user-2"],
+      });
+    });
+  });
+
+  it("opens a manage users dialog with the current players listed", () => {
+    renderComponent();
+
+    fireEvent.click(screen.getByRole("button", { name: "Users" }));
+
+    expect(screen.getByRole("heading", { name: "Manage users" })).toBeInTheDocument();
+    expect(screen.getByTestId("remove-player-button-user-2")).toBeInTheDocument();
+    expect(screen.queryByTestId("remove-player-button-user-1")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add user" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back to game" })).toBeInTheDocument();
+  });
+
+  it("shows add user UI only after tapping add user", () => {
+    renderComponent();
+
+    fireEvent.click(screen.getByRole("button", { name: "Users" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add user" }));
+
+    expect(screen.getByRole("heading", { name: "Add user" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back to users" })).toBeInTheDocument();
+    expect(screen.queryByTestId("remove-player-button-user-2")).not.toBeInTheDocument();
+  });
+
+  it("removes a player optimistically after confirmation", async () => {
+    const deferred = createDeferred<void>();
+    removeGamePlayer.mockReturnValue(deferred.promise);
+
+    renderComponent();
+
+    fireEvent.click(screen.getByRole("button", { name: "Users" }));
+    fireEvent.click(screen.getByTestId("remove-player-button-user-2"));
+
+    expect(screen.getByRole("heading", { name: "Remove this user?" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove user" }));
+
+    expect(screen.queryByTestId("player-card-user-2")).not.toBeInTheDocument();
+
+    deferred.resolve();
+
+    await waitFor(() => {
+      expect(removeGamePlayer).toHaveBeenCalledWith({
+        gameId: "game-1",
+        userId: "user-2",
+      });
+    });
+  });
+
+  it("rolls back an optimistic removal if the server action fails", async () => {
+    const deferred = createDeferred<void>();
+    removeGamePlayer.mockReturnValue(deferred.promise);
+
+    renderComponent();
+
+    fireEvent.click(screen.getByRole("button", { name: "Users" }));
+    fireEvent.click(screen.getByTestId("remove-player-button-user-2"));
+    fireEvent.click(screen.getByRole("button", { name: "Remove user" }));
+
+    expect(screen.queryByTestId("player-card-user-2")).not.toBeInTheDocument();
+
+    deferred.reject(new Error("Remove failed"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("player-card-user-2")).toBeInTheDocument();
+    });
+    expect(toastError).toHaveBeenCalledWith("Remove failed");
+  });
+
+  it("returns to the player list after adding a user", async () => {
+    const deferred = createDeferred<void>();
+    addGamePlayer.mockReturnValue(deferred.promise);
+
+    const friend = createUser({
+      id: "user-3",
+      firstName: "June",
+      color: "#cccccc",
+    });
+
+    renderComponent({
+      playerOptions: [createUser({ id: "user-1", firstName: "Mia" }), createUser({ id: "user-2", firstName: "Kai" }), friend],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Users" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add user" }));
+    fireEvent.click(screen.getByText("June"));
+
+    expect(screen.getByRole("heading", { name: "Manage users" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back to game" })).toBeInTheDocument();
+
+    deferred.resolve();
+
+    await waitFor(() => {
+      expect(addGamePlayer).toHaveBeenCalledWith({
+        gameId: "game-1",
+        userId: "user-3",
       });
     });
   });

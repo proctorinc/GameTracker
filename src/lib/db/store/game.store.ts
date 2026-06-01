@@ -1275,3 +1275,44 @@ export async function addPlayerToGame(
 
   return gamePlayer;
 }
+
+export async function removePlayerFromGame(input: {
+  gameId: string;
+  userId: string;
+}): Promise<typeof gamePlayers.$inferSelect | null> {
+  await db
+    .delete(gameRoundScores)
+    .where(
+      and(
+        eq(gameRoundScores.userId, input.userId),
+        inArray(
+          gameRoundScores.gameRoundId,
+          db
+            .select({ id: gameRounds.id })
+            .from(gameRounds)
+            .where(eq(gameRounds.gameId, input.gameId)),
+        ),
+      ),
+    );
+
+  await db
+    .delete(gameWinners)
+    .where(
+      and(
+        eq(gameWinners.gameId, input.gameId),
+        eq(gameWinners.userId, input.userId),
+      ),
+    );
+
+  const [gamePlayer] = await db
+    .delete(gamePlayers)
+    .where(
+      and(
+        eq(gamePlayers.gameId, input.gameId),
+        eq(gamePlayers.userId, input.userId),
+      ),
+    )
+    .returning();
+
+  return gamePlayer ?? null;
+}
