@@ -10,7 +10,7 @@ export function StartGameCard() {
     <Link href="/game/create/settings" className="mx-4 -mt-4">
       <Card>
         <CardHeader className="flex justify-between items-center">
-          <CardTitle className="flex gap-1 items-center">
+          <CardTitle className="flex gap-1.5 items-center">
             <Dices />
             New game
           </CardTitle>

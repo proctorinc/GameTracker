@@ -66,18 +66,12 @@ export function CompleteProfile({ user }: ProfileOverviewProps) {
                   </>
                 )}
               </h2>
-              <div className="rounded-2xl border border-border bg-muted/60 p-2">
-                <p>{user.phoneNumber}</p>
-              </div>
             </div>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="gap-2">
             <CardTitle>Complete Your Profile</CardTitle>
-            <CardDescription>
-              Add your name and choose a color for your profile.
-            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleCompleteProfile} className="grid gap-6">
@@ -107,7 +101,6 @@ export function CompleteProfile({ user }: ProfileOverviewProps) {
               />
               <Button
                 type="submit"
-                size="lg"
                 disabled={
                   isPending ||
                   firstName.trim() === "" ||

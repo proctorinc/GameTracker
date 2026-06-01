@@ -69,18 +69,44 @@ export function parseTitleLibraryFilters(
 
 export type TitlesPageData = Awaited<ReturnType<typeof getTitlesPageData>>;
 
+export type TitlesPageCollections = {
+  filters: Required<TitleLibraryFilters>;
+  gameTitles: Awaited<ReturnType<typeof listGameTitles>>;
+  counts: {
+    all: number;
+    mine: number;
+    universal: number;
+  };
+};
+
+export async function getTitlesPageCollections(input: {
+  userId: string;
+  searchParams: SearchParamsInput;
+}): Promise<TitlesPageCollections> {
+  const filters = parseTitleLibraryFilters(input.searchParams);
+  const gameTitles = await listGameTitles(input.userId);
+  const counts = {
+    all: gameTitles.length,
+    mine: gameTitles.filter((title) => title.isOwned).length,
+    universal: gameTitles.filter((title) => title.isUniversal).length,
+  };
+
+  return {
+    filters,
+    gameTitles,
+    counts,
+  };
+}
+
 export async function getTitlesPageData(searchParams: SearchParamsInput) {
   const requestContext = await getServerRequestContext();
 
   try {
     const user = await loadCurrentUser();
-    const filters = parseTitleLibraryFilters(searchParams);
-    const gameTitles = await listGameTitles(user.id);
-    const counts = {
-      all: gameTitles.length,
-      mine: gameTitles.filter((title) => title.isOwned).length,
-      universal: gameTitles.filter((title) => title.isUniversal).length,
-    };
+    const { filters, gameTitles, counts } = await getTitlesPageCollections({
+      userId: user.id,
+      searchParams,
+    });
 
     logInfo("titles.page_data.read.succeeded", {
       ...requestContext,

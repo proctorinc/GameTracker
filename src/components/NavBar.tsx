@@ -1,6 +1,6 @@
 "use client";
 
-import { Dices, Home, User2, Users } from "lucide-react";
+import { Dices, User2, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -15,7 +15,7 @@ const navItems = [
   },
   {
     href: "/dashboard",
-    label: "Games",
+    label: "Play",
     icon: Dices,
     matches: (pathname: string) => pathname === "/dashboard",
   },
@@ -43,7 +43,7 @@ export default function NavBar() {
                 href={href}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "flex h-16 flex-col w-fit px-4 items-center justify-center gap-1 rounded-[1.4rem] border text-[0.68rem] font-semibold tracking-[0.08em] uppercase transition-colors",
+                  "flex h-16 flex-col w-fit min-w-20 px-4 items-center justify-center gap-1 rounded-[1.4rem] border text-[0.68rem] font-semibold tracking-[0.08em] uppercase transition-colors",
                   isActive
                     ? "border-transparent bg-primary text-primary-foreground"
                     : "border-border bg-background hover:bg-muted",

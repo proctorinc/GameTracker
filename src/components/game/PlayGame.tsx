@@ -13,7 +13,7 @@ import { ProfileColorSelector } from "@/components/profile/profile-color-selecto
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardEmpty, CardHeader } from "@/components/ui/card";
 import {
   Command,
   CommandEmpty,
@@ -88,13 +88,21 @@ type PendingMutationEntry = {
 function getDisplayName(
   user: Pick<UserBase, "firstName" | "lastName" | "isGuest">,
 ) {
-  const fullName = [user.firstName, user.lastName]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
+  const firstName = user.firstName?.trim() ?? "";
+  const lastInitial = user.lastName?.trim().charAt(0).toUpperCase() ?? "";
 
-  if (fullName) {
-    return fullName;
+  if (firstName && lastInitial) {
+    return `${firstName} ${lastInitial}.`;
+  }
+
+  if (firstName) {
+    return firstName;
+  }
+
+  const lastName = user.lastName?.trim() ?? "";
+
+  if (lastName) {
+    return `${lastName.charAt(0).toUpperCase()}.`;
   }
 
   return user.isGuest ? "Guest player" : "Unnamed player";
@@ -107,21 +115,27 @@ function normalizeValue(value: string) {
 function formatEndingSummary(game: GameForPlayPage) {
   switch (game.endingMode) {
     case "round_count":
-      return `${game.targetRounds ?? 1} round${game.targetRounds === 1 ? "" : "s"}`;
+      return `End after ${game.targetRounds ?? 1} round${
+        game.targetRounds === 1 ? "" : "s"
+      }`;
     case "score_threshold":
       if (game.scoreThreshold === null) {
         return "Score threshold";
       }
 
       return game.scoreThresholdDirection === "at_most"
-        ? `End when a score is at most ${game.scoreThreshold}`
-        : `End when a score is at least ${game.scoreThreshold}`;
+        ? `End when a score drops to ${game.scoreThreshold}`
+        : `End when a score reaches ${game.scoreThreshold}`;
     default:
-      return "No rounds, free play";
+      return game.trackRounds ? "Free play with rounds" : "Free play without rounds";
   }
 }
 
 function formatScoringSummary(game: GameForPlayPage) {
+  if (game.scoringMode === "no_score") {
+    return "No score";
+  }
+
   return game.scoringMode === "highest_wins"
     ? "Highest score wins"
     : "Lowest score wins";
@@ -159,6 +173,24 @@ function formatWinners(game: GameForPlayPage) {
 
 function getPlayerTotalScore(player: { score: number | null | undefined }) {
   return player.score ?? 0;
+}
+
+function getPlacementLabel(index: number) {
+  const place = index + 1;
+
+  if (place === 1) {
+    return "1st";
+  }
+
+  if (place === 2) {
+    return "2nd";
+  }
+
+  if (place === 3) {
+    return "3rd";
+  }
+
+  return `${place}th`;
 }
 
 function getPlayerInitial(user: Pick<UserBase, "firstName" | "lastName">) {
@@ -250,6 +282,9 @@ export default function PlayGame(props: PlayGameProps) {
   const [selectedGuestColor, setSelectedGuestColor] = useState<string | null>(
     null,
   );
+  const [selectedWinnerUserIds, setSelectedWinnerUserIds] = useState<string[]>(
+    [],
+  );
   const [playerSearch, setPlayerSearch] = useState("");
   const [baseSnapshot, setBaseSnapshot] = useState<PlayGameSnapshot>(() =>
     buildInitialSnapshot(props),
@@ -301,8 +336,14 @@ export default function PlayGame(props: PlayGameProps) {
     () => new Set(game.winners.map((winner) => winner.userId)),
     [game.winners],
   );
+  const isNoScoreMode = game.scoringMode === "no_score";
   const isFreePlay = game.endingMode === "none";
+  const showsRounds = game.endingMode !== "none" || game.trackRounds;
+  const isRoundlessFreePlay = isFreePlay && !game.trackRounds;
   const nextRoundNumber = game.completedRounds + 1;
+  const currentRoundLabel = isCompleted
+    ? game.completedRounds
+    : nextRoundNumber;
   const activeRound = useMemo(
     () =>
       game.completedAt
@@ -345,6 +386,23 @@ export default function PlayGame(props: PlayGameProps) {
   const sortedPlayers = useMemo(() => {
     const players = [...game.players];
 
+    if (game.scoringMode === "no_score") {
+      if (game.completedAt) {
+        players.sort((left, right) => {
+          const leftIsWinner = winnerIds.has(left.userId);
+          const rightIsWinner = winnerIds.has(right.userId);
+
+          if (leftIsWinner === rightIsWinner) {
+            return 0;
+          }
+
+          return leftIsWinner ? -1 : 1;
+        });
+      }
+
+      return players;
+    }
+
     players.sort((left, right) =>
       game.scoringMode === "highest_wins"
         ? getPlayerTotalScore(right) - getPlayerTotalScore(left)
@@ -352,7 +410,7 @@ export default function PlayGame(props: PlayGameProps) {
     );
 
     return players;
-  }, [game.players, game.scoringMode]);
+  }, [game.completedAt, game.players, game.scoringMode, winnerIds]);
   const sortedRounds = useMemo(() => {
     const gameRounds = (game.rounds ?? []).filter(
       (round) => round.roundNumber <= game.completedRounds,
@@ -394,20 +452,42 @@ export default function PlayGame(props: PlayGameProps) {
       })),
     [activeRoundScoreByUserId, game.players],
   );
-  const projectedWinnerIds = useMemo(
-    () =>
-      new Set(
-        getWinningUserIds({
-          players: game.players.map((player) => ({
-            userId: player.userId,
-            score: getPlayerTotalScore(player),
-          })),
-          scoringMode: game.scoringMode,
-        }),
-      ),
-    [game.players, game.scoringMode],
-  );
+  const projectedWinnerIds = useMemo(() => {
+    if (game.scoringMode === "no_score") {
+      return new Set(selectedWinnerUserIds);
+    }
+
+    return new Set(
+      getWinningUserIds({
+        players: game.players.map((player) => ({
+          userId: player.userId,
+          score: getPlayerTotalScore(player),
+        })),
+        scoringMode: game.scoringMode,
+      }),
+    );
+  }, [game.players, game.scoringMode, selectedWinnerUserIds]);
   const projectedWinnersLabel = useMemo(() => {
+    if (game.scoringMode === "no_score") {
+      const winnerNames = sortedPlayers
+        .filter((player) => projectedWinnerIds.has(player.userId))
+        .map((player) => getDisplayName(player.user));
+
+      if (winnerNames.length === 0) {
+        return "Choose the winner";
+      }
+
+      if (winnerNames.length === 1) {
+        return `${winnerNames[0]} is selected to win`;
+      }
+
+      if (winnerNames.length === 2) {
+        return `${winnerNames[0]} and ${winnerNames[1]} are selected to tie`;
+      }
+
+      return `${winnerNames.slice(0, -1).join(", ")}, and ${winnerNames.at(-1)} are selected to tie`;
+    }
+
     const winnerNames = sortedPlayers
       .filter((player) => projectedWinnerIds.has(player.userId))
       .map((player) => getDisplayName(player.user));
@@ -425,7 +505,7 @@ export default function PlayGame(props: PlayGameProps) {
     }
 
     return `${winnerNames.slice(0, -1).join(", ")}, and ${winnerNames.at(-1)} are tied for the lead`;
-  }, [projectedWinnerIds, sortedPlayers]);
+  }, [game.scoringMode, projectedWinnerIds, sortedPlayers]);
 
   function previewSnapshot(
     nextBaseSnapshot: PlayGameSnapshot,
@@ -548,8 +628,6 @@ export default function PlayGame(props: PlayGameProps) {
     key: string;
     mutation: PlayGameMutation;
     action: () => Promise<unknown>;
-    loadingMessage?: string;
-    successMessage?: string;
     fallbackError?: string;
     onOptimistic?: () => void;
     onSuccess?: () => void;
@@ -564,9 +642,6 @@ export default function PlayGame(props: PlayGameProps) {
       mutation: input.mutation,
     };
     const nextPendingMutations = [...pendingMutationsRef.current, entry];
-    const loadingId = input.loadingMessage
-      ? toast.loading(input.loadingMessage)
-      : null;
 
     setLocalState(baseSnapshotRef.current, nextPendingMutations);
     input.onOptimistic?.();
@@ -576,20 +651,9 @@ export default function PlayGame(props: PlayGameProps) {
         await input.action();
         await finalizeSuccessfulMutation(entry);
 
-        if (loadingId) {
-          toast.dismiss(loadingId);
-        }
-        if (input.successMessage) {
-          toast.success(input.successMessage);
-        }
-
         input.onSuccess?.();
       } catch (error) {
         rollbackFailedMutation(entry);
-
-        if (loadingId) {
-          toast.dismiss(loadingId);
-        }
         toast.error(
           error instanceof Error
             ? error.message
@@ -600,7 +664,7 @@ export default function PlayGame(props: PlayGameProps) {
   }
 
   function openScoreDialog(player: GameForPlayPage["players"][number]) {
-    if (!isCreator || isCompleted) {
+    if (!isCreator || isCompleted || isNoScoreMode) {
       return;
     }
 
@@ -633,8 +697,6 @@ export default function PlayGame(props: PlayGameProps) {
         gamePlayerId: `optimistic-game-player-${userId}`,
       },
       action: () => addGamePlayer({ gameId: game.id, userId }),
-      loadingMessage: "Adding player...",
-      successMessage: "Player added",
       onOptimistic: () => {
         setIsAddPlayerOpen(false);
         setPlayerSearch("");
@@ -671,8 +733,6 @@ export default function PlayGame(props: PlayGameProps) {
           firstName,
           lastName,
         }),
-      loadingMessage: "Adding guest...",
-      successMessage: "Guest added",
       onOptimistic: () => {
         setIsAddPlayerOpen(false);
         setPlayerSearch("");
@@ -707,7 +767,6 @@ export default function PlayGame(props: PlayGameProps) {
           userId: scoreDialogPlayer.userId,
           scoreDelta: scoreAmount,
         }),
-      successMessage: "Score updated",
       onOptimistic: () => {
         setScoreDialogPlayerId(null);
         setScoreAmountInput("0");
@@ -717,6 +776,8 @@ export default function PlayGame(props: PlayGameProps) {
 
   function handleCommitRound(completeGame: boolean) {
     const finishedAt = nowIso();
+    const winnerUserIds =
+      completeGame && isNoScoreMode ? selectedWinnerUserIds : undefined;
 
     runMutation({
       key: "commit-round",
@@ -724,26 +785,34 @@ export default function PlayGame(props: PlayGameProps) {
         type: "commit-round",
         completeGame,
         finishedAt,
+        winnerUserIds,
       },
       action: () =>
         commitGameRound({
           gameId: game.id,
           completeGame,
+          winnerUserIds,
         }),
-      loadingMessage: completeGame
-        ? "Finishing game..."
-        : isFreePlay
-          ? "Saving scores..."
-          : "Ending round...",
-      successMessage: completeGame
-        ? "Game completed"
-        : isFreePlay
-          ? "Scores updated"
-          : `Round ${nextRoundNumber} complete`,
       onOptimistic: () => {
         setIsRoundDialogOpen(false);
+        if (completeGame && isNoScoreMode) {
+          setSelectedWinnerUserIds([]);
+        }
       },
     });
+  }
+
+  function toggleWinnerSelection(userId: string) {
+    setSelectedWinnerUserIds((current) =>
+      current.includes(userId)
+        ? current.filter((entry) => entry !== userId)
+        : [...current, userId],
+    );
+  }
+
+  function openRoundDialog() {
+    setSelectedWinnerUserIds(game.winners.map((winner) => winner.userId));
+    setIsRoundDialogOpen(true);
   }
 
   function handleGuestColorSelect(nextColor: string) {
@@ -766,7 +835,6 @@ export default function PlayGame(props: PlayGameProps) {
           color: nextColor,
           gameId: game.id,
         }),
-      successMessage: "Player color updated",
       fallbackError: "Failed to update player color",
       onOptimistic: () => {
         setColorDialogPlayerId(null);
@@ -815,6 +883,7 @@ export default function PlayGame(props: PlayGameProps) {
   const addGuestPending = pendingKeySet.has(
     `add-guest:${normalizeValue(playerSearch)}`,
   );
+  const canOpenScoreFromCard = isCreator && !isCompleted && !isNoScoreMode;
 
   return (
     <div
@@ -853,9 +922,9 @@ export default function PlayGame(props: PlayGameProps) {
                   <h1 className="truncate text-lg font-black tracking-tight text-foreground">
                     {game.gameTitle?.title ?? "Untitled game"}
                   </h1>
-                  {!isFreePlay && (
+                  {showsRounds && (
                     <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-foreground/60">
-                      Round {nextRoundNumber}
+                      Round {currentRoundLabel}
                     </p>
                   )}
                 </div>
@@ -910,16 +979,17 @@ export default function PlayGame(props: PlayGameProps) {
         </Card>
 
         {isCompleted ? (
-          <Card className="winner-surface overflow-hidden border rounded-3xl">
-            <CardHeader className="flex items-center justify-center gap-3 text-center text-2xl font-bold text-[color:var(--winner-text)]">
-              <WinnerIndicator label="Winner" size="md" />
-              <span>{formatWinners(game)}</span>
+          <Card className="winner-surface overflow-hidden rounded-3xl border">
+            <CardHeader className="gap-3 text-center text-[color:var(--winner-text)]">
+              <div className="flex items-center justify-center gap-3 text-2xl font-bold">
+                <span>{formatWinners(game)}</span>
+              </div>
             </CardHeader>
           </Card>
         ) : null}
 
         <div className="flex flex-col gap-3">
-          {sortedPlayers.map((player) => {
+          {sortedPlayers.map((player, index) => {
             const isWinner = winnerIds.has(player.userId);
             const canEditColor = canEditGuestOrSelfColor(player);
             const playerSurfaceStyles = getProfileColorSurfaceStyles(
@@ -933,8 +1003,28 @@ export default function PlayGame(props: PlayGameProps) {
                 data-testid={`player-card-${player.userId}`}
               >
                 <CardContent
-                  className="relative flex items-center gap-3 overflow-hidden px-3 py-1"
+                  className={cn(
+                    "relative flex items-center gap-3 overflow-hidden px-3 py-1",
+                    canOpenScoreFromCard && "cursor-pointer",
+                  )}
                   data-testid={`player-card-content-${player.userId}`}
+                  onClick={() => {
+                    if (canOpenScoreFromCard) {
+                      openScoreDialog(player);
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (!canOpenScoreFromCard) {
+                      return;
+                    }
+
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      openScoreDialog(player);
+                    }
+                  }}
+                  role={canOpenScoreFromCard ? "button" : undefined}
+                  tabIndex={canOpenScoreFromCard ? 0 : undefined}
                   style={playerSurfaceStyles}
                 >
                   <div className="pointer-events-none absolute inset-[1px] rounded-[calc(1.5rem-1px)] border border-[var(--profile-surface-ring)]" />
@@ -944,7 +1034,14 @@ export default function PlayGame(props: PlayGameProps) {
                     <button
                       type="button"
                       className="relative z-10 flex shrink-0 items-center justify-center rounded-full transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/15"
-                      onClick={() => openColorDialog(player)}
+                      data-testid={`player-color-button-${player.userId}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openColorDialog(player);
+                      }}
+                      onKeyDown={(event) => {
+                        event.stopPropagation();
+                      }}
                     >
                       <ProfilePicture
                         user={player.user}
@@ -967,6 +1064,15 @@ export default function PlayGame(props: PlayGameProps) {
                   )}
                   <div className="relative z-10 min-w-0 flex-1">
                     <div className="flex flex-col justify-center gap-1">
+                      {isCompleted ? (
+                        <p className="text-[0.68rem] font-black uppercase tracking-[0.18em] text-[color:var(--profile-surface-muted-text)]">
+                          {isNoScoreMode
+                            ? isWinner
+                              ? "Winner"
+                              : "Player"
+                            : `${getPlacementLabel(index)} place`}
+                        </p>
+                      ) : null}
                       <p className="truncate text-xl font-black text-[color:var(--profile-surface-text)]">
                         {getDisplayName(player.user)}
                       </p>
@@ -978,15 +1084,15 @@ export default function PlayGame(props: PlayGameProps) {
                           Guest
                         </Badge>
                       ) : null}
-                      {isWinner ? (
-                        <WinnerIndicator
-                          label={`${getDisplayName(player.user)} won`}
-                          variant="icon"
-                        />
-                      ) : null}
                     </div>
                   </div>
-                  {isCreator ? (
+                  {!isNoScoreMode && isCompleted ? (
+                    <div className="relative z-10 min-w-[5.5rem] rounded-[1.4rem] border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-4 py-3 text-center shadow-sm backdrop-blur-[2px]">
+                      <p className="text-3xl font-black text-[color:var(--profile-surface-text)]">
+                        {getPlayerTotalScore(player)}
+                      </p>
+                    </div>
+                  ) : !isNoScoreMode && isCreator ? (
                     <Button
                       className="relative z-10 min-w-14 rounded-[1.4rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-4 py-3 text-center text-3xl font-black text-[color:var(--profile-surface-text)] shadow-sm backdrop-blur-[2px]"
                       data-testid={`player-score-button-${player.userId}`}
@@ -996,14 +1102,14 @@ export default function PlayGame(props: PlayGameProps) {
                     >
                       {getPlayerTotalScore(player)}
                     </Button>
-                  ) : (
+                  ) : !isNoScoreMode ? (
                     <div
                       className="relative z-10 min-w-14 rounded-[1.4rem] border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-4 py-3 text-center text-3xl font-black text-[color:var(--profile-surface-text)] shadow-sm backdrop-blur-[2px]"
                       data-testid={`player-score-display-${player.userId}`}
                     >
                       {getPlayerTotalScore(player)}
                     </div>
-                  )}
+                  ) : null}
                 </CardContent>
               </Card>
             );
@@ -1024,10 +1130,10 @@ export default function PlayGame(props: PlayGameProps) {
           <div
             className={`grid gap-2 ${
               isCreator
-                ? !isFreePlay
+                ? showsRounds
                   ? "grid-cols-4"
                   : "grid-cols-3"
-                : !isFreePlay
+                : showsRounds
                   ? "grid-cols-2"
                   : "grid-cols-1"
             }`}
@@ -1044,9 +1150,9 @@ export default function PlayGame(props: PlayGameProps) {
             )}
 
             {isCompleted && (
-              <Link href="/dashboard">
+              <Link className="w-full" href="/dashboard">
                 <Button
-                  className="h-16 flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase"
+                  className="h-16 w-full flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase"
                   variant="outline"
                 >
                   <DoorOpen className="size-5" />
@@ -1074,14 +1180,22 @@ export default function PlayGame(props: PlayGameProps) {
               <Button
                 className="h-16 flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase"
                 disabled={isCompleted}
-                onClick={() => setIsRoundDialogOpen(true)}
+                onClick={openRoundDialog}
               >
                 <Trophy className="size-5" />
-                {isCompleted ? "Finished" : isFreePlay ? "Score" : "Round"}
+                {isCompleted
+                  ? "Finished"
+                  : isNoScoreMode
+                    ? "Finish"
+                    : showsRounds
+                      ? "Round"
+                      : isFreePlay
+                      ? "Score"
+                      : "Round"}
               </Button>
             ) : null}
 
-            {!isFreePlay ? (
+            {showsRounds && !isNoScoreMode ? (
               <Button
                 className="h-16 flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase"
                 onClick={() => setIsRoundHistoryOpen(true)}
@@ -1143,7 +1257,7 @@ export default function PlayGame(props: PlayGameProps) {
             <DialogTitle className="relative z-10 text-2xl font-black">
               {scoreDialogPlayer ? getDisplayName(scoreDialogPlayer.user) : ""}
             </DialogTitle>
-            {!isFreePlay && (
+            {showsRounds && (
               <DialogDescription className="relative z-10 text-[color:var(--profile-surface-muted-text)]">
                 Round {nextRoundNumber}
               </DialogDescription>
@@ -1346,9 +1460,11 @@ export default function PlayGame(props: PlayGameProps) {
         <DialogContent className="max-w-[calc(100%-1.5rem)] rounded-[2rem] p-5">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black">
-              {isFreePlay || hasThresholdMet
-                ? "End of game"
-                : `End of round ${nextRoundNumber}`}
+              {isNoScoreMode && !showsRounds
+                ? "Finish game"
+                : hasThresholdMet || isRoundlessFreePlay
+                  ? "End of game"
+                  : `End of round ${nextRoundNumber}`}
             </DialogTitle>
           </DialogHeader>
 
@@ -1357,7 +1473,50 @@ export default function PlayGame(props: PlayGameProps) {
             <Badge variant="outline">{formatEndingSummary(game)}</Badge>
           </div>
 
-          {(isFreePlay || hasThresholdMet) && (
+          {isNoScoreMode && (
+            <div className="rounded-3xl border border-border bg-muted/50 p-4">
+              <p className="mb-2 text-sm font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                Pick the winner
+              </p>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Select one or more players. Multiple selections will be saved as
+                a tie.
+              </p>
+              <div className="flex flex-col gap-2">
+                {sortedPlayers.map((player) => {
+                  const isSelected = selectedWinnerUserIds.includes(
+                    player.userId,
+                  );
+
+                  return (
+                    <button
+                      key={player.userId}
+                      className={cn(
+                        "flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition",
+                        isSelected
+                          ? "border-foreground bg-foreground text-background"
+                          : "border-border bg-background text-foreground hover:bg-muted",
+                      )}
+                      onClick={() => toggleWinnerSelection(player.userId)}
+                      type="button"
+                    >
+                      <span className="font-bold">
+                        {getDisplayName(player.user)}
+                      </span>
+                      <span className="text-xs font-semibold uppercase tracking-[0.16em] opacity-80">
+                        {isSelected ? "Winner" : "Select"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-4 text-sm font-medium text-foreground/80">
+                {projectedWinnersLabel}
+              </p>
+            </div>
+          )}
+
+          {!isNoScoreMode && (isRoundlessFreePlay || hasThresholdMet) && (
             <div className="rounded-3xl border border-border bg-muted/50 p-4">
               <p className="mb-3 text-sm font-bold uppercase tracking-[0.18em] text-muted-foreground">
                 Standings
@@ -1385,7 +1544,7 @@ export default function PlayGame(props: PlayGameProps) {
             </div>
           )}
 
-          {!(isFreePlay || hasThresholdMet) && (
+          {!isNoScoreMode && !(isRoundlessFreePlay || hasThresholdMet) && (
             <div className="rounded-3xl border border-border bg-muted/50 p-4">
               <p className="mb-3 text-sm font-bold uppercase tracking-[0.18em] text-muted-foreground">
                 Round summary
@@ -1412,18 +1571,24 @@ export default function PlayGame(props: PlayGameProps) {
           <DialogFooter className="bg-transparent p-0 pt-2">
             {shouldOfferRoundPrompt ? (
               <>
+                {!isNoScoreMode || showsRounds ? (
+                  <Button
+                    disabled={commitRoundPending}
+                    onClick={() => handleCommitRound(false)}
+                    variant="outline"
+                  >
+                    {commitRoundPending ? (
+                      <LoaderCircle className="animate-spin" />
+                    ) : null}
+                    {showsRounds ? "Play another round" : "Save scores"}
+                  </Button>
+                ) : null}
                 <Button
-                  disabled={commitRoundPending}
-                  onClick={() => handleCommitRound(false)}
-                  variant="outline"
-                >
-                  {commitRoundPending ? (
-                    <LoaderCircle className="animate-spin" />
-                  ) : null}
-                  {isFreePlay ? "Save scores" : "Play another round"}
-                </Button>
-                <Button
-                  disabled={commitRoundPending}
+                  disabled={
+                    commitRoundPending ||
+                    (isNoScoreMode &&
+                      selectedWinnerUserIds.length === 0)
+                  }
                   onClick={() => handleCommitRound(true)}
                 >
                   {commitRoundPending ? (
@@ -1441,7 +1606,11 @@ export default function PlayGame(props: PlayGameProps) {
                 {commitRoundPending ? (
                   <LoaderCircle className="animate-spin" />
                 ) : null}
-                {isFreePlay ? "End game" : "Start next round"}
+                {isNoScoreMode
+                  ? "Start next round"
+                  : isRoundlessFreePlay
+                    ? "End game"
+                    : "Start next round"}
               </Button>
             )}
           </DialogFooter>
@@ -1450,7 +1619,7 @@ export default function PlayGame(props: PlayGameProps) {
 
       <Dialog
         onOpenChange={setIsRoundHistoryOpen}
-        open={!isFreePlay && isRoundHistoryOpen}
+        open={showsRounds && isRoundHistoryOpen}
       >
         <DialogContent className="max-w-[calc(100%-1.5rem)] rounded-[2rem] p-5">
           <DialogHeader>
@@ -1459,7 +1628,7 @@ export default function PlayGame(props: PlayGameProps) {
             </DialogTitle>
           </DialogHeader>
           <div className="max-h-[80vh] overflow-y-auto pr-1">
-            {sortedRounds.length > 0 && (
+            {sortedRounds.length > 0 ? (
               <div className="overflow-x-auto rounded-3xl border border-border bg-muted/50">
                 <div
                   className="grid min-w-max w-fit"
@@ -1518,6 +1687,10 @@ export default function PlayGame(props: PlayGameProps) {
                   ))}
                 </div>
               </div>
+            ) : (
+              <CardEmpty className="rounded-3xl border border-dashed border-border bg-muted/30 py-10 text-center">
+                Nothing here yet. Scores will show up after the first round.
+              </CardEmpty>
             )}
           </div>
         </DialogContent>

@@ -47,6 +47,7 @@ function resolveEditableSettings(
   return {
     scoringMode: defaults.scoringMode,
     endingMode: defaults.endingMode,
+    trackRounds: defaults.trackRounds,
     targetRounds: String(defaults.targetRounds),
     scoreThreshold: String(defaults.scoreThreshold),
     scoreThresholdDirection: defaults.scoreThresholdDirection,
@@ -135,10 +136,13 @@ export default function CreateGameSettingsStep({
   const scoringSummary =
     settings.scoringMode === "lowest_wins"
       ? "Lowest score wins"
-      : "Highest score wins";
+      : settings.scoringMode === "no_score"
+        ? "No score"
+        : "Highest score wins";
   const endingSummary = formatResolvedEndingSummary({
     scoringMode: settings.scoringMode ?? initialSettings.scoringMode,
     endingMode: settings.endingMode ?? initialSettings.endingMode,
+    trackRounds: settings.trackRounds ?? initialSettings.trackRounds,
     targetRounds: Number(settings.targetRounds || initialSettings.targetRounds),
     scoreThreshold: Number(
       settings.scoreThreshold || initialSettings.scoreThreshold,
@@ -188,16 +192,22 @@ export default function CreateGameSettingsStep({
           gameTitleName: draftTitle.newTitle,
           scoringMode: settings.scoringMode ?? initialSettings.scoringMode,
           endingMode: settings.endingMode ?? initialSettings.endingMode,
+          trackRounds:
+            settings.endingMode === "none"
+              ? (settings.trackRounds ?? initialSettings.trackRounds)
+              : true,
           targetRounds:
             settings.endingMode === "round_count"
               ? Number(settings.targetRounds)
               : null,
           scoreThreshold:
-            settings.endingMode === "score_threshold"
+            settings.endingMode === "score_threshold" &&
+            settings.scoringMode !== "no_score"
               ? Number(settings.scoreThreshold)
               : null,
           scoreThresholdDirection:
-            settings.endingMode === "score_threshold"
+            settings.endingMode === "score_threshold" &&
+            settings.scoringMode !== "no_score"
               ? settings.scoreThresholdDirection
               : null,
         });
@@ -212,7 +222,7 @@ export default function CreateGameSettingsStep({
   }
 
   return (
-    <div className="min-h-screen overflow-y-auto px-4 pb-40">
+    <div className="min-h-screen overflow-y-auto px-4 pb-24">
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <div className="space-y-1">
           <h1 className="text-4xl font-black">Choose game</h1>
@@ -273,13 +283,13 @@ export default function CreateGameSettingsStep({
                             >
                               {title.imageUrl ? (
                                 <div
-                                  className="absolute inset-0 bg-cover bg-center opacity-45"
+                                  className="absolute inset-0 bg-cover bg-center opacity-55"
                                   style={{
                                     backgroundImage: `url("${title.imageUrl}")`,
                                   }}
                                 />
                               ) : null}
-                              <div className="absolute inset-0 bg-linear-to-t from-white/45 via-white/25 dark:from-black/80 dark:via-black/35 to-transparent" />
+                              <div className="absolute inset-0 bg-linear-to-r from-black/60 via-black/35 to-black/10 dark:from-black/70 dark:via-black/45 dark:to-black/20" />
                               <div className="relative z-10 flex w-full flex-col items-start justify-end gap-1">
                                 <p
                                   className={cn(
@@ -307,7 +317,7 @@ export default function CreateGameSettingsStep({
                           <button
                             key={title.id}
                             className={cn(
-                              "relative flex min-h-20 items-end overflow-hidden rounded-2xl border border-transparent p-4 text-left transition hover:scale-[1.01]",
+                              "relative flex items-end overflow-hidden rounded-2xl border border-transparent p-4 text-left transition hover:scale-[1.01]",
                               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                             )}
                             onClick={() => selectLibraryTitle(title)}
@@ -318,13 +328,13 @@ export default function CreateGameSettingsStep({
                           >
                             {title.imageUrl ? (
                               <div
-                                className="absolute inset-0 bg-cover bg-center opacity-45"
+                                className="absolute inset-0 bg-cover bg-center opacity-55"
                                 style={{
                                   backgroundImage: `url("${title.imageUrl}")`,
                                 }}
                               />
                             ) : null}
-                            <div className="absolute inset-0 bg-linear-to-t from-white/45 via-white/25 dark:from-black/80 dark:via-black/35 to-transparent" />
+                            <div className="absolute inset-0 bg-linear-to-r from-black/60 via-black/35 to-black/10 dark:from-black/70 dark:via-black/45 dark:to-black/20" />
                             <div className="relative z-10 flex w-full items-end justify-between gap-3">
                               <div className="min-w-0">
                                 <p className="truncate text-base font-black text-white">
@@ -384,14 +394,14 @@ export default function CreateGameSettingsStep({
               >
                 {selectedTitle?.imageUrl ? (
                   <div
-                    className="absolute inset-0 bg-cover bg-center opacity-45"
+                    className="absolute inset-0 bg-cover bg-center opacity-55"
                     style={{
                       backgroundImage: `url("${selectedTitle.imageUrl}")`,
                     }}
                   />
                 ) : null}
                 {selectedTitle ? (
-                  <div className="absolute inset-0 bg-linear-to-t from-white/45 via-white/25 dark:from-black/80 dark:via-black/35 to-transparent" />
+                  <div className="absolute inset-0 bg-linear-to-r from-black/65 via-black/40 to-black/15 dark:from-black/75 dark:via-black/50 dark:to-black/20" />
                 ) : null}
                 <div className="relative z-10 min-w-0">
                   <p

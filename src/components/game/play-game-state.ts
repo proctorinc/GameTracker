@@ -23,6 +23,7 @@ export type PlayGameMutation =
       type: "commit-round";
       completeGame: boolean;
       finishedAt: string;
+      winnerUserIds?: string[];
     }
   | {
       type: "add-player";
@@ -168,13 +169,16 @@ function applyOptimisticRoundCommit(
     };
   }
 
-  const winnerIds = getWinningUserIds({
-    players: nextGame.players.map((player) => ({
-      userId: player.userId,
-      score: player.score ?? 0,
-    })),
-    scoringMode: nextGame.scoringMode,
-  });
+  const winnerIds =
+    nextGame.scoringMode === "no_score"
+      ? Array.from(new Set(mutation.winnerUserIds ?? []))
+      : getWinningUserIds({
+          players: nextGame.players.map((player) => ({
+            userId: player.userId,
+            score: player.score ?? 0,
+          })),
+          scoringMode: nextGame.scoringMode,
+        });
 
   return {
     ...snapshot,

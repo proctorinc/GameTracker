@@ -79,7 +79,7 @@ export function SearchableSelect<TOption extends SearchableSelectOption>({
             variant="outline"
             role="combobox"
             className={cn(
-              "w-full justify-between rounded-lg border-input bg-transparent px-3 py-2 font-normal shadow-none",
+              "h-14 w-full justify-between rounded-xl border-input bg-transparent px-3 py-2 font-normal shadow-none",
               !selectedOption && "text-muted-foreground",
               className,
             )}

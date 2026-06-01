@@ -26,21 +26,13 @@ function ProfileOverviewContent() {
 
 export function ProfileOverviewPage({
   initialData,
-  publicProfileUrl,
 }: {
   initialData: ProfileOverviewPageData;
-  publicProfileUrl: string;
 }) {
   return (
     <ProfileOverviewProvider
-      key={`${initialData.user.id}:${initialData.user.firstName ?? ""}:${initialData.user.lastName ?? ""}:${initialData.user.color}:${publicProfileUrl}`}
-      initialData={{
-        ...initialData,
-        user: {
-          ...initialData.user,
-          publicProfileUrl,
-        },
-      }}
+      key={`${initialData.user.id}:${initialData.user.firstName ?? ""}:${initialData.user.lastName ?? ""}:${initialData.user.color}`}
+      initialData={initialData}
     >
       <ProfileOverviewContent />
     </ProfileOverviewProvider>

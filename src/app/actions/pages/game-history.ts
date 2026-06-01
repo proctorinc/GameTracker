@@ -68,6 +68,33 @@ export type GameHistoryPageData = Awaited<
   ReturnType<typeof getGameHistoryPageData>
 >;
 
+export type GameHistoryPageCollections = {
+  filters: Required<GameHistoryFilters>;
+  games: Awaited<ReturnType<typeof listGameHistoryForUser>>;
+  friends: Awaited<ReturnType<typeof listAcceptedFriendsForUser>>;
+  gameTitles: Awaited<ReturnType<typeof listGameTitles>>;
+};
+
+export async function getGameHistoryPageCollections(input: {
+  userId: string;
+  searchParams: SearchParamsInput;
+}): Promise<GameHistoryPageCollections> {
+  const filters = parseGameHistoryFilters(input.searchParams);
+
+  const [games, friends, gameTitles] = await Promise.all([
+    listGameHistoryForUser(input.userId, filters),
+    listAcceptedFriendsForUser(input.userId),
+    listGameTitles(input.userId),
+  ]);
+
+  return {
+    filters,
+    games,
+    friends,
+    gameTitles,
+  };
+}
+
 export async function getGameHistoryPageData(
   searchParams: SearchParamsInput,
 ) {
@@ -75,13 +102,11 @@ export async function getGameHistoryPageData(
 
   try {
     const user = await loadCurrentUser();
-    const filters = parseGameHistoryFilters(searchParams);
-
-    const [games, friends, gameTitles] = await Promise.all([
-      listGameHistoryForUser(user.id, filters),
-      listAcceptedFriendsForUser(user.id),
-      listGameTitles(user.id),
-    ]);
+    const { filters, games, friends, gameTitles } =
+      await getGameHistoryPageCollections({
+        userId: user.id,
+        searchParams,
+      });
 
     logInfo("game_history.page_data.read.succeeded", {
       ...requestContext,

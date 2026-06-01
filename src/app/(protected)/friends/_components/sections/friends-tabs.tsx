@@ -12,7 +12,7 @@ export function FriendsTabs() {
       <Button
         variant={activeTab === "friends" ? "default" : "ghost"}
         className="rounded-xl"
-        size="lg"
+        size="sm"
         onClick={() => setActiveTab("friends")}
       >
         <Users />
@@ -21,7 +21,7 @@ export function FriendsTabs() {
       <Button
         variant={activeTab === "invitations" ? "default" : "ghost"}
         className="rounded-xl"
-        size="lg"
+        size="sm"
         onClick={() => setActiveTab("invitations")}
       >
         <UserPlus />

@@ -6,7 +6,6 @@ export type ProfileOverviewUser = {
   color: string;
   phoneNumber: string | null;
   createdAt: string | null;
-  publicProfileUrl: string;
 };
 
 export type ProfileOverviewPageData = {

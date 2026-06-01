@@ -13,7 +13,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { APP_DESCRIPTION, APP_NAME } from "@/lib/app-config";
 import Link from "next/link";
-import { Gamepad } from "lucide-react";
+import { CheckSquare, CheckSquare2, Gamepad } from "lucide-react";
 
 // const fontSans = Winky_Sans({
 //   subsets: ["latin"],
@@ -80,10 +80,8 @@ export default function RootLayout({
                 aria-label={`${APP_NAME} home`}
                 className="group inline-flex items-center gap-1 rounded-full border border-border px-4 py-2 text-foreground transition-transform transition-colors hover:scale-[1.01] hover:border-border/40 dark:border-white/20 scale-75"
               >
-                <span className="relative flex h-7 w-7 items-center justify-center">
-                  <Gamepad />
-                </span>
-                <span className="font-logo text-sm font-black uppercase tracking-[0.18em] sm:text-[0.95rem]">
+                <CheckSquare2 className="size-4" />
+                <span className="font-black font-title tracking-[0.18em] sm:text-[0.95rem]">
                   {APP_NAME}
                 </span>
               </Link>

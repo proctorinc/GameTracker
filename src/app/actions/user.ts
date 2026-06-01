@@ -9,6 +9,12 @@ import { db, users } from "@/lib/db/store";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
+import {
+  revalidateDashboardPage,
+  revalidateFriendsPage,
+  revalidateProfileOverviewPage,
+  revalidatePublicProfilePage,
+} from "@/lib/cache-invalidation";
 import { logError, logInfo, type LogMeta } from "@/lib/server-log";
 
 function logUserActionSuccess(action: string, meta: LogMeta) {
@@ -44,8 +50,9 @@ export async function updateUserProfile(data: {
       })
       .where(eq(users.id, user.id));
 
-    revalidatePath("/profile");
-    revalidatePath(`/profile/${user.id}`);
+    revalidateProfileOverviewPage(user.id);
+    revalidatePublicProfilePage(user.id);
+    revalidateFriendsPage(user.id);
     logUserActionSuccess("profile.update", {
       actorUserId: user.id,
       updatedColor: Boolean(data.color),
@@ -74,8 +81,8 @@ export async function updateProfileCard(data: { profileCardId: string }) {
       })
       .where(eq(users.id, user.id));
 
-    revalidatePath("/profile");
-    revalidatePath(`/profile/${user.id}`);
+    revalidateProfileOverviewPage(user.id);
+    revalidatePublicProfilePage(user.id);
     logUserActionSuccess("profile_card.update", {
       actorUserId: user.id,
       profileCardId: data.profileCardId,
@@ -137,8 +144,14 @@ export async function updateOwnedGuestColor(data: {
       color: data.color,
     });
 
-    revalidatePath("/friends");
-    revalidatePath("/dashboard");
+    revalidateFriendsPage(user.id);
+
+    if (targetUser.id === user.id) {
+      revalidateProfileOverviewPage(user.id);
+      revalidatePublicProfilePage(user.id);
+    }
+
+    revalidateDashboardPage(user.id);
 
     if (data.gameId) {
       revalidatePath(`/game/${data.gameId}/play`);

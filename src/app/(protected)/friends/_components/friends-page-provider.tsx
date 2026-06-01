@@ -17,15 +17,12 @@ import type { RecentlyPlayedItem, TabKey } from "./utils";
 
 type FriendsPageProviderProps = {
   data: FriendsPageData;
-  baseUrl: string;
   showInviteNotice: boolean;
   children: React.ReactNode;
 };
 
 type FriendsPageContextValue = {
   data: FriendsPageData;
-  baseUrl: string;
-  publicProfileUrl: string;
   showInviteNotice: boolean;
   isPending: boolean;
   activeTab: TabKey;
@@ -69,7 +66,6 @@ const FriendsPageContext = createContext<FriendsPageContextValue | null>(null);
 
 export function FriendsPageProvider({
   data,
-  baseUrl,
   showInviteNotice,
   children,
 }: FriendsPageProviderProps) {
@@ -103,7 +99,6 @@ export function FriendsPageProvider({
   const visibleRecentlyPlayed = showAllRecentlyPlayed
     ? recentlyPlayedWith
     : recentlyPlayedWith.slice(0, 3);
-  const publicProfileUrl = baseUrl ? `${baseUrl}/profile/${data.user.id}` : "";
 
   function refreshWithSuccess(message: string) {
     router.refresh();
@@ -287,8 +282,6 @@ export function FriendsPageProvider({
 
   const value: FriendsPageContextValue = {
     data,
-    baseUrl,
-    publicProfileUrl,
     showInviteNotice,
     isPending,
     activeTab,

@@ -5,6 +5,12 @@ import { randomBytes } from "node:crypto";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
 import { normalizePhoneToE164 } from "@/lib/auth/phone";
 import {
+  revalidateFriendsPage,
+  revalidateGameHistoryPage,
+  revalidatePublicProfilePage,
+  revalidateProfileOverviewPage,
+} from "@/lib/cache-invalidation";
+import {
   createFriendship,
   createInvitation,
   deleteFriendship,
@@ -53,7 +59,7 @@ async function ensureNotAlreadyFriends(userAId: string, userBId: string) {
 }
 
 function revalidateFriendsViews(inviteToken?: string | null) {
-  revalidatePath("/friends");
+  revalidateFriendsPage();
 
   if (inviteToken) {
     revalidatePath(buildInvitePath(inviteToken));
@@ -61,11 +67,15 @@ function revalidateFriendsViews(inviteToken?: string | null) {
 }
 
 function revalidatePublicProfile(userId?: string | null) {
-  if (!userId) {
-    return;
-  }
+  revalidatePublicProfilePage(userId);
+}
 
-  revalidatePath(`/profile/${userId}`);
+function revalidateOwnFriendsData(userId?: string | null) {
+  revalidateFriendsPage(userId);
+}
+
+function revalidateOwnProfileOverview(userId?: string | null) {
+  revalidateProfileOverviewPage(userId);
 }
 
 function logFriendsActionSuccess(action: string, meta: LogMeta) {
@@ -115,7 +125,8 @@ export async function createFriendInvitationByUserId(input: {
     });
 
     if (existing) {
-      revalidateFriendsViews();
+      revalidateOwnFriendsData(user.id);
+      revalidateOwnFriendsData(inviteeUserId);
       revalidatePublicProfile(user.id);
       revalidatePublicProfile(inviteeUserId);
       logFriendsActionSuccess("invitation.create", {
@@ -141,7 +152,8 @@ export async function createFriendInvitationByUserId(input: {
       status: "pending",
     });
 
-    revalidateFriendsViews();
+    revalidateOwnFriendsData(user.id);
+    revalidateOwnFriendsData(inviteeUserId);
     revalidatePublicProfile(user.id);
     revalidatePublicProfile(inviteeUserId);
 
@@ -196,7 +208,7 @@ export async function createFriendInvitationByPhone(
     });
 
     if (existing) {
-      revalidateFriendsViews();
+      revalidateOwnFriendsData(user.id);
       logFriendsActionSuccess("invitation.create", {
         actorUserId: user.id,
         invitationId: existing.id,
@@ -229,7 +241,7 @@ export async function createFriendInvitationByPhone(
       status: "pending",
     });
 
-    revalidateFriendsViews();
+    revalidateOwnFriendsData(user.id);
 
     logFriendsActionSuccess("invitation.create", {
       actorUserId: user.id,
@@ -274,6 +286,7 @@ export async function createFriendInvitationLink(
       status: "pending",
     });
 
+    revalidateOwnFriendsData(user.id);
     revalidateFriendsViews(invitation.inviteToken);
 
     logFriendsActionSuccess("invitation_link.create", {
@@ -379,6 +392,11 @@ export async function acceptInvitation(formData: FormData) {
       inviteeUserId: invitation.inviteeUserId ?? user.id,
     });
 
+    revalidateOwnFriendsData(invitation.inviterUserId);
+    revalidateOwnFriendsData(user.id);
+    revalidateOwnProfileOverview(user.id);
+    revalidateGameHistoryPage(invitation.inviterUserId);
+    revalidateGameHistoryPage(user.id);
     revalidateFriendsViews(invitation.inviteToken);
     revalidatePublicProfile(invitation.inviterUserId);
     revalidatePublicProfile(user.id);
@@ -424,6 +442,9 @@ export async function declineInvitation(formData: FormData) {
       inviteeUserId: invitation.inviteeUserId ?? user.id,
     });
 
+    revalidateOwnFriendsData(invitation.inviterUserId);
+    revalidateOwnFriendsData(user.id);
+    revalidateOwnProfileOverview(user.id);
     revalidateFriendsViews(invitation.inviteToken);
     revalidatePublicProfile(invitation.inviterUserId);
     revalidatePublicProfile(user.id);
@@ -474,6 +495,8 @@ export async function revokeInvitation(formData: FormData) {
       status: "revoked",
     });
 
+    revalidateOwnFriendsData(user.id);
+    revalidateOwnFriendsData(invitation.inviteeUserId);
     revalidateFriendsViews(invitation.inviteToken);
     revalidatePublicProfile(invitation.inviterUserId);
     revalidatePublicProfile(invitation.inviteeUserId);
@@ -527,6 +550,8 @@ export async function mergeGuestIntoFriend(input: {
     });
     await revokePendingInvitationsForGuest(guestUserId);
 
+    revalidateOwnFriendsData(user.id);
+    revalidateOwnFriendsData(friendUserId);
     revalidateFriendsViews();
     logFriendsActionSuccess("guest.merge", {
       actorUserId: user.id,
@@ -566,6 +591,11 @@ export async function removeFriend(input: {
     }
 
     await deleteFriendship(user.id, friendUserId);
+    revalidateOwnFriendsData(user.id);
+    revalidateOwnFriendsData(friendUserId);
+    revalidateOwnProfileOverview(user.id);
+    revalidateGameHistoryPage(user.id);
+    revalidateGameHistoryPage(friendUserId);
     revalidateFriendsViews();
     revalidatePublicProfile(user.id);
     revalidatePublicProfile(friendUserId);

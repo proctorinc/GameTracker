@@ -24,6 +24,7 @@ const skyjoTitle = {
   imageUrl: "/images/skyjo.png",
   defaultScoringMode: null,
   defaultEndingMode: null,
+  defaultTrackRounds: null,
   defaultTargetRounds: null,
   defaultScoreThreshold: null,
   defaultScoreThresholdDirection: null,
@@ -77,9 +78,7 @@ describe("CreateGameSettingsStep", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Skyjo/i }));
 
-    expect(
-      screen.getByText(/Selected from your library/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Selected/i)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
     expect(
       screen.queryByPlaceholderText("Search or create a game"),
@@ -139,5 +138,61 @@ describe("CreateGameSettingsStep", () => {
     expect(screen.getByText("My Custom Game")).toBeInTheDocument();
     expect(screen.getByText(/New title/i)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
+  });
+
+  it("creates a no-score game without score threshold settings", async () => {
+    createConfiguredGame.mockResolvedValue({ id: "game-123" });
+
+    renderWithProviders(
+      <CreateGameSettingsStep
+        allGameTitles={[skyjoTitle]}
+        initialNewTitle={null}
+        initialSelectedTitle={null}
+        suggestedGameTitles={[skyjoTitle]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Skyjo/i }));
+    fireEvent.click(screen.getByRole("button", { name: /No score/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Start game/i }));
+
+    await waitFor(() => {
+        expect(createConfiguredGame).toHaveBeenCalledWith(
+          expect.objectContaining({
+            scoringMode: "no_score",
+            endingMode: "none",
+            trackRounds: false,
+            scoreThreshold: null,
+            scoreThresholdDirection: null,
+          }),
+        );
+      });
+  });
+
+  it("creates a free-play game with rounds when selected", async () => {
+    createConfiguredGame.mockResolvedValue({ id: "game-456" });
+
+    renderWithProviders(
+      <CreateGameSettingsStep
+        allGameTitles={[skyjoTitle]}
+        initialNewTitle={null}
+        initialSelectedTitle={null}
+        suggestedGameTitles={[skyjoTitle]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Skyjo/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Free play/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Include rounds/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Start game/i }));
+
+    await waitFor(() => {
+      expect(createConfiguredGame).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endingMode: "none",
+          trackRounds: true,
+        }),
+      );
+    });
   });
 });

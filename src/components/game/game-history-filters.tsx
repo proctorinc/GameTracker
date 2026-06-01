@@ -208,12 +208,7 @@ export default function GameHistoryFilters({
                 <SelectItem value="oldest">Oldest first</SelectItem>
               </SelectContent>
             </Select>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={clearFilters}
-            >
+            <Button type="button" variant="outline" onClick={clearFilters}>
               Reset
             </Button>
           </div>

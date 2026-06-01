@@ -13,8 +13,7 @@ import {
 import { useFriendsPage } from "../friends-page-provider";
 
 export function AddFriendCard() {
-  const { copyLink, isPending, publicProfileUrl, setIsInviteDialogOpen } =
-    useFriendsPage();
+  const { copyLink, isPending, data, setIsInviteDialogOpen } = useFriendsPage();
 
   return (
     <Card>
@@ -26,8 +25,9 @@ export function AddFriendCard() {
               size="icon"
               type="button"
               variant="outline"
-              disabled={isPending || !publicProfileUrl}
+              disabled={isPending}
               onClick={() => {
+                const publicProfileUrl = `${window.location.origin}/profile/${data.user.id}`;
                 copyLink(publicProfileUrl).then(() => {
                   toast.success("Public profile link copied");
                 });

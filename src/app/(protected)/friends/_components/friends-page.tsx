@@ -14,7 +14,6 @@ import { AddFriendCard } from "./sections/add-friend-card";
 
 type FriendsPageProps = {
   data: FriendsPageData;
-  baseUrl: string;
   showInviteNotice: boolean;
 };
 
@@ -40,14 +39,12 @@ function FriendsPageContent() {
 
 export function FriendsPageView({
   data,
-  baseUrl,
   showInviteNotice,
 }: FriendsPageProps) {
   return (
     <FriendsPageProvider
       key={`${data.user.id}:${showInviteNotice ? "notice" : "default"}`}
       data={data}
-      baseUrl={baseUrl}
       showInviteNotice={showInviteNotice}
     >
       <FriendsPageContent />

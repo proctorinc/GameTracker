@@ -1,5 +1,14 @@
 "use server";
 
+import {
+  revalidateDashboardPage,
+  revalidateDashboardPages,
+  revalidateGameHistoryPage,
+  revalidateGameHistoryPages,
+  revalidateTitlesGlobal,
+  revalidateTitlesPage,
+  revalidateTitlesPages,
+} from "@/lib/cache-invalidation";
 import { loadUser } from "@/lib/auth/protected-session";
 import { getWinningUserIds } from "@/lib/game/v1";
 import { listAcceptedFriendsForUser } from "@/lib/db/store/friendship.store";
@@ -102,6 +111,13 @@ async function requireGameCreator(gameId: string) {
   return context;
 }
 
+function getDashboardUserIdsForGame(game: Awaited<ReturnType<typeof getGameForPlayPage>>) {
+  return [
+    game?.creatorId ?? null,
+    ...(game?.players.map((player) => player.userId) ?? []),
+  ];
+}
+
 export async function getPlayGameSnapshot(gameId: string) {
   const meta: LogMeta = { gameId, actorUserId: null };
   return runGameAction(
@@ -202,13 +218,19 @@ function normalizePositiveInteger(value: number | null | undefined) {
 }
 
 function validateGameSettings(input: {
+  scoringMode: "highest_wins" | "lowest_wins" | "no_score";
   endingMode: "none" | "round_count" | "score_threshold";
+  trackRounds?: boolean | null;
   targetRounds?: number | null;
   scoreThreshold?: number | null;
   scoreThresholdDirection?: "at_least" | "at_most" | null;
 }) {
   const targetRounds = normalizePositiveInteger(input.targetRounds);
   const scoreThreshold = normalizePositiveInteger(input.scoreThreshold);
+
+  if (input.scoringMode === "no_score" && input.endingMode === "score_threshold") {
+    throw new Error("Score targets are not available when scores are hidden");
+  }
 
   if (input.endingMode === "round_count" && targetRounds === null) {
     throw new Error("Choose how many rounds the game should target");
@@ -225,6 +247,7 @@ function validateGameSettings(input: {
   }
 
   return {
+    trackRounds: input.endingMode === "none" ? Boolean(input.trackRounds) : true,
     targetRounds: input.endingMode === "round_count" ? targetRounds : null,
     scoreThreshold:
       input.endingMode === "score_threshold" ? scoreThreshold : null,
@@ -270,8 +293,9 @@ async function resolveGameTitleId(input: {
 export async function createConfiguredGame(input: {
   gameTitleId?: string | null;
   gameTitleName?: string | null;
-  scoringMode: "highest_wins" | "lowest_wins";
+  scoringMode: "highest_wins" | "lowest_wins" | "no_score";
   endingMode: "none" | "round_count" | "score_threshold";
+  trackRounds?: boolean | null;
   targetRounds?: number | null;
   scoreThreshold?: number | null;
   scoreThresholdDirection?: "at_least" | "at_most" | null;
@@ -299,6 +323,7 @@ export async function createConfiguredGame(input: {
           ? gameSettingsToTitleDefaults({
               scoringMode: input.scoringMode,
               endingMode: input.endingMode,
+              trackRounds: validatedSettings.trackRounds,
               targetRounds: validatedSettings.targetRounds ?? 1,
               scoreThreshold: validatedSettings.scoreThreshold ?? 100,
               scoreThresholdDirection:
@@ -318,6 +343,7 @@ export async function createConfiguredGame(input: {
         gameTitleId: resolvedGameTitleId,
         scoringMode: input.scoringMode,
         endingMode: input.endingMode,
+        trackRounds: validatedSettings.trackRounds,
         targetRounds: validatedSettings.targetRounds,
         scoreThreshold: validatedSettings.scoreThreshold,
         scoreThresholdDirection: validatedSettings.scoreThresholdDirection,
@@ -334,6 +360,10 @@ export async function createConfiguredGame(input: {
           acquiredFromUserId: user.id,
         });
       }
+
+      revalidateDashboardPage(user.id);
+      revalidateGameHistoryPage(user.id);
+      revalidateTitlesPage(user.id);
 
       return game;
     },
@@ -383,9 +413,13 @@ export async function updateGamePlayerScore(input: {
 
       const nextScore = score ?? player.score + delta!;
 
-      return updateGamePlayer(gamePlayerId, {
+      const result = await updateGamePlayer(gamePlayerId, {
         score: nextScore,
       });
+
+      revalidateDashboardPages(getDashboardUserIdsForGame(fullGame));
+      revalidateGameHistoryPages(getDashboardUserIdsForGame(fullGame));
+      return result;
     },
     (result) => ({
       updatedScore: result?.score ?? null,
@@ -396,6 +430,7 @@ export async function updateGamePlayerScore(input: {
 export async function commitGameRound(input: {
   gameId: string;
   completeGame?: boolean;
+  winnerUserIds?: string[] | null;
 }) {
   const meta: LogMeta = {
     gameId: input.gameId,
@@ -433,11 +468,24 @@ export async function commitGameRound(input: {
         throw new Error("Could not create round");
       }
 
-      const nextWinningUserIds = getWinningUserIds(game);
+      const nextWinningUserIds =
+        game.scoringMode === "no_score"
+          ? Array.from(
+              new Set(
+                (input.winnerUserIds ?? []).filter((userId) =>
+                  game.players.some((player) => player.userId === userId),
+                ),
+              ),
+            )
+          : getWinningUserIds(game);
       const finishedAt = nowIso();
       meta.roundId = round.id;
       meta.roundNumber = activeRoundNumber;
       meta.winnerCount = nextWinningUserIds.length;
+
+      if (input.completeGame && game.scoringMode === "no_score" && nextWinningUserIds.length === 0) {
+        throw new Error("Choose at least one winner");
+      }
 
       const updatedGame = await updateGame(game.id, {
         completedRounds: game.completedRounds + 1,
@@ -462,6 +510,13 @@ export async function commitGameRound(input: {
             acquiredFromUserId: user.id,
           });
         }
+      }
+
+      revalidateDashboardPages(getDashboardUserIdsForGame(game));
+      revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
+
+      if (input.completeGame) {
+        revalidateTitlesPages(getDashboardUserIdsForGame(game));
       }
 
       return updatedGame;
@@ -554,9 +609,13 @@ export async function upsertActiveRoundScore(input: {
         });
       }
 
-      return updateGamePlayer(player.id, {
+      const result = await updateGamePlayer(player.id, {
         score: player.score + normalizedDelta,
       });
+
+      revalidateDashboardPages(getDashboardUserIdsForGame(game));
+      revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
+      return result;
     },
     (result) => ({
       gamePlayerId: result?.id ?? null,
@@ -581,7 +640,11 @@ export async function addGamePlayer(input: { gameId: string; userId: string }) {
         throw new Error("That player is already in the game");
       }
 
-      return addPlayerToGame(gameId, userId);
+      const result = await addPlayerToGame(gameId, userId);
+      const { game } = await requireGameMembership(gameId);
+      revalidateDashboardPages([...getDashboardUserIdsForGame(game), userId]);
+      revalidateGameHistoryPages([...getDashboardUserIdsForGame(game), userId]);
+      return result;
     },
     (result) => ({
       gamePlayerId: result.id,
@@ -623,7 +686,11 @@ export async function addGuestGamePlayer(input: {
       });
 
       meta.guestUserId = guest.id;
-      return addPlayerToGame(gameId, guest.id);
+      const result = await addPlayerToGame(gameId, guest.id);
+      const { game } = await requireGameMembership(gameId);
+      revalidateDashboardPages(getDashboardUserIdsForGame(game));
+      revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
+      return result;
     },
     (result) => ({
       gamePlayerId: result.id,
@@ -648,7 +715,7 @@ export async function updateGameDetails(input: {
     "details.update",
     meta,
     async () => {
-      const { user } = await requireGameCreator(gameId);
+      const { user, game } = await requireGameCreator(gameId);
       meta.actorUserId = user.id;
 
       let resolvedGameTitleId: string | null = null;
@@ -687,6 +754,13 @@ export async function updateGameDetails(input: {
         });
       }
 
+      revalidateDashboardPages(getDashboardUserIdsForGame(game));
+      revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
+
+      if (resolvedGameTitleId) {
+        revalidateTitlesPages(getDashboardUserIdsForGame(game));
+      }
+
       return updatedGame;
     },
     (result) => ({
@@ -697,6 +771,7 @@ export async function updateGameDetails(input: {
 
 export async function completeGame(input: {
   gameId: string;
+  winnerUserIds?: string[] | null;
 }) {
   const { gameId } = input;
   const meta: LogMeta = { gameId, actorUserId: null };
@@ -711,8 +786,21 @@ export async function completeGame(input: {
         throw new Error("Game is already complete");
       }
 
-      const winningUserIds = getWinningUserIds(game);
+      const winningUserIds =
+        game.scoringMode === "no_score"
+          ? Array.from(
+              new Set(
+                (input.winnerUserIds ?? []).filter((userId) =>
+                  game.players.some((player) => player.userId === userId),
+                ),
+              ),
+            )
+          : getWinningUserIds(game);
       meta.winnerCount = winningUserIds.length;
+
+      if (game.scoringMode === "no_score" && winningUserIds.length === 0) {
+        throw new Error("Choose at least one winner");
+      }
 
       const updatedGame = await updateGame(gameId, {
         completedAt: nowIso(),
@@ -731,6 +819,10 @@ export async function completeGame(input: {
           acquiredFromUserId: user.id,
         });
       }
+
+      revalidateDashboardPages(getDashboardUserIdsForGame(game));
+      revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
+      revalidateTitlesPages(getDashboardUserIdsForGame(game));
 
       return updatedGame;
     },
@@ -764,11 +856,15 @@ export async function shareGameTitle(input: {
         throw new Error("Choose a title from your library");
       }
 
-      return shareGameTitleWithUser({
+      const result = await shareGameTitleWithUser({
         gameTitleId: gameTitle.id,
         targetUserId: input.targetUserId,
         sharedByUserId: user.id,
       });
+
+      revalidateTitlesPage(input.targetUserId);
+      revalidateGameHistoryPage(input.targetUserId);
+      return result;
     },
   );
 }
@@ -787,15 +883,18 @@ export async function promoteTitleToUniversal(input: { gameTitleId: string }) {
         throw new Error("Title not found");
       }
 
-      return promoteGameTitleToUniversal(gameTitle.id);
+      const result = await promoteGameTitleToUniversal(gameTitle.id);
+      revalidateTitlesGlobal();
+      return result;
     },
   );
 }
 
 export async function saveGameTitleDefaults(input: {
   gameTitleId: string;
-  defaultScoringMode?: "highest_wins" | "lowest_wins" | null;
+  defaultScoringMode?: "highest_wins" | "lowest_wins" | "no_score" | null;
   defaultEndingMode?: "none" | "round_count" | "score_threshold" | null;
+  defaultTrackRounds?: boolean | null;
   defaultTargetRounds?: number | null;
   defaultScoreThreshold?: number | null;
   defaultScoreThresholdDirection?: "at_least" | "at_most" | null;
@@ -822,16 +921,19 @@ export async function saveGameTitleDefaults(input: {
       }
 
       meta.isUniversalTitle = gameTitle.isUniversal;
-      return updateGameTitleDefaults(
+      const result = await updateGameTitleDefaults(
         gameTitle.id,
         normalizeGameTitleDefaults({
           defaultScoringMode: input.defaultScoringMode,
           defaultEndingMode: input.defaultEndingMode,
+          defaultTrackRounds: input.defaultTrackRounds,
           defaultTargetRounds: input.defaultTargetRounds,
           defaultScoreThreshold: input.defaultScoreThreshold,
           defaultScoreThresholdDirection: input.defaultScoreThresholdDirection,
         }),
       );
+      revalidateTitlesPage(user.id);
+      return result;
     },
   );
 }
@@ -851,7 +953,9 @@ export async function mergeTitleIntoAnother(input: {
     async () => {
       const user = await requireAdminUser();
       meta.actorUserId = user.id;
-      return mergeGameTitles(input);
+      const result = await mergeGameTitles(input);
+      revalidateTitlesGlobal();
+      return result;
     },
   );
 }
@@ -870,7 +974,10 @@ export async function deleteCreatedGame(input: { gameId: string }) {
         throw new Error("Game is already complete");
       }
 
-      return deleteGame(gameId);
+      const result = await deleteGame(gameId);
+      revalidateDashboardPages(getDashboardUserIdsForGame(game));
+      revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
+      return result;
     },
   );
 }

@@ -22,27 +22,6 @@ const DEFAULT_FILTERS: TitlesPageData["filters"] = {
   query: "",
 };
 
-function getSourceLabel(
-  source: TitlesPageData["gameTitles"][number]["accessSource"],
-) {
-  switch (source) {
-    case "admin_seed":
-      return "Admin";
-    case "created":
-      return "Created";
-    case "merged":
-      return "Merged";
-    case "played":
-      return "Played";
-    case "shared":
-      return "Shared";
-    case "universal":
-      return "Universal";
-    default:
-      return "Saved";
-  }
-}
-
 export default function TitlesLibraryPage({ data }: { data: TitlesPageData }) {
   const { gameTitles, filters: initialFilters } = data;
   const [filters, setFilters] = useState(initialFilters);
@@ -120,9 +99,6 @@ export default function TitlesLibraryPage({ data }: { data: TitlesPageData }) {
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="text-xl font-black">Filters</CardTitle>
-          </CardHeader>
           <CardContent>
             <TitlesLibraryFilters
               filters={filters}
@@ -168,13 +144,7 @@ export default function TitlesLibraryPage({ data }: { data: TitlesPageData }) {
                       )}
                       variant="outline"
                     >
-                      {title.isUniversal ? "Universal" : "Personal"}
-                    </Badge>
-                    <Badge
-                      className="border-white/25 bg-white/15 text-white backdrop-blur-sm"
-                      variant="outline"
-                    >
-                      {getSourceLabel(title.accessSource)}
+                      {title.isUniversal ? "Community game" : "My game"}
                     </Badge>
                   </div>
 

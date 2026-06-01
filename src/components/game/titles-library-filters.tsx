@@ -151,12 +151,7 @@ export default function TitlesLibraryFilters({
                   <SelectItem value="oldest">Oldest first</SelectItem>
                 </SelectContent>
               </Select>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={onClearFilters}
-              >
+              <Button type="button" variant="outline" onClick={onClearFilters}>
                 Reset
               </Button>
             </div>

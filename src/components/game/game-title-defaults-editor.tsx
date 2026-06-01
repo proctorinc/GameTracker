@@ -19,6 +19,7 @@ function toEditableSettings(title: GameTitleBase): EditableGameSettings {
   return {
     scoringMode: normalized.defaultScoringMode,
     endingMode: normalized.defaultEndingMode,
+    trackRounds: normalized.defaultTrackRounds,
     targetRounds: normalized.defaultTargetRounds?.toString() ?? "",
     scoreThreshold: normalized.defaultScoreThreshold?.toString() ?? "",
     scoreThresholdDirection: normalized.defaultScoreThresholdDirection,
@@ -47,6 +48,8 @@ export default function GameTitleDefaultsEditor({
           gameTitleId: title.id,
           defaultScoringMode: settings.scoringMode,
           defaultEndingMode: settings.endingMode,
+          defaultTrackRounds:
+            settings.endingMode === "none" ? settings.trackRounds : null,
           defaultTargetRounds: settings.targetRounds
             ? Number(settings.targetRounds)
             : null,
