@@ -1,21 +1,15 @@
-import { cookies } from "next/headers";
+import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { DEFAULT_RETURN_PATH } from "./return-path";
-import { getUserById, UserBase } from "../db/store/user.store";
-import { getSessionByTokenHash, type SessionWithUser } from "../db/store";
-import { hashTokenWithSecret } from "./tokens";
+import { UserBase } from "../db/store/user.store";
+import { loadCurrentUser } from "./auth-me";
 import { logInfo, logWarn } from "../server-log";
 import { getServerRequestContext } from "../server-request-context";
 
-export type SessionData = SessionWithUser;
-
-export function isValidSession(session: Pick<SessionData, "expiresAt">) {
-  if (!session.expiresAt) {
-    return false;
-  }
-
-  return new Date(session.expiresAt).getTime() > Date.now();
-}
+export type SessionData = {
+  clerkUserId: string;
+  sessionId: string | null;
+};
 
 /** Combined session + auth me data for protected pages */
 export interface ProtectedSession {
@@ -28,49 +22,22 @@ export interface ProtectedSession {
  */
 export async function loadUser(): Promise<ProtectedSession> {
   const requestContext = await getServerRequestContext();
-  const cookieStore = await cookies();
-  const sessionToken = cookieStore.get("app_session")?.value;
+  const { userId } = await auth();
 
-  if (!sessionToken) {
+  if (!userId) {
     logWarn("auth.protected_session.redirected", {
       ...requestContext,
-      reason: "missing_session_cookie",
+      reason: "missing_clerk_user",
       redirectPath: DEFAULT_RETURN_PATH,
     });
     redirect(`/login?from=${encodeURIComponent(DEFAULT_RETURN_PATH)}`);
   }
 
-  const session = await getSessionByTokenHash(
-    hashTokenWithSecret(sessionToken),
-  );
-
-  if (!session || !isValidSession(session)) {
-    logWarn("auth.protected_session.redirected", {
-      ...requestContext,
-      reason: !session ? "invalid_session" : "expired_session",
-      sessionId: session?.id ?? null,
-      userId: session?.user.id ?? null,
-      redirectPath: DEFAULT_RETURN_PATH,
-    });
-    redirect(`/login?from=${encodeURIComponent(DEFAULT_RETURN_PATH)}`);
-  }
-
-  const userData = await getUserById(session.user.id);
-
-  if (!userData) {
-    logWarn("auth.protected_session.redirected", {
-      ...requestContext,
-      reason: "missing_user_record",
-      sessionId: session.id,
-      userId: session.user.id,
-      redirectPath: DEFAULT_RETURN_PATH,
-    });
-    redirect(`/login?from=${encodeURIComponent(DEFAULT_RETURN_PATH)}`);
-  }
+  const userData = await loadCurrentUser();
 
   logInfo("auth.protected_session.succeeded", {
     ...requestContext,
-    sessionId: session.id,
+    clerkUserId: userId,
     userId: userData.id,
   });
   return {
@@ -84,28 +51,12 @@ export async function loadUser(): Promise<ProtectedSession> {
  */
 export async function requireSessionRaw(): Promise<SessionData> {
   const requestContext = await getServerRequestContext();
-  const cookieStore = await cookies();
-  const sessionToken = cookieStore.get("app_session")?.value;
+  const { userId, sessionId } = await auth();
 
-  if (!sessionToken) {
+  if (!userId) {
     logWarn("auth.session_raw.redirected", {
       ...requestContext,
-      reason: "missing_session_cookie",
-      redirectPath: DEFAULT_RETURN_PATH,
-    });
-    redirect(`/login?from=${encodeURIComponent(DEFAULT_RETURN_PATH)}`);
-  }
-
-  const session = await getSessionByTokenHash(
-    hashTokenWithSecret(sessionToken),
-  );
-
-  if (!session || !isValidSession(session)) {
-    logWarn("auth.session_raw.redirected", {
-      ...requestContext,
-      reason: !session ? "invalid_session" : "expired_session",
-      sessionId: session?.id ?? null,
-      userId: session?.user.id ?? null,
+      reason: "missing_clerk_user",
       redirectPath: DEFAULT_RETURN_PATH,
     });
     redirect(`/login?from=${encodeURIComponent(DEFAULT_RETURN_PATH)}`);
@@ -113,8 +64,11 @@ export async function requireSessionRaw(): Promise<SessionData> {
 
   logInfo("auth.session_raw.succeeded", {
     ...requestContext,
-    sessionId: session.id,
-    userId: session.user.id,
+    clerkUserId: userId,
+    sessionId,
   });
-  return session;
+  return {
+    clerkUserId: userId,
+    sessionId,
+  };
 }

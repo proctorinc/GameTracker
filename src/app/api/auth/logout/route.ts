@@ -1,66 +1,18 @@
 import { NextResponse } from "next/server";
-import {
-  getSessionTokenFromCookie,
-  clearSessionCookie,
-} from "@/lib/auth/cookies";
-import { deleteSessionByToken } from "@/lib/db/store/session.store";
-import { hashTokenWithSecret } from "@/lib/auth/tokens";
-import { logError, logInfo } from "@/lib/server-log";
+import { logInfo } from "@/lib/server-log";
 import { getRequestContextFromRequest } from "@/lib/server-request-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const POST = async (request: Request) => {
-  const requestContext = getRequestContextFromRequest(request);
-  try {
-    // Read session cookie
-    const token = getSessionTokenFromCookie(request);
-    let deletedSession = false;
+  logInfo("auth.logout.succeeded", {
+    ...getRequestContextFromRequest(request),
+    handledBy: "clerk_client",
+  });
 
-    if (token) {
-      // Delete DB session
-      await deleteSessionByToken(hashTokenWithSecret(token));
-      deletedSession = true;
-    }
-
-    // Clear cookie
-    const response = new NextResponse(null, {
-      status: 204,
-      headers: { "Content-Type": "" },
-    });
-    const clearedHeaders = await clearSessionCookie(request);
-    if (clearedHeaders) {
-      response.headers.set(
-        "set-cookie",
-        clearedHeaders.headers.get("set-cookie") ?? "",
-      );
-    }
-
-    logInfo("auth.logout.succeeded", {
-      ...requestContext,
-      hadSessionCookie: Boolean(token),
-      deletedSession,
-    });
-
-    return response;
-  } catch (error) {
-    logError("auth.logout.failed", error, {
-      ...requestContext,
-    });
-    // Even on error, clear cookie and return success for user experience
-    const response = new NextResponse(null, {
-      status: 204,
-      headers: { "Content-Type": "" },
-    });
-    const clearedHeaders = await clearSessionCookie(request);
-    if (clearedHeaders) {
-      response.headers.set(
-        "set-cookie",
-        clearedHeaders.headers.get("set-cookie") ?? "",
-      );
-    }
-
-    return response;
-  }
+  return new NextResponse(null, {
+    status: 204,
+    headers: { "Content-Type": "" },
+  });
 };

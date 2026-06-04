@@ -1,16 +1,36 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createSessionFixture } from "../../fixtures/auth";
 import { createUserFixture } from "../../fixtures/users";
 import { withTestDatabase } from "../../helpers/test-db";
 
-function mockAuthenticatedCookies(rawToken: string) {
-  vi.doMock("next/headers", () => ({
-    cookies: async () => ({
-      get: (name: string) =>
-        name === "app_session" ? { value: rawToken } : undefined,
-    }),
-  }));
+function mockAuthenticatedUser(userId: string) {
+  vi.doMock("@/lib/auth/auth-me", () => ({
+    loadCurrentUser: async () => {
+      const { getUserById } = await import("@/lib/db/store/user.store");
+      const user = await getUserById(userId);
 
+      if (!user) {
+        throw new Error(`Missing test user ${userId}`);
+      }
+
+      return user;
+    },
+  }));
+  vi.doMock("@/lib/auth/protected-session", () => ({
+    loadUser: async () => {
+      const { getUserById } = await import("@/lib/db/store/user.store");
+      const user = await getUserById(userId);
+
+      if (!user) {
+        throw new Error(`Missing test user ${userId}`);
+      }
+
+      return { user };
+    },
+  }));
+  vi.doMock("@/lib/server-request-context", () => ({
+    getServerRequestContext: async () => ({}),
+    getRequestContextFromRequest: () => ({}),
+  }));
   vi.doMock("next/navigation", () => ({
     redirect: (location: string) => {
       throw new Error(`Unexpected redirect to ${location}`);
@@ -26,12 +46,12 @@ describe("server action integration", () => {
   it("creates a phone invitation for the authenticated user", async () => {
     await withTestDatabase(async () => {
       const user = await createUserFixture();
-      const { rawToken } = await createSessionFixture(user.id, "invite-token");
-
-      mockAuthenticatedCookies(rawToken);
+      mockAuthenticatedUser(user.id);
       const revalidatePath = vi.fn();
+      const revalidateTag = vi.fn();
       vi.doMock("next/cache", () => ({
         revalidatePath,
+        revalidateTag,
       }));
 
       const { createFriendInvitationByPhone } = await import("../../../src/app/actions/friends");
@@ -46,16 +66,15 @@ describe("server action integration", () => {
       const invitation = await getInvitationById(result.invitationId);
 
       expect(invitation?.inviteePhoneNumber).toBe("+15554443333");
-      expect(revalidatePath).toHaveBeenCalledWith("/friends");
+      const { getFriendsTag } = await import("../../../src/lib/cache-tags");
+      expect(revalidateTag).toHaveBeenCalledWith(getFriendsTag(user.id), "max");
     }, "friends-action");
   });
 
   it("creates a configured game and adds the current user as a player", async () => {
     await withTestDatabase(async () => {
       const user = await createUserFixture();
-      const { rawToken } = await createSessionFixture(user.id, "game-token");
-
-      mockAuthenticatedCookies(rawToken);
+      mockAuthenticatedUser(user.id);
 
       const { createConfiguredGame } = await import("../../../src/app/actions/game");
 

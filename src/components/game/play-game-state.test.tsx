@@ -15,13 +15,15 @@ function createUser(input: {
 }): UserBase {
   return {
     id: input.id,
+    clerkUserId: null,
     profileCardId: null,
     color: input.color ?? "#ffffff",
     role: "user",
     phoneNumber: null,
+    email: null,
+    avatarUrl: null,
     firstName: input.firstName,
     lastName: null,
-    phone_verified_at: null,
     created_by_user_id: input.isGuest ? "user-1" : null,
     mergedIntoUserId: null,
     mergedAt: null,
@@ -98,6 +100,7 @@ describe("play-game-state", () => {
   it("applies optimistic score updates to totals and active round scores", () => {
     const nextSnapshot = applyPlayGameMutation(createSnapshot(), {
       type: "upsert-score",
+      roundNumber: 1,
       userId: "user-2",
       scoreDelta: 5,
     });
@@ -143,6 +146,7 @@ describe("play-game-state", () => {
     const nextSnapshot = applyPlayGameMutations(createSnapshot(), [
       {
         type: "upsert-score",
+        roundNumber: 1,
         userId: "user-2",
         scoreDelta: -6,
       },
@@ -178,6 +182,7 @@ describe("play-game-state", () => {
     const nextSnapshot = applyPlayGameMutations(newerBaseSnapshot, [
       {
         type: "upsert-score",
+        roundNumber: 1,
         userId: "user-2",
         scoreDelta: 4,
       },

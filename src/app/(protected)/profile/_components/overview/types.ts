@@ -1,3 +1,5 @@
+import type { PublicProfileSummaryData } from "../../profile-types";
+
 export type ProfileOverviewUser = {
   id: string;
   role: "user" | "admin";
@@ -10,4 +12,7 @@ export type ProfileOverviewUser = {
 
 export type ProfileOverviewPageData = {
   user: ProfileOverviewUser;
+  profile: PublicProfileSummaryData["profile"];
+  bestFriend: PublicProfileSummaryData["bestFriend"];
+  stats: PublicProfileSummaryData["stats"];
 };

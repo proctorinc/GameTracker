@@ -54,6 +54,10 @@ export type GameHistoryFilters = {
   outcome?: "all" | "won";
   sort?: "newest" | "oldest";
 };
+export type FriendActivityFilters = {
+  friendUserIds: string[];
+  since: string;
+};
 export type GameWithCreator = GameBase & {
   creator: typeof db._.fullSchema.users.$inferSelect;
 };
@@ -834,6 +838,35 @@ export async function listGameHistoryForUser(
     },
     orderBy: (games, { asc, desc }) =>
       sort === "oldest" ? asc(games.createdAt) : desc(games.createdAt),
+    with: gameFullRelations,
+  });
+}
+
+export async function listFriendActivityGames(
+  filters: FriendActivityFilters,
+): Promise<GameFull[]> {
+  if (filters.friendUserIds.length === 0) {
+    return [];
+  }
+
+  return db.query.games.findMany({
+    where: (games, { and, exists, gte, isNotNull, inArray }) =>
+      and(
+        isNotNull(games.completedAt),
+        gte(games.completedAt, filters.since),
+        exists(
+          db
+            .select()
+            .from(gamePlayers)
+            .where(
+              and(
+                eq(gamePlayers.gameId, games.id),
+                inArray(gamePlayers.userId, filters.friendUserIds),
+              ),
+            ),
+        ),
+      ),
+    orderBy: (games, { desc }) => [desc(games.completedAt), desc(games.createdAt)],
     with: gameFullRelations,
   });
 }

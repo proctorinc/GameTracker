@@ -1,9 +1,7 @@
+import { auth, clerkClient, currentUser } from "@clerk/nextjs/server";
 import type { AuthUser } from "./session";
 import { UnauthorizedError } from "./session";
-import { getSessionTokenFromCookie } from "./cookies";
-import { isValidSession } from "./protected-session";
-import { getSessionByTokenHash } from "../db/store/session.store";
-import { hashTokenWithSecret } from "./tokens";
+import { upsertLocalUserFromClerkUser } from "./clerk-user";
 import { logError, logInfo, logWarn } from "../server-log";
 import { getRequestContextFromRequest } from "../server-request-context";
 
@@ -11,42 +9,39 @@ export async function requireAuth(
   request: Request,
 ): Promise<{ user: AuthUser; sessionId: string }> {
   const requestContext = getRequestContextFromRequest(request);
-  const token = getSessionTokenFromCookie(request);
+  const { userId, sessionId: clerkSessionId } = await auth();
 
-  if (!token) {
+  if (!userId) {
     logWarn("auth.require.rejected", {
       ...requestContext,
-      reason: "missing_session_cookie",
+      reason: "missing_clerk_user",
     });
-    throw new UnauthorizedError("No session cookie found");
+    throw new UnauthorizedError("No authenticated Clerk user found");
   }
 
-  const session = await getSessionByTokenHash(hashTokenWithSecret(token));
+  const backendUser =
+    (await currentUser()) ??
+    (await (await clerkClient()).users.getUser(userId));
 
-  if (!session) {
+  if (!backendUser) {
     logWarn("auth.require.rejected", {
       ...requestContext,
-      reason: "invalid_or_expired_session",
+      reason: "missing_clerk_backend_user",
+      clerkUserId: userId,
     });
-    throw new UnauthorizedError("Invalid or expired session");
+    throw new UnauthorizedError("Authenticated Clerk user could not be loaded");
   }
 
-  if (!isValidSession(session)) {
-    logWarn("auth.require.rejected", {
-      ...requestContext,
-      reason: "expired_session",
-      sessionId: session.id,
-      userId: session.user.id,
-    });
-    throw new UnauthorizedError("Session has expired");
-  }
+  const localUser = await upsertLocalUserFromClerkUser(backendUser);
+  const sessionId = clerkSessionId ?? `clerk:${userId}`;
 
   logInfo("auth.require.succeeded", {
     ...requestContext,
-    sessionId: session.id,
-    userId: session.user.id,
+    sessionId,
+    clerkUserId: backendUser.id,
+    userId: localUser.id,
   });
-  return { user: session.user, sessionId: session.id };
+  return { user: localUser, sessionId };
 }
 
 export function withAuth(

@@ -16,7 +16,7 @@ export const GET = async (request: NextRequest) => {
     logInfo("auth.me.succeeded", {
       ...requestContext,
       userId: auth.user.id,
-      sessionId: auth.sessionId,
+      authSessionId: auth.sessionId,
       networkSize: authMe.network.length,
     });
     return NextResponse.json(authMe);

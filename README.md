@@ -18,12 +18,11 @@ Development uses `APP_ENV=development`. **No `.env` file is required** — defau
 | Feature | Development | Production |
 |---------|-------------|------------|
 | Database | `file:./data/dev.sqlite` | Your `DATABASE_URL` |
-| Twilio SMS | **Disabled** | Required |
-| OTP | Any code accepted; login UI is one-step | Real SMS codes |
-| Rate limits | Off | On |
+| Clerk auth | Uses your Clerk dev instance | Uses your Clerk prod instance |
+| Sign-in methods | Configured in Clerk | Configured in Clerk |
 | Demo seed | Auto on `npm run dev` | Never |
 
-**Sign in during development:** enter any valid US phone number and click **Sign in** — no SMS is sent.
+**Sign in during development:** use your Clerk development instance at [`/login`](http://localhost:3000/login).
 
 **Seeded demo accounts** use phones `+1555000XXXX` (e.g. `+15550001001`). The referral network hub is **`+15550009999`**.
 
@@ -63,8 +62,11 @@ Configuration is validated at startup (`src/instrumentation.ts`, `next.config.ts
 | `APP_ENV` | optional (defaults to `development`) | optional (defaults to `test` via vitest) | **required** `production` (not inferred from `NODE_ENV`) |
 | `DATABASE_URL` | default `file:./data/dev.sqlite` | default `file:./data/test.sqlite` | **required** |
 | `TURSO_AUTH_TOKEN` | not used | not used | **required** for remote Turso/libSQL |
-| `SESSION_SECRET` | insecure dev default | test default | **required** (min 32 chars) |
-| `TWILIO_*` | not used | not used | **all three required** |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | recommended | optional in mocked tests | **required** |
+| `CLERK_SECRET_KEY` | recommended | optional in mocked tests | **required** |
+| `CLERK_WEBHOOK_SIGNING_SECRET` | optional unless receiving webhooks | optional | **required** when webhooks are enabled |
+| `CLERK_SIGN_IN_URL` | defaults to `/login` | defaults to `/login` | optional |
+| `CLERK_SIGN_UP_URL` | defaults to `/register` | defaults to `/register` | optional |
 | `DEV_SEED_*` | optional | — | must not be set |
 
 ## Production
@@ -75,11 +77,12 @@ Copy [`.env.production.example`](./.env.production.example) to `.env.local` (or 
 APP_ENV=production
 DATABASE_URL=libsql://your-db.turso.io
 TURSO_AUTH_TOKEN=...
-SESSION_SECRET=...
 NEXT_PUBLIC_APP_ENV=production
-TWILIO_ACCOUNT_SID=...
-TWILIO_AUTH_TOKEN=...
-TWILIO_VERIFY_SERVICE_SID=...
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=...
+CLERK_SECRET_KEY=...
+CLERK_WEBHOOK_SIGNING_SECRET=...
+CLERK_SIGN_IN_URL=/login
+CLERK_SIGN_UP_URL=/register
 ```
 
 ```bash
@@ -87,11 +90,11 @@ npm run build
 npm run start
 ```
 
-Production requires Twilio credentials and does not load demo data.
+Production requires Clerk credentials and does not load demo data.
 
 ## Staging on Vercel
 
-Use a dedicated Vercel staging project backed by a dedicated Turso database and real Twilio Verify credentials. Treat staging as production-like by keeping `APP_ENV=production`.
+Use a dedicated Vercel staging project backed by a dedicated Turso database and Clerk staging credentials. Treat staging as production-like by keeping `APP_ENV=production`.
 
 - Use a Vercel-managed staging URL first.
 - Keep staging data synthetic only.
@@ -100,14 +103,12 @@ Use a dedicated Vercel staging project backed by a dedicated Turso database and 
 
 See [`docs/staging-deployment.md`](./docs/staging-deployment.md) for the full setup, Vercel workflow, env mapping, and smoke checklist.
 
-## Authentication API
+## Authentication
 
-- `POST /api/auth/otp/request` — Send OTP via SMS (production only)
-- `POST /api/auth/otp/verify` — Verify OTP and create session
-- `POST /api/auth/logout` — Clear session
-- `GET /api/auth/me` — Current user, group, referral network
-
-Sessions use an HttpOnly `app_session` cookie (raw token in cookie, hash in database).
+- Clerk owns sign-in, sign-up, sessions, and auth UI.
+- `POST /api/clerk/webhooks` — Sync Clerk users into the local `users` table
+- `POST /api/auth/logout` — Legacy no-op endpoint retained for compatibility
+- `GET /api/auth/me` — Current local user plus referral network
 
 See [`docs/auth-verification.md`](./docs/auth-verification.md) for manual verification steps.
 

@@ -73,7 +73,7 @@ export function FriendsPageProvider({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<TabKey>(
-    showInviteNotice ? "invitations" : "friends",
+    showInviteNotice ? "invitations" : "activity",
   );
   const [invitePhone, setInvitePhone] = useState("");
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);

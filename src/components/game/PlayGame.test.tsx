@@ -6,6 +6,7 @@ import { renderWithProviders } from "../../../tests/helpers/render";
 import PlayGame from "./PlayGame";
 
 const routerPush = vi.fn();
+const routerRefresh = vi.fn();
 const toastLoading = vi.fn(() => "toast-loading");
 const toastDismiss = vi.fn();
 const toastSuccess = vi.fn();
@@ -14,14 +15,17 @@ const toastError = vi.fn();
 const addGamePlayer = vi.fn();
 const addGuestGamePlayer = vi.fn();
 const commitGameRound = vi.fn();
+const deleteCreatedGame = vi.fn();
 const getPlayGameSnapshot = vi.fn();
 const removeGamePlayer = vi.fn();
+const updateRecordedRoundScore = vi.fn();
 const upsertActiveRoundScore = vi.fn();
 const updateOwnedGuestColor = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: routerPush,
+    refresh: routerRefresh,
   }),
 }));
 
@@ -38,8 +42,10 @@ vi.mock("@/app/actions/game", () => ({
   addGamePlayer: (...args: unknown[]) => addGamePlayer(...args),
   addGuestGamePlayer: (...args: unknown[]) => addGuestGamePlayer(...args),
   commitGameRound: (...args: unknown[]) => commitGameRound(...args),
+  deleteCreatedGame: (...args: unknown[]) => deleteCreatedGame(...args),
   getPlayGameSnapshot: (...args: unknown[]) => getPlayGameSnapshot(...args),
   removeGamePlayer: (...args: unknown[]) => removeGamePlayer(...args),
+  updateRecordedRoundScore: (...args: unknown[]) => updateRecordedRoundScore(...args),
   upsertActiveRoundScore: (...args: unknown[]) => upsertActiveRoundScore(...args),
 }));
 
@@ -55,13 +61,15 @@ function createUser(input: {
 }): UserBase {
   return {
     id: input.id,
+    clerkUserId: null,
     profileCardId: null,
     color: input.color ?? "#ffffff",
     role: "user",
     phoneNumber: null,
+    email: null,
+    avatarUrl: null,
     firstName: input.firstName,
     lastName: input.lastName ?? null,
-    phone_verified_at: null,
     created_by_user_id: null,
     mergedIntoUserId: null,
     mergedAt: null,
@@ -176,6 +184,69 @@ function createRoundTrackedGameSnapshot(): GameForPlayPage {
   };
 }
 
+function createRoundTrackedGameWithActiveScoresSnapshot(): GameForPlayPage {
+  const game = createRoundTrackedGameSnapshot();
+
+  return {
+    ...game,
+    completedRounds: 1,
+    players: [
+      {
+        ...game.players[0]!,
+        score: 12,
+      },
+      {
+        ...game.players[1]!,
+        score: 8,
+      },
+    ],
+    rounds: [
+      {
+        id: "round-1",
+        gameId: game.id,
+        roundNumber: 1,
+        createdAt: "2025-01-01T00:00:00.000Z",
+        completedAt: "2025-01-01T00:05:00.000Z",
+        scores: [
+          {
+            id: "round-1-score-user-1",
+            gameRoundId: "round-1",
+            userId: "user-1",
+            scoreDelta: 12,
+            createdAt: "2025-01-01T00:00:00.000Z",
+            user: game.players[0]!.user,
+          },
+          {
+            id: "round-1-score-user-2",
+            gameRoundId: "round-1",
+            userId: "user-2",
+            scoreDelta: 8,
+            createdAt: "2025-01-01T00:00:00.000Z",
+            user: game.players[1]!.user,
+          },
+        ],
+      },
+      {
+        id: "round-2",
+        gameId: game.id,
+        roundNumber: 2,
+        createdAt: "2025-01-02T00:00:00.000Z",
+        completedAt: null,
+        scores: [
+          {
+            id: "round-2-score-user-1",
+            gameRoundId: "round-2",
+            userId: "user-1",
+            scoreDelta: 2,
+            createdAt: "2025-01-02T00:00:00.000Z",
+            user: game.players[0]!.user,
+          },
+        ],
+      },
+    ],
+  };
+}
+
 function createNoScoreGameSnapshot(): GameForPlayPage {
   return {
     ...createGameSnapshot(),
@@ -240,6 +311,7 @@ function createDeferred<T>() {
 describe("PlayGame", () => {
   beforeEach(() => {
     routerPush.mockReset();
+    routerRefresh.mockReset();
     toastLoading.mockReset();
     toastDismiss.mockReset();
     toastSuccess.mockReset();
@@ -247,8 +319,10 @@ describe("PlayGame", () => {
     addGamePlayer.mockReset();
     addGuestGamePlayer.mockReset();
     commitGameRound.mockReset();
+    deleteCreatedGame.mockReset();
     getPlayGameSnapshot.mockReset();
     removeGamePlayer.mockReset();
+    updateRecordedRoundScore.mockReset();
     upsertActiveRoundScore.mockReset();
     updateOwnedGuestColor.mockReset();
     vi.useRealTimers();
@@ -264,7 +338,7 @@ describe("PlayGame", () => {
     fireEvent.change(screen.getByRole("spinbutton"), {
       target: { value: "5" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Update" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
     expect(screen.getByTestId("player-score-button-user-2")).toHaveTextContent("5");
 
@@ -301,7 +375,7 @@ describe("PlayGame", () => {
     fireEvent.change(screen.getByRole("spinbutton"), {
       target: { value: "5" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Update" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
     expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
     expect(screen.getByTestId("player-score-button-user-2")).toHaveTextContent("5");
@@ -343,7 +417,7 @@ describe("PlayGame", () => {
     fireEvent.change(screen.getByRole("spinbutton"), {
       target: { value: "5" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Update" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
     await waitFor(() => {
       expect(upsertActiveRoundScore).toHaveBeenCalled();
@@ -363,7 +437,7 @@ describe("PlayGame", () => {
     fireEvent.change(screen.getByRole("spinbutton"), {
       target: { value: "5" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Update" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
     expect(screen.getByTestId("player-score-button-user-2")).toHaveTextContent("5");
 
@@ -509,6 +583,61 @@ describe("PlayGame", () => {
     ).toBeInTheDocument();
   });
 
+  it("includes the current round in the score breakdown modal", () => {
+    renderComponent({
+      game: createRoundTrackedGameWithActiveScoresSnapshot(),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Score" }));
+
+    expect(screen.getByText("R2 (current)")).toBeInTheDocument();
+    expect(screen.getAllByText("+2")).toHaveLength(2);
+  });
+
+  it("keeps player order based on the last committed round while the current round is being scored", () => {
+    const { container } = renderComponent({
+      game: createRoundTrackedGameWithActiveScoresSnapshot(),
+    });
+
+    const cards = Array.from(
+      container.querySelectorAll('[data-testid^="player-card-user-"]'),
+    );
+
+    expect(cards[0]).toHaveAttribute("data-testid", "player-card-user-2");
+    expect(cards[1]).toHaveAttribute("data-testid", "player-card-user-1");
+  });
+
+  it("opens the round dialog automatically once every player has a current-round score", () => {
+    renderComponent({
+      game: {
+        ...createRoundTrackedGameWithActiveScoresSnapshot(),
+        rounds: [
+          {
+            ...createRoundTrackedGameWithActiveScoresSnapshot().rounds[0]!,
+          },
+          {
+            ...createRoundTrackedGameWithActiveScoresSnapshot().rounds[1]!,
+            scores: [
+              ...createRoundTrackedGameWithActiveScoresSnapshot().rounds[1]!.scores,
+              {
+                id: "round-2-score-user-2",
+                gameRoundId: "round-2",
+                userId: "user-2",
+                scoreDelta: -4,
+                createdAt: "2025-01-02T00:00:00.000Z",
+                user: createRoundTrackedGameWithActiveScoresSnapshot().players[1]!.user,
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "End of round 2" }),
+    ).toBeInTheDocument();
+  });
+
   it("shows round UI for free play when rounds are enabled", () => {
     renderComponent({
       game: createFreePlayWithRoundsSnapshot(),
@@ -554,20 +683,27 @@ describe("PlayGame", () => {
   it("opens a manage users dialog with the current players listed", () => {
     renderComponent();
 
-    fireEvent.click(screen.getByRole("button", { name: "Users" }));
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    expect(
+      screen.getByRole("button", { name: "Change game settings" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "End game" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete game" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
 
     expect(screen.getByRole("heading", { name: "Manage users" })).toBeInTheDocument();
     expect(screen.getByTestId("remove-player-button-user-2")).toBeInTheDocument();
     expect(screen.queryByTestId("remove-player-button-user-1")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add user" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Player" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Back to game" })).toBeInTheDocument();
   });
 
   it("shows add user UI only after tapping add user", () => {
     renderComponent();
 
-    fireEvent.click(screen.getByRole("button", { name: "Users" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add user" }));
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
+    fireEvent.click(screen.getByRole("button", { name: "Player" }));
 
     expect(screen.getByRole("heading", { name: "Add user" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Back to users" })).toBeInTheDocument();
@@ -580,7 +716,8 @@ describe("PlayGame", () => {
 
     renderComponent();
 
-    fireEvent.click(screen.getByRole("button", { name: "Users" }));
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
     fireEvent.click(screen.getByTestId("remove-player-button-user-2"));
 
     expect(screen.getByRole("heading", { name: "Remove this user?" })).toBeInTheDocument();
@@ -605,7 +742,8 @@ describe("PlayGame", () => {
 
     renderComponent();
 
-    fireEvent.click(screen.getByRole("button", { name: "Users" }));
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
     fireEvent.click(screen.getByTestId("remove-player-button-user-2"));
     fireEvent.click(screen.getByRole("button", { name: "Remove user" }));
 
@@ -633,8 +771,9 @@ describe("PlayGame", () => {
       playerOptions: [createUser({ id: "user-1", firstName: "Mia" }), createUser({ id: "user-2", firstName: "Kai" }), friend],
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Users" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add user" }));
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
+    fireEvent.click(screen.getByRole("button", { name: "Player" }));
     fireEvent.click(screen.getByText("June"));
 
     expect(screen.getByRole("heading", { name: "Manage users" })).toBeInTheDocument();
@@ -646,6 +785,76 @@ describe("PlayGame", () => {
       expect(addGamePlayer).toHaveBeenCalledWith({
         gameId: "game-1",
         userId: "user-3",
+      });
+    });
+  });
+
+  it("edits a round score from the score breakdown modal", async () => {
+    updateRecordedRoundScore.mockResolvedValue(undefined);
+
+    renderComponent({
+      game: createRoundTrackedGameWithActiveScoresSnapshot(),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Score" }));
+    fireEvent.click(screen.getByRole("button", { name: "+2" }));
+    fireEvent.change(screen.getByRole("spinbutton"), {
+      target: { value: "5" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    await waitFor(() => {
+      expect(updateRecordedRoundScore).toHaveBeenCalledWith({
+        gameId: "game-1",
+        roundNumber: 2,
+        userId: "user-1",
+        scoreDelta: 5,
+      });
+    });
+  });
+
+  it("deletes the game from the header drawer after confirmation", async () => {
+    deleteCreatedGame.mockResolvedValue({ id: "game-1" });
+
+    renderComponent();
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Delete game" })[0]!);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: /Delete this game\?/i }),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Delete game$/i }));
+
+    await waitFor(() => {
+      expect(deleteCreatedGame).toHaveBeenCalledWith({ gameId: "game-1" });
+    });
+    expect(routerPush).toHaveBeenCalledWith("/dashboard");
+    expect(routerRefresh).toHaveBeenCalled();
+  });
+
+  it("opens an end game confirmation flow from the header drawer", async () => {
+    commitGameRound.mockResolvedValue(undefined);
+
+    renderComponent();
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "End game" }));
+
+    expect(
+      screen.getByRole("heading", { name: /^End game$/i }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /^End game$/i }));
+
+    await waitFor(() => {
+      expect(commitGameRound).toHaveBeenCalledWith({
+        gameId: "game-1",
+        completeGame: true,
+        winnerUserIds: undefined,
       });
     });
   });

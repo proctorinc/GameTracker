@@ -55,13 +55,15 @@ export const users = sqliteTable("users", {
     .notNull()
     .primaryKey()
     .$defaultFn(() => createId()),
+  clerkUserId: text("clerk_user_id").unique(),
   profileCardId: text("profile_card_id"),
   color: text("color").notNull().default("#FFFFFF"),
   role: text("role").$type<UserRole>().notNull().default("user"),
   phoneNumber: text("phone_number", { length: 20 }).unique(),
+  email: text("email", { length: 320 }).unique(),
+  avatarUrl: text("avatar_url"),
   firstName: text("first_name"),
   lastName: text("last_name"),
-  phone_verified_at: text("phone_verified_at"),
   created_by_user_id: text("created_by_user_id"),
   mergedIntoUserId: text("merged_into_user_id").references(
     (): AnySQLiteColumn => users.id,
@@ -116,25 +118,6 @@ export const cards = sqliteTable("cards", {
   probability: integer("exact_pull_chance").notNull(),
   suitProbability: integer("generic_pull_chance").notNull(),
   createdAt: text("created_at"),
-});
-
-export const sessions = sqliteTable("sessions", {
-  id: text("id")
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }), // 🌟 Vital for logging users out safely
-  tokenHash: text("token_hash", { length: 65 }).unique(),
-  expiresAt: text("expires_at"),
-  createdAt: text("created_at"),
-});
-
-export const otpRateLimits = sqliteTable("otp_rate_limits", {
-  phoneNumber: text("phone", { length: 20 }).notNull().primaryKey(),
-  lastRequestAt: text("last_request_at"),
-  requestCountWindow: integer("request_count_window").default(0),
 });
 
 export const friendships = sqliteTable(
@@ -524,12 +507,5 @@ export const gameWinnersRelations = relations(gameWinners, ({ one }) => ({
     fields: [gameWinners.userId],
     references: [users.id],
     relationName: "gameWinner",
-  }),
-}));
-
-export const sessionsRelations = relations(sessions, ({ one }) => ({
-  user: one(users, {
-    fields: [sessions.userId],
-    references: [users.id],
   }),
 }));

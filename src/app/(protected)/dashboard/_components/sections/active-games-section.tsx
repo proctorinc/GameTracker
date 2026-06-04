@@ -24,6 +24,10 @@ import { formatGameDate, getPlayerLabel } from "../utils";
 export function ActiveGamesSection() {
   const { recentActiveGames, user } = useDashboardPage();
 
+  if (recentActiveGames.length === 0) {
+    return <></>;
+  }
+
   return (
     <Card className="mx-4">
       <CardHeader>

@@ -4,6 +4,9 @@ import * as schema from "../db/schema"; // Adjust this path to your actual schem
 import { db } from "../db";
 import { addPlayerToGame, createGame } from "../db/store/game.store";
 
+const DEMO_ADMIN_EMAIL = "admin@demo.com";
+const DEMO_ADMIN_PHONE = "+15550009999";
+
 function createTitlePreviewUrl(input: {
   title: string;
   accent: string;
@@ -45,7 +48,6 @@ export async function runDevSeed() {
   await db.delete(schema.gamePlayers);
   await db.delete(schema.invitations);
   await db.delete(schema.friendships);
-  await db.delete(schema.sessions);
   await db.delete(schema.cardDrops);
   await db.delete(schema.games);
   await db.delete(schema.userGameTitle);
@@ -60,8 +62,8 @@ export async function runDevSeed() {
       lastName: "Proctor",
       color: "#FF5733",
       role: "admin",
-      phoneNumber: "+15550009999",
-      phone_verified_at: new Date().toISOString(),
+      phoneNumber: DEMO_ADMIN_PHONE,
+      email: DEMO_ADMIN_EMAIL,
       isProfileComplete: true,
       isGuest: false,
       createdAt: new Date().toISOString(),
@@ -70,6 +72,8 @@ export async function runDevSeed() {
     .returning();
 
   console.log(`✅ Main user created: ${mainUser.firstName}`);
+  console.log(`   Demo email: ${DEMO_ADMIN_EMAIL}`);
+  console.log(`   Demo phone: ${DEMO_ADMIN_PHONE}`);
 
   // --- 3. Seed Friends (Other Registered Users) ---
   const totalFriends = 15;
@@ -83,7 +87,6 @@ export async function runDevSeed() {
         lastName: faker.person.lastName(),
         color: faker.color.rgb(),
         phoneNumber: faker.phone.number({ style: "international" }),
-        phone_verified_at: faker.date.past().toISOString(),
         isProfileComplete: true,
         isGuest: false,
         createdAt: faker.date.past().toISOString(),
@@ -144,63 +147,29 @@ export async function runDevSeed() {
   }
   console.log(`✅ Seeded ${totalGuests} temporary guest profiles.`);
 
-  // --- 6. Seed OTP Rate Limits ---
-  // Add some random mock rate limit states for random phone numbers
-  for (let i = 0; i < 5; i++) {
-    await db.insert(schema.otpRateLimits).values({
-      phoneNumber: faker.phone.number({ style: "international" }),
-      lastRequestAt: new Date().toISOString(),
-      requestCountWindow: faker.number.int({ min: 1, max: 5 }),
-    });
-  }
-
-  // --- 7. Seed Game Titles ---
+  // --- 6. Seed Game Titles ---
   const titles = [
     {
       title: "Skyjo",
       color: "#38bdf8",
-      imageUrl: "/images/skyjo.png",
       defaultScoringMode: "lowest_wins" as const,
       defaultEndingMode: "score_threshold" as const,
       defaultScoreThreshold: 100,
       defaultScoreThresholdDirection: "at_least" as const,
     },
     {
-      title: "Texas Hold'em",
-      color: "#ef4444",
-      imageUrl: createTitlePreviewUrl({
-        title: "Texas Hold'em",
-        accent: "#ef4444",
-        background: "#7f1d1d",
-      }),
-      defaultScoringMode: "highest_wins" as const,
-      defaultEndingMode: "none" as const,
-    },
-    {
-      title: "Blackjack",
+      title: "Wingspan",
       color: "#22c55e",
-      imageUrl: createTitlePreviewUrl({
-        title: "Blackjack",
-        accent: "#22c55e",
-        background: "#14532d",
-      }),
       defaultScoringMode: "highest_wins" as const,
       defaultEndingMode: "score_threshold" as const,
       defaultScoreThreshold: 21,
       defaultScoreThresholdDirection: "at_least" as const,
     },
     {
-      title: "Hearts",
-      color: "#f472b6",
-      imageUrl: createTitlePreviewUrl({
-        title: "Hearts",
-        accent: "#f472b6",
-        background: "#831843",
-      }),
-      defaultScoringMode: "lowest_wins" as const,
-      defaultEndingMode: "score_threshold" as const,
-      defaultScoreThreshold: 100,
-      defaultScoreThresholdDirection: "at_least" as const,
+      title: "Bananagrams",
+      color: "#ef4444",
+      defaultScoringMode: "highest_wins" as const,
+      defaultEndingMode: "none" as const,
     },
     {
       title: "Uno",
@@ -250,7 +219,10 @@ export async function runDevSeed() {
     const randomTitle = faker.helpers.arrayElement(titles).title;
     const creator = faker.helpers.arrayElement(friendUsers);
     const isCompleted = faker.datatype.boolean();
-    const seededWinnerId = faker.helpers.arrayElement([mainUser.id, creator.id]);
+    const seededWinnerId = faker.helpers.arrayElement([
+      mainUser.id,
+      creator.id,
+    ]);
 
     const game = await createGame({
       gameTitleId: gameTitleIdsByName.get(randomTitle)!,
@@ -269,11 +241,10 @@ export async function runDevSeed() {
     const currentMatchPlayers = [
       mainUser,
       creator,
-      ...faker.helpers
-        .arrayElements(
-          friendUsers.filter((friend) => friend.id !== creator.id),
-          2,
-        ),
+      ...faker.helpers.arrayElements(
+        friendUsers.filter((friend) => friend.id !== creator.id),
+        2,
+      ),
     ];
 
     for (const p of currentMatchPlayers) {

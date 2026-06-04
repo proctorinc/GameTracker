@@ -4,8 +4,10 @@ import {
   addGamePlayer,
   addGuestGamePlayer,
   commitGameRound,
+  deleteCreatedGame,
   getPlayGameSnapshot,
   removeGamePlayer,
+  updateRecordedRoundScore,
   upsertActiveRoundScore,
 } from "@/app/actions/game";
 import { updateOwnedGuestColor } from "@/app/actions/user";
@@ -31,8 +33,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
-import { WinnerIndicator } from "@/components/ui/winner-indicator";
 import type { GameForPlayPage } from "@/lib/db/store/game.store";
 import type { UserBase } from "@/lib/db/store/user.store";
 import {
@@ -48,9 +57,12 @@ import {
 } from "@/components/game/play-game-state";
 import {
   ChevronDown,
+  Diff,
   DoorOpen,
+  FastForward,
   ListChecks,
   LoaderCircle,
+  Minus,
   Plus,
   Settings2,
   Trash2,
@@ -82,6 +94,14 @@ type PlayGameProps = {
   playerOptions: UserBase[];
   game: GameForPlayPage;
 };
+
+type ScoreDialogState = {
+  playerId: string;
+  roundNumber: number;
+  mode: "active" | "history";
+};
+
+type RoundDialogIntent = "round" | "end-game";
 
 type PendingMutationEntry = {
   id: string;
@@ -181,6 +201,22 @@ function getPlayerTotalScore(player: { score: number | null | undefined }) {
   return player.score ?? 0;
 }
 
+function getCommittedPlayerScore(input: {
+  player: { score: number | null | undefined; userId: string };
+  activeRoundScoreByUserId: Map<string, number>;
+  includeActiveRound: boolean;
+}) {
+  const totalScore = getPlayerTotalScore(input.player);
+
+  if (!input.includeActiveRound) {
+    return totalScore;
+  }
+
+  return (
+    totalScore - (input.activeRoundScoreByUserId.get(input.player.userId) ?? 0)
+  );
+}
+
 function getPlacementLabel(index: number) {
   const place = index + 1;
 
@@ -197,12 +233,6 @@ function getPlacementLabel(index: number) {
   }
 
   return `${place}th`;
-}
-
-function getPlayerInitial(user: Pick<UserBase, "firstName" | "lastName">) {
-  const first = user.firstName?.trim().charAt(0) ?? "";
-  const last = user.lastName?.trim().charAt(0) ?? "";
-  return (first + last || first || last || "?").toUpperCase();
 }
 
 function buildInitialSnapshot(props: PlayGameProps): PlayGameSnapshot {
@@ -223,13 +253,15 @@ function createTemporaryGuestUser(input: {
 
   return {
     id: `optimistic-guest-${timestamp}`,
+    clerkUserId: null,
     profileCardId: null,
     color: "#FFFFFF",
     role: "user" as const,
     phoneNumber: null,
+    email: null,
+    avatarUrl: null,
     firstName: input.firstName,
     lastName: input.lastName ?? null,
-    phone_verified_at: null,
     created_by_user_id: input.currentUserId,
     mergedIntoUserId: null,
     mergedAt: null,
@@ -274,9 +306,9 @@ function parseScoreAmountInput(value: string) {
 export default function PlayGame(props: PlayGameProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [scoreDialogPlayerId, setScoreDialogPlayerId] = useState<string | null>(
-    null,
-  );
+  const [isDeleteGamePending, startDeleteGameTransition] = useTransition();
+  const [scoreDialogState, setScoreDialogState] =
+    useState<ScoreDialogState | null>(null);
   const [scoreAmountInput, setScoreAmountInput] = useState("0");
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
   const [isAddPlayerMode, setIsAddPlayerMode] = useState(false);
@@ -284,8 +316,12 @@ export default function PlayGame(props: PlayGameProps) {
     null,
   );
   const [isRoundDialogOpen, setIsRoundDialogOpen] = useState(false);
+  const [roundDialogIntent, setRoundDialogIntent] =
+    useState<RoundDialogIntent>("round");
   const [isRoundHistoryOpen, setIsRoundHistoryOpen] = useState(false);
   const [isExitConfirmOpen, setIsExitConfirmOpen] = useState(false);
+  const [isHeaderDrawerOpen, setIsHeaderDrawerOpen] = useState(false);
+  const [isDeleteGameDialogOpen, setIsDeleteGameDialogOpen] = useState(false);
   const [colorDialogPlayerId, setColorDialogPlayerId] = useState<string | null>(
     null,
   );
@@ -319,6 +355,8 @@ export default function PlayGame(props: PlayGameProps) {
   const baseSnapshotRef = useRef(baseSnapshot);
   const pendingMutationsRef = useRef(pendingMutations);
   const reconcileInFlightRef = useRef(false);
+  const autoOpenedRoundRef = useRef<number | null>(null);
+  const mutationIdRef = useRef(0);
 
   useEffect(() => {
     baseSnapshotRef.current = baseSnapshot;
@@ -372,6 +410,22 @@ export default function PlayGame(props: PlayGameProps) {
       ),
     [activeRound],
   );
+  const isRoundScoringReady = useMemo(
+    () =>
+      showsRounds &&
+      !isCompleted &&
+      game.players.length > 0 &&
+      game.players.every((player) =>
+        activeRoundScoreByUserId.has(player.userId),
+      ),
+    [activeRoundScoreByUserId, game.players, isCompleted, showsRounds],
+  );
+  const hasAnyRecordedScores = useMemo(
+    () =>
+      game.players.some((player) => getPlayerTotalScore(player) !== 0) ||
+      game.rounds.some((round) => round.scores.length > 0),
+    [game.players, game.rounds],
+  );
   const availablePlayers = useMemo(
     () =>
       snapshot.playerOptions.filter(
@@ -415,32 +469,87 @@ export default function PlayGame(props: PlayGameProps) {
 
     players.sort((left, right) =>
       game.scoringMode === "highest_wins"
-        ? getPlayerTotalScore(right) - getPlayerTotalScore(left)
-        : getPlayerTotalScore(left) - getPlayerTotalScore(right),
+        ? getCommittedPlayerScore({
+            player: right,
+            activeRoundScoreByUserId,
+            includeActiveRound: showsRounds && !game.completedAt,
+          }) -
+          getCommittedPlayerScore({
+            player: left,
+            activeRoundScoreByUserId,
+            includeActiveRound: showsRounds && !game.completedAt,
+          })
+        : getCommittedPlayerScore({
+            player: left,
+            activeRoundScoreByUserId,
+            includeActiveRound: showsRounds && !game.completedAt,
+          }) -
+          getCommittedPlayerScore({
+            player: right,
+            activeRoundScoreByUserId,
+            includeActiveRound: showsRounds && !game.completedAt,
+          }),
     );
 
     return players;
-  }, [game.completedAt, game.players, game.scoringMode, winnerIds]);
+  }, [
+    activeRoundScoreByUserId,
+    game.completedAt,
+    game.players,
+    game.scoringMode,
+    showsRounds,
+    winnerIds,
+  ]);
   const sortedRounds = useMemo(() => {
-    const gameRounds = (game.rounds ?? []).filter(
-      (round) => round.roundNumber <= game.completedRounds,
-    );
-    const rounds = [...gameRounds];
+    const rounds = [...(game.rounds ?? [])];
 
     rounds.sort((left, right) => right.roundNumber - left.roundNumber);
 
     return rounds;
-  }, [game.completedRounds, game.rounds]);
+  }, [game.rounds]);
   const scorecardRounds = useMemo(
     () => [...sortedRounds].reverse(),
     [sortedRounds],
   );
   const scoreDialogPlayer = useMemo(
     () =>
-      game.players.find((player) => player.userId === scoreDialogPlayerId) ??
-      null,
-    [game.players, scoreDialogPlayerId],
+      game.players.find(
+        (player) => player.userId === scoreDialogState?.playerId,
+      ) ?? null,
+    [game.players, scoreDialogState?.playerId],
   );
+  const scoreDialogRoundNumber =
+    scoreDialogState?.roundNumber ?? nextRoundNumber;
+  const scoreDialogRound = useMemo(
+    () =>
+      game.rounds.find(
+        (round) => round.roundNumber === scoreDialogRoundNumber,
+      ) ?? null,
+    [game.rounds, scoreDialogRoundNumber],
+  );
+  const scoreDialogExistingRoundScore = useMemo(() => {
+    if (!scoreDialogPlayer) {
+      return null;
+    }
+
+    return (
+      scoreDialogRound?.scores.find(
+        (score) => score.userId === scoreDialogPlayer.userId,
+      )?.scoreDelta ?? 0
+    );
+  }, [scoreDialogPlayer, scoreDialogRound]);
+  const scoreDialogCommittedTotal = useMemo(() => {
+    if (!scoreDialogPlayer) {
+      return 0;
+    }
+
+    return (
+      getPlayerTotalScore(scoreDialogPlayer) -
+      (scoreDialogExistingRoundScore ?? 0)
+    );
+  }, [scoreDialogExistingRoundScore, scoreDialogPlayer]);
+  const scoreDialogProjectedTotal =
+    scoreDialogCommittedTotal + (parseScoreAmountInput(scoreAmountInput) ?? 0);
   const colorDialogPlayer = useMemo(
     () =>
       game.players.find((player) => player.userId === colorDialogPlayerId) ??
@@ -463,7 +572,7 @@ export default function PlayGame(props: PlayGameProps) {
     () =>
       game.players.map((player) => ({
         userId: player.userId,
-        scoreDelta: activeRoundScoreByUserId.get(player.userId) ?? 0,
+        scoreDelta: activeRoundScoreByUserId.get(player.userId) ?? null,
         player,
       })),
     [activeRoundScoreByUserId, game.players],
@@ -552,7 +661,7 @@ export default function PlayGame(props: PlayGameProps) {
     startTransition(update);
   }
 
-  const reconcileSnapshot = useEffectEvent(async () => {
+  async function reconcileSnapshotNow() {
     if (reconcileInFlightRef.current) {
       return;
     }
@@ -571,6 +680,10 @@ export default function PlayGame(props: PlayGameProps) {
     } finally {
       reconcileInFlightRef.current = false;
     }
+  }
+
+  const reconcileSnapshot = useEffectEvent(async () => {
+    await reconcileSnapshotNow();
   });
 
   useEffect(() => {
@@ -587,7 +700,7 @@ export default function PlayGame(props: PlayGameProps) {
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleFocus);
     };
-  }, [reconcileSnapshot]);
+  }, []);
 
   useEffect(() => {
     if (isCompleted) {
@@ -603,7 +716,22 @@ export default function PlayGame(props: PlayGameProps) {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [isCompleted, reconcileSnapshot]);
+  }, [isCompleted]);
+
+  useEffect(() => {
+    if (!isRoundScoringReady || isRoundDialogOpen || !activeRound) {
+      return;
+    }
+
+    if (autoOpenedRoundRef.current === activeRound.roundNumber) {
+      return;
+    }
+
+    autoOpenedRoundRef.current = activeRound.roundNumber;
+    setSelectedWinnerUserIds(game.winners.map((winner) => winner.userId));
+    setRoundDialogIntent("round");
+    setIsRoundDialogOpen(true);
+  }, [activeRound, game.winners, isRoundDialogOpen, isRoundScoringReady]);
 
   function canEditGuestOrSelfColor(player: GameForPlayPage["players"][number]) {
     return (
@@ -613,7 +741,8 @@ export default function PlayGame(props: PlayGameProps) {
   }
 
   function buildMutationId() {
-    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    mutationIdRef.current += 1;
+    return `mutation-${mutationIdRef.current}`;
   }
 
   async function finalizeSuccessfulMutation(entry: PendingMutationEntry) {
@@ -628,7 +757,7 @@ export default function PlayGame(props: PlayGameProps) {
     setLocalState(nextBaseSnapshot, remainingMutations);
 
     if (remainingMutations.length === 0) {
-      void reconcileSnapshot();
+      void reconcileSnapshotNow();
     }
   }
 
@@ -684,8 +813,37 @@ export default function PlayGame(props: PlayGameProps) {
       return;
     }
 
-    setScoreDialogPlayerId(player.userId);
-    setScoreAmountInput("0");
+    setScoreDialogState({
+      playerId: player.userId,
+      roundNumber: nextRoundNumber,
+      mode: "active",
+    });
+    setScoreAmountInput(
+      String(activeRoundScoreByUserId.get(player.userId) ?? 0),
+    );
+  }
+
+  function openRoundScoreDialog(input: {
+    playerId: string;
+    roundNumber: number;
+  }) {
+    if (!isCreator || isCompleted || isNoScoreMode) {
+      return;
+    }
+
+    const round = game.rounds.find(
+      (entry) => entry.roundNumber === input.roundNumber,
+    );
+    const roundScore =
+      round?.scores.find((score) => score.userId === input.playerId)
+        ?.scoreDelta ?? 0;
+
+    setScoreDialogState({
+      playerId: input.playerId,
+      roundNumber: input.roundNumber,
+      mode: "history",
+    });
+    setScoreAmountInput(String(roundScore));
   }
 
   function openColorDialog(player: GameForPlayPage["players"][number]) {
@@ -806,20 +964,34 @@ export default function PlayGame(props: PlayGameProps) {
     }
 
     runMutation({
-      key: `score:${scoreDialogPlayer.userId}`,
+      key:
+        scoreDialogState?.mode === "history"
+          ? `round-score:${scoreDialogState.roundNumber}:${scoreDialogPlayer.userId}`
+          : `score:${scoreDialogPlayer.userId}`,
       mutation: {
         type: "upsert-score",
+        roundNumber: scoreDialogState?.roundNumber ?? nextRoundNumber,
         userId: scoreDialogPlayer.userId,
         scoreDelta: scoreAmount,
       },
-      action: () =>
-        upsertActiveRoundScore({
+      action: () => {
+        if (scoreDialogState?.mode === "history") {
+          return updateRecordedRoundScore({
+            gameId: game.id,
+            roundNumber: scoreDialogState.roundNumber,
+            userId: scoreDialogPlayer.userId,
+            scoreDelta: scoreAmount,
+          });
+        }
+
+        return upsertActiveRoundScore({
           gameId: game.id,
           userId: scoreDialogPlayer.userId,
           scoreDelta: scoreAmount,
-        }),
+        });
+      },
       onOptimistic: () => {
-        setScoreDialogPlayerId(null);
+        setScoreDialogState(null);
         setScoreAmountInput("0");
       },
     });
@@ -846,6 +1018,7 @@ export default function PlayGame(props: PlayGameProps) {
         }),
       onOptimistic: () => {
         setIsRoundDialogOpen(false);
+        setRoundDialogIntent("round");
         if (completeGame && isNoScoreMode) {
           setSelectedWinnerUserIds([]);
         }
@@ -861,8 +1034,9 @@ export default function PlayGame(props: PlayGameProps) {
     );
   }
 
-  function openRoundDialog() {
+  function openRoundDialog(intent: RoundDialogIntent = "round") {
     setSelectedWinnerUserIds(game.winners.map((winner) => winner.userId));
+    setRoundDialogIntent(intent);
     setIsRoundDialogOpen(true);
   }
 
@@ -906,6 +1080,23 @@ export default function PlayGame(props: PlayGameProps) {
     router.push("/dashboard");
   }
 
+  function handleDeleteGame() {
+    startDeleteGameTransition(async () => {
+      try {
+        await deleteCreatedGame({ gameId: game.id });
+        setIsDeleteGameDialogOpen(false);
+        setIsHeaderDrawerOpen(false);
+        toast.success("Game deleted");
+        router.push("/dashboard");
+        router.refresh();
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Could not delete game",
+        );
+      }
+    });
+  }
+
   if (game.version !== "v1") {
     return (
       <div className="min-h-screen overflow-y-auto px-3 pb-40 sm:px-6">
@@ -925,8 +1116,12 @@ export default function PlayGame(props: PlayGameProps) {
   }
 
   const commitRoundPending = pendingKeySet.has("commit-round");
-  const scoreMutationPending = scoreDialogPlayerId
-    ? pendingKeySet.has(`score:${scoreDialogPlayerId}`)
+  const scoreMutationPending = scoreDialogState
+    ? pendingKeySet.has(
+        scoreDialogState.mode === "history"
+          ? `round-score:${scoreDialogState.roundNumber}:${scoreDialogState.playerId}`
+          : `score:${scoreDialogState.playerId}`,
+      )
     : false;
   const colorMutationPending = colorDialogPlayerId
     ? pendingKeySet.has(`color:${colorDialogPlayerId}`)
@@ -955,14 +1150,14 @@ export default function PlayGame(props: PlayGameProps) {
           <details className="group">
             <summary className="flex cursor-pointer list-none items-stretch pr-4">
               <div
-                className="relative w-20 shrink-0 overflow-hidden border-r border-border/70"
+                className="relative w-20 shrink-0 overflow-hidden border-border/70"
                 style={{
                   backgroundColor: game.gameTitle?.color ?? undefined,
                 }}
               >
                 {game.gameTitle?.imageUrl ? (
                   <div
-                    className="absolute inset-0 bg-cover bg-center opacity-40"
+                    className="absolute inset-0 bg-cover bg-center opacity-60"
                     style={{
                       backgroundImage: `url("${game.gameTitle.imageUrl}")`,
                     }}
@@ -999,27 +1194,13 @@ export default function PlayGame(props: PlayGameProps) {
                 >
                   {formatEndingSummary(game)}
                 </Badge>
-                <Badge
-                  className="border-border/70 bg-background/75 text-foreground backdrop-blur-md dark:bg-background/60"
-                  variant="outline"
-                >
-                  {game.players.length} player
-                  {game.players.length === 1 ? "" : "s"}
-                </Badge>
-                {isCompleted ? (
+                {isCompleted && (
                   <Badge className="winner-badge" variant="outline">
                     Complete
                   </Badge>
-                ) : (
-                  <Badge
-                    className="border-border/70 bg-background/75 text-foreground backdrop-blur-md dark:bg-background/60"
-                    variant="outline"
-                  >
-                    In progress
-                  </Badge>
                 )}
               </div>
-              <div className="flex w-full justify-between items-center">
+              <div className="flex w-full justify-between items-end">
                 <div className="flex flex-col text-xs text-muted-foreground">
                   <div className="flex flex-col gap-1">
                     {game.completedAt ? (
@@ -1031,17 +1212,92 @@ export default function PlayGame(props: PlayGameProps) {
                     <p>Started {formatGameMetaDate(game.createdAt)}</p>
                   </div>
                 </div>
-                {isCreator && (
-                  <Link
-                    aria-label="Game settings"
-                    href={`/game/${game.id}/settings`}
-                  >
-                    <Button size="sm">
-                      <Settings2 className="size-4" />
-                      Edit
-                    </Button>
-                  </Link>
-                )}
+                {isCreator ? (
+                  <div className="flex items-center gap-2">
+                    <Drawer
+                      onOpenChange={setIsHeaderDrawerOpen}
+                      open={isHeaderDrawerOpen}
+                    >
+                      <DrawerTrigger
+                        render={
+                          <Button
+                            aria-label="Game options"
+                            className="cursor-pointer"
+                            type="button"
+                            variant="outline"
+                          />
+                        }
+                      >
+                        <Settings2 className="size-5" />
+                      </DrawerTrigger>
+                      <DrawerContent className="gap-4 pb-28">
+                        <DrawerHeader>
+                          <DrawerTitle className="text-xl font-black">
+                            Game options
+                          </DrawerTitle>
+                          <DrawerDescription>
+                            Quick actions for this game.
+                          </DrawerDescription>
+                        </DrawerHeader>
+                        <div className="flex flex-col gap-2">
+                          <Link
+                            href={`/game/${game.id}/settings`}
+                            onClick={() => setIsHeaderDrawerOpen(false)}
+                          >
+                            <Button
+                              className="w-full justify-start"
+                              type="button"
+                              variant="outline"
+                            >
+                              <Settings2 className="size-4" />
+                              Change game settings
+                            </Button>
+                          </Link>
+                          <Button
+                            className="w-full justify-start"
+                            disabled={isCompleted}
+                            onClick={() => {
+                              setIsHeaderDrawerOpen(false);
+                              setPlayerSearch("");
+                              setIsAddPlayerOpen(true);
+                            }}
+                            type="button"
+                            variant="outline"
+                          >
+                            <Users className="size-4" />
+                            Manage players
+                          </Button>
+                          <Button
+                            className="w-full justify-start"
+                            disabled={isCompleted}
+                            onClick={() => {
+                              setIsHeaderDrawerOpen(false);
+                              openRoundDialog("end-game");
+                            }}
+                            type="button"
+                            variant="outline"
+                          >
+                            <Trophy className="size-4" />
+                            End game
+                          </Button>
+                          <Button
+                            className="w-full justify-start"
+                            disabled={isCompleted || isDeleteGamePending}
+                            onClick={() => {
+                              setIsHeaderDrawerOpen(false);
+                              setIsDeleteGameDialogOpen(true);
+                            }}
+                            type="button"
+                            variant="destructive"
+                          >
+                            <Trash2 className="size-4" />
+                            Delete game
+                          </Button>
+                        </div>
+                      </DrawerContent>
+                    </Drawer>
+                  </div>
+                ) : null}
               </div>
             </div>
           </details>
@@ -1063,6 +1319,9 @@ export default function PlayGame(props: PlayGameProps) {
             const canEditColor = canEditGuestOrSelfColor(player);
             const playerSurfaceStyles = getProfileColorSurfaceStyles(
               player.user.color,
+            );
+            const activeRoundDelta = activeRoundScoreByUserId.get(
+              player.userId,
             );
 
             return (
@@ -1156,33 +1415,76 @@ export default function PlayGame(props: PlayGameProps) {
                     </div>
                   </div>
                   {!isNoScoreMode && isCompleted ? (
-                    <div className="relative z-10 min-w-[5.5rem] rounded-[1.4rem] border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-4 py-3 text-center shadow-sm backdrop-blur-[2px]">
-                      <p className="text-3xl font-black text-[color:var(--profile-surface-text)]">
-                        {getPlayerTotalScore(player)}
-                      </p>
+                    <div className="relative z-10">
+                      {showsRounds && activeRoundDelta !== undefined ? (
+                        <div className="absolute top-1/2 -left-3 -translate-x-full -translate-y-1/2 shrink-0 rounded-full border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel-border)] px-2 py-1 text-[0.65rem] font-black leading-none text-[color:var(--profile-surface-text)] shadow-sm">
+                          {activeRoundDelta >= 0 ? "+" : ""}
+                          {activeRoundDelta}
+                        </div>
+                      ) : null}
+                      <div className="min-w-[5.5rem] rounded-[1.4rem] border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-3 py-3 shadow-sm backdrop-blur-[2px]">
+                        <div className="flex items-center justify-end">
+                          <p className="text-3xl font-black text-[color:var(--profile-surface-text)]">
+                            {getPlayerTotalScore(player)}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   ) : !isNoScoreMode && isCreator ? (
                     <Button
-                      className="relative z-10 min-w-14 rounded-[1.4rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-4 py-3 text-center text-3xl font-black text-[color:var(--profile-surface-text)] shadow-sm backdrop-blur-[2px]"
+                      className="relative z-10 min-w-14 overflow-visible rounded-[1.4rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-3 py-3 text-[color:var(--profile-surface-text)] shadow-sm backdrop-blur-[2px]"
                       data-testid={`player-score-button-${player.userId}`}
                       disabled={isCompleted}
                       onClick={() => openScoreDialog(player)}
                       variant="outline"
                     >
-                      {getPlayerTotalScore(player)}
+                      {showsRounds && activeRoundDelta !== undefined ? (
+                        <div className="absolute top-1/2 -left-3 -translate-x-full -translate-y-1/2 rounded-full border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel-border)] px-2 py-1 text-[0.65rem] font-black leading-none text-[color:var(--profile-surface-text)] shadow-sm">
+                          {activeRoundDelta >= 0 ? "+" : ""}
+                          {activeRoundDelta}
+                        </div>
+                      ) : null}
+                      <div className="flex items-center justify-end">
+                        <span className="text-3xl font-black">
+                          {getPlayerTotalScore(player)}
+                        </span>
+                      </div>
                     </Button>
                   ) : !isNoScoreMode ? (
                     <div
-                      className="relative z-10 min-w-14 rounded-[1.4rem] border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-4 py-3 text-center text-3xl font-black text-[color:var(--profile-surface-text)] shadow-sm backdrop-blur-[2px]"
+                      className="relative z-10 min-w-14 overflow-visible rounded-[1.4rem] border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-3 py-3 text-[color:var(--profile-surface-text)] shadow-sm backdrop-blur-[2px]"
                       data-testid={`player-score-display-${player.userId}`}
                     >
-                      {getPlayerTotalScore(player)}
+                      {showsRounds && activeRoundDelta !== undefined ? (
+                        <div className="absolute top-1/2 -left-3 -translate-x-full -translate-y-1/2 rounded-full border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel-border)] px-2 py-1 text-[0.65rem] font-black leading-none text-[color:var(--profile-surface-text)] shadow-sm">
+                          {activeRoundDelta >= 0 ? "+" : ""}
+                          {activeRoundDelta}
+                        </div>
+                      ) : null}
+                      <div className="flex items-center justify-end">
+                        <span className="text-3xl font-black">
+                          {getPlayerTotalScore(player)}
+                        </span>
+                      </div>
                     </div>
                   ) : null}
                 </CardContent>
               </Card>
             );
           })}
+          {isCreator && !hasAnyRecordedScores ? (
+            <Button
+              className="h-16 w-full rounded-[1.7rem] border-dashed"
+              onClick={() => {
+                setPlayerSearch("");
+                setIsAddPlayerOpen(true);
+              }}
+              type="button"
+            >
+              <UserPlus className="size-5" />
+              Add players
+            </Button>
+          ) : null}
         </div>
 
         {!isCreator ? (
@@ -1196,20 +1498,10 @@ export default function PlayGame(props: PlayGameProps) {
 
       <div className="fixed inset-x-0 bottom-0 z-30 px-3 pb-3 sm:px-6">
         <div className="mx-auto w-full max-w-md rounded-[2rem] border border-border/80 bg-card/20 p-3 text-card-foreground shadow-[0_-14px_45px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:shadow-[0_-18px_50px_rgba(2,6,23,0.45)]">
-          <div
-            className={`grid gap-2 ${
-              isCreator
-                ? showsRounds
-                  ? "grid-cols-4"
-                  : "grid-cols-3"
-                : showsRounds
-                  ? "grid-cols-2"
-                  : "grid-cols-1"
-            }`}
-          >
+          <div className="flex justify-between gap-2">
             {!isCompleted && (
               <Button
-                className="h-16 flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase"
+                className="h-16 w-fit min-w-20 flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase"
                 onClick={openExitConfirmation}
                 variant="outline"
               >
@@ -1219,9 +1511,9 @@ export default function PlayGame(props: PlayGameProps) {
             )}
 
             {isCompleted && (
-              <Link className="w-full" href="/dashboard">
+              <Link className="w-fit" href="/dashboard">
                 <Button
-                  className="h-16 w-full flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase"
+                  className="h-16 w-fit min-w-20 flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase"
                   variant="outline"
                 >
                   <DoorOpen className="size-5" />
@@ -1229,29 +1521,21 @@ export default function PlayGame(props: PlayGameProps) {
                 </Button>
               </Link>
             )}
-
             {isCreator ? (
               <Button
-                className="h-16 flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase"
+                className={cn(
+                  "h-16 w-fit min-w-20 flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase",
+                  isRoundScoringReady && "bg-primary text-primary-foreground",
+                )}
                 disabled={isCompleted}
-                onClick={() => {
-                  setPlayerSearch("");
-                  setIsAddPlayerOpen(true);
-                }}
-                variant="outline"
+                onClick={() => openRoundDialog()}
+                variant={isRoundScoringReady ? "default" : "outline"}
               >
-                <Users className="size-5" />
-                Players
-              </Button>
-            ) : null}
-
-            {isCreator ? (
-              <Button
-                className="h-16 flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase"
-                disabled={isCompleted}
-                onClick={openRoundDialog}
-              >
-                <Trophy className="size-5" />
+                {isCompleted || hasThresholdMet ? (
+                  <Trophy className="size-5" />
+                ) : (
+                  <FastForward className="size-5" />
+                )}
                 {isCompleted
                   ? "Finished"
                   : isNoScoreMode
@@ -1266,7 +1550,7 @@ export default function PlayGame(props: PlayGameProps) {
 
             {showsRounds && !isNoScoreMode ? (
               <Button
-                className="h-16 flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase"
+                className="h-16 w-fit min-w-20 flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase"
                 onClick={() => setIsRoundHistoryOpen(true)}
                 variant="outline"
               >
@@ -1277,6 +1561,36 @@ export default function PlayGame(props: PlayGameProps) {
           </div>
         </div>
       </div>
+
+      <Dialog
+        onOpenChange={setIsDeleteGameDialogOpen}
+        open={isDeleteGameDialogOpen}
+      >
+        <DialogContent className="max-w-[calc(100%-1.5rem)] rounded-[2rem] p-5">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black">
+              Delete this game?
+            </DialogTitle>
+            <DialogDescription className="text-base">
+              This permanently removes the game and all recorded progress. This
+              can&apos;t be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="bg-transparent p-0 pt-2" showCloseButton>
+            <Button
+              disabled={isDeleteGamePending}
+              onClick={handleDeleteGame}
+              type="button"
+              variant="destructive"
+            >
+              {isDeleteGamePending ? (
+                <LoaderCircle className="animate-spin" />
+              ) : null}
+              Delete game
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog onOpenChange={setIsExitConfirmOpen} open={isExitConfirmOpen}>
         <DialogContent className="max-w-[calc(100%-1.5rem)] rounded-[2rem] p-5">
@@ -1305,7 +1619,7 @@ export default function PlayGame(props: PlayGameProps) {
       <Dialog
         onOpenChange={(open) => {
           if (!open) {
-            setScoreDialogPlayerId(null);
+            setScoreDialogState(null);
             setScoreAmountInput("0");
           }
         }}
@@ -1326,69 +1640,97 @@ export default function PlayGame(props: PlayGameProps) {
             <DialogTitle className="relative z-10 text-2xl font-black">
               {scoreDialogPlayer ? getDisplayName(scoreDialogPlayer.user) : ""}
             </DialogTitle>
-            {showsRounds && (
-              <DialogDescription className="relative z-10 text-[color:var(--profile-surface-muted-text)]">
-                Round {nextRoundNumber}
-              </DialogDescription>
-            )}
           </DialogHeader>
           <form className="flex flex-col gap-4" onSubmit={handleScoreSubmit}>
             <div className="relative z-10 space-y-3">
-              <p className="text-center text-6xl font-black">
-                {scoreDialogPlayer ? getPlayerTotalScore(scoreDialogPlayer) : 0}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  className="h-16 rounded-[1.4rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] shadow-sm"
-                  disabled={isCompleted || scoreMutationPending}
-                  onClick={() => {
-                    const scoreAmount =
-                      parseScoreAmountInput(scoreAmountInput) ?? 0;
-                    setScoreAmountInput(String(scoreAmount - 1));
-                  }}
-                  type="button"
-                  variant="outline"
-                >
-                  -
-                </Button>
-                <Input
-                  autoFocus
-                  className="h-18 rounded-[1.5rem] border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-center text-4xl font-black shadow-inner ring-0 placeholder:text-[color:var(--profile-surface-muted-text)]"
-                  inputMode="numeric"
-                  onFocus={(event) => {
-                    if ((parseScoreAmountInput(scoreAmountInput) ?? 0) === 0) {
-                      event.target.select();
+              <div>
+                <div className="rounded-[1.5rem] border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-4 py-4 text-center shadow-sm">
+                  <p className="text-6xl font-black">
+                    {scoreDialogProjectedTotal}
+                  </p>
+                  <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-[color:var(--profile-surface-muted-text)]">
+                    Total
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col w-full items-center gap-1">
+                <div className="flex items-center gap-2">
+                  <Button
+                    className="h-16 rounded-[1.4rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] shadow-sm"
+                    disabled={isCompleted || scoreMutationPending}
+                    onClick={() => {
+                      const scoreAmount =
+                        parseScoreAmountInput(scoreAmountInput) ?? 0;
+                      setScoreAmountInput(String(scoreAmount - 1));
+                    }}
+                    type="button"
+                    variant="outline"
+                  >
+                    <Minus className="size-4" />
+                  </Button>
+                  <Input
+                    autoFocus
+                    className="h-18 rounded-[1.5rem] border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-center text-4xl font-black shadow-inner ring-0 placeholder:text-[color:var(--profile-surface-muted-text)]"
+                    inputMode="numeric"
+                    onFocus={(event) => {
+                      if (
+                        (parseScoreAmountInput(scoreAmountInput) ?? 0) === 0
+                      ) {
+                        event.target.select();
+                      }
+                    }}
+                    onChange={(event) =>
+                      setScoreAmountInput(
+                        normalizeScoreAmountInput(event.target.value),
+                      )
                     }
-                  }}
-                  onChange={(event) =>
-                    setScoreAmountInput(
-                      normalizeScoreAmountInput(event.target.value),
-                    )
-                  }
-                  type="number"
-                  value={scoreAmountInput}
-                />
-                <Button
-                  className="h-16 rounded-[1.4rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] shadow-sm"
-                  disabled={isCompleted || scoreMutationPending}
-                  onClick={() => {
-                    const scoreAmount =
-                      parseScoreAmountInput(scoreAmountInput) ?? 0;
-                    setScoreAmountInput(String(scoreAmount + 1));
-                  }}
-                  type="button"
-                  variant="outline"
-                >
-                  +
-                </Button>
+                    type="number"
+                    value={scoreAmountInput}
+                  />
+                  <Button
+                    className="h-16 rounded-[1.4rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] shadow-sm"
+                    disabled={isCompleted || scoreMutationPending}
+                    onClick={() => {
+                      const scoreAmount =
+                        parseScoreAmountInput(scoreAmountInput) ?? 0;
+                      setScoreAmountInput(String(scoreAmount + 1));
+                    }}
+                    type="button"
+                    variant="outline"
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                </div>
+                <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-[color:var(--profile-surface-muted-text)]">
+                  Round {scoreDialogRoundNumber}
+                </p>
               </div>
             </div>
-            <DialogFooter className="bg-transparent p-0 pt-2">
-              <Button disabled={scoreMutationPending} type="submit">
+
+            <DialogFooter className="flex-row items-stretch gap-3 bg-transparent pl-2 pt-2 sm:flex-row sm:justify-stretch">
+              <Button
+                className="min-w-0 basis-1/4"
+                disabled={scoreMutationPending}
+                onClick={() => {
+                  const scoreAmount =
+                    parseScoreAmountInput(scoreAmountInput) ?? 0;
+                  setScoreAmountInput(String(scoreAmount * -1));
+                }}
+                type="button"
+                variant="outline"
+              >
+                <Diff className="size-4" />
+              </Button>
+              <Button
+                className="min-w-0 basis-3/4"
+                disabled={scoreMutationPending}
+                variant="outline"
+                type="submit"
+              >
                 {scoreMutationPending ? (
                   <LoaderCircle className="animate-spin" />
                 ) : null}
-                Update
+                Confirm
               </Button>
             </DialogFooter>
           </form>
@@ -1471,7 +1813,7 @@ export default function PlayGame(props: PlayGameProps) {
                       playerSearch.trim() ? "Matches" : "Suggested players"
                     }
                   >
-                    {filteredPlayers.slice(0, 5).map((player) => {
+                    {filteredPlayers.map((player) => {
                       const playerPending = pendingKeySet.has(
                         `add-player:${player.id}`,
                       );
@@ -1664,15 +2006,25 @@ export default function PlayGame(props: PlayGameProps) {
         </DialogContent>
       </Dialog>
 
-      <Dialog onOpenChange={setIsRoundDialogOpen} open={isRoundDialogOpen}>
+      <Dialog
+        onOpenChange={(open) => {
+          setIsRoundDialogOpen(open);
+          if (!open) {
+            setRoundDialogIntent("round");
+          }
+        }}
+        open={isRoundDialogOpen}
+      >
         <DialogContent className="max-w-[calc(100%-1.5rem)] rounded-[2rem] p-5">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black">
-              {isNoScoreMode && !showsRounds
-                ? "Finish game"
-                : hasThresholdMet || isRoundlessFreePlay
-                  ? "End of game"
-                  : `End of round ${nextRoundNumber}`}
+              {roundDialogIntent === "end-game"
+                ? "End game"
+                : isNoScoreMode && !showsRounds
+                  ? "Finish game"
+                  : hasThresholdMet || isRoundlessFreePlay
+                    ? "End of game"
+                    : `End of round ${nextRoundNumber}`}
             </DialogTitle>
           </DialogHeader>
 
@@ -1724,60 +2076,82 @@ export default function PlayGame(props: PlayGameProps) {
             </div>
           )}
 
-          {!isNoScoreMode && (isRoundlessFreePlay || hasThresholdMet) && (
-            <div className="rounded-3xl border border-border bg-muted/50 p-4">
-              <p className="mb-3 text-sm font-bold uppercase tracking-[0.18em] text-muted-foreground">
-                Standings
-              </p>
-              <div className="flex flex-col gap-2">
-                {sortedPlayers.map((player) => (
-                  <div
-                    key={player.userId}
-                    className="flex items-center justify-between gap-3 text-sm"
-                  >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="truncate font-medium text-foreground/80">
-                        {getDisplayName(player.user)}
+          {!isNoScoreMode &&
+            (roundDialogIntent === "end-game" ||
+              isRoundlessFreePlay ||
+              hasThresholdMet) && (
+              <div className="rounded-3xl border border-border bg-muted/50 p-4">
+                <p className="mb-3 text-sm font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                  Standings
+                </p>
+                <div className="flex flex-col gap-2">
+                  {sortedPlayers.map((player) => (
+                    <div
+                      key={player.userId}
+                      className="flex items-center justify-between gap-3 text-sm"
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="truncate font-medium text-foreground/80">
+                          {getDisplayName(player.user)}
+                        </span>
+                        {projectedWinnerIds.has(player.userId) ? (
+                          <Badge variant="outline">Winning</Badge>
+                        ) : null}
+                      </div>
+                      <span className="font-black text-foreground">
+                        {getPlayerTotalScore(player)}
                       </span>
-                      {projectedWinnerIds.has(player.userId) ? (
-                        <Badge variant="outline">Winning</Badge>
-                      ) : null}
                     </div>
-                    <span className="font-black text-foreground">
-                      {getPlayerTotalScore(player)}
-                    </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {!isNoScoreMode && !(isRoundlessFreePlay || hasThresholdMet) && (
-            <div className="rounded-3xl border border-border bg-muted/50 p-4">
-              <p className="mb-3 text-sm font-bold uppercase tracking-[0.18em] text-muted-foreground">
-                Round summary
-              </p>
-              <div className="flex flex-col gap-2">
-                {roundSummaryScores.map((score) => (
-                  <div
-                    key={score.userId}
-                    className="flex items-center justify-between gap-3 text-sm"
-                  >
-                    <span className="font-medium text-foreground/80">
-                      {getDisplayName(score.player.user)}
-                    </span>
-                    <span className="font-black text-foreground">
-                      {score.scoreDelta > 0 ? "+" : ""}
-                      {score.scoreDelta}
-                    </span>
-                  </div>
-                ))}
+          {!isNoScoreMode &&
+            roundDialogIntent !== "end-game" &&
+            !(isRoundlessFreePlay || hasThresholdMet) && (
+              <div className="rounded-3xl border border-border bg-muted/50 p-4">
+                <p className="mb-3 text-sm font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                  Round summary
+                </p>
+                <div className="flex flex-col gap-2">
+                  {roundSummaryScores.map((score) => (
+                    <div
+                      key={score.userId}
+                      className="flex items-center justify-between gap-3 text-sm"
+                    >
+                      <span className="font-medium text-foreground/80">
+                        {getDisplayName(score.player.user)}
+                      </span>
+                      <span className="font-black text-foreground">
+                        {score.scoreDelta === null
+                          ? 0
+                          : `${score.scoreDelta > 0 ? "+" : ""}${score.scoreDelta}`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <DialogFooter className="bg-transparent p-0 pt-2">
-            {shouldOfferRoundPrompt ? (
+          <DialogFooter
+            className="bg-transparent p-0 pt-2"
+            showCloseButton={roundDialogIntent === "end-game"}
+          >
+            {roundDialogIntent === "end-game" ? (
+              <Button
+                disabled={
+                  commitRoundPending ||
+                  (isNoScoreMode && selectedWinnerUserIds.length === 0)
+                }
+                onClick={() => handleCommitRound(true)}
+              >
+                {commitRoundPending ? (
+                  <LoaderCircle className="animate-spin" />
+                ) : null}
+                End game
+              </Button>
+            ) : shouldOfferRoundPrompt ? (
               <>
                 {!isNoScoreMode || showsRounds ? (
                   <Button
@@ -1833,61 +2207,75 @@ export default function PlayGame(props: PlayGameProps) {
             <DialogTitle className="text-2xl font-black">
               Score breakdown
             </DialogTitle>
+            <DialogDescription>Tap to edit any round scores</DialogDescription>
           </DialogHeader>
           <div className="max-h-[80vh] overflow-y-auto pr-1">
-            {sortedRounds.length > 0 ? (
+            {scorecardRounds.length > 0 ? (
               <div className="overflow-x-auto rounded-3xl border border-border bg-muted/50">
                 <div
-                  className="grid min-w-max w-fit"
+                  className="grid w-full min-w-max"
                   style={{
-                    gridTemplateColumns: `minmax(5.5rem, 1.1fr) repeat(${scorecardPlayers.length}, minmax(4.25rem, 1fr))`,
+                    gridTemplateColumns: `3.5rem minmax(4.75rem, 0.9fr) repeat(${scorecardRounds.length}, minmax(4.25rem, 1fr))`,
                   }}
                 >
-                  <div className="sticky left-0 z-10 flex items-center border-b border-r border-border bg-muted px-3 py-3 text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
-                    Round
-                  </div>
-                  {scorecardPlayers.map((player) => (
-                    <div
-                      key={player.id}
-                      className="border-b border-r border-border bg-muted px-2 py-2"
-                      title={getDisplayName(player.user)}
-                    >
-                      <div className="flex justify-center">
-                        <ProfilePicture size="xs" user={player.user} />
-                      </div>
-                    </div>
-                  ))}
-                  <div className="sticky left-0 z-10 flex items-center border-r border-border bg-muted px-3 py-3 text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
+                  <div className="sticky left-0 z-10 border-b border-r border-border bg-card px-3 py-3" />
+                  <div className="border-b border-r border-border bg-muted px-3 py-3 text-center text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
                     Total
                   </div>
-                  {scorecardPlayers.map((player) => (
+                  {scorecardRounds.map((round) => (
                     <div
-                      key={`total-${player.id}`}
-                      className="flex items-center justify-center border-r border-b border-border bg-muted px-2 py-3 text-center text-sm font-black text-foreground"
+                      key={round.id}
+                      className="border-b border-r border-border bg-muted px-3 py-3 text-center text-xs font-black uppercase tracking-[0.18em] text-muted-foreground"
                     >
-                      {getPlayerTotalScore(player)}
+                      <span>
+                        R{round.roundNumber}
+                        {round.roundNumber === nextRoundNumber && !isCompleted
+                          ? " (current)"
+                          : ""}
+                      </span>
                     </div>
                   ))}
 
-                  {scorecardRounds.map((round) => (
-                    <Fragment key={round.id}>
-                      <div className="sticky left-0 z-10 flex items-center border-r border-border bg-muted/60 px-3 py-3 text-sm font-black text-foreground">
-                        <span>R{round.roundNumber}</span>
+                  {scorecardPlayers.map((player) => (
+                    <Fragment key={player.id}>
+                      <div
+                        className="sticky left-0 z-10 flex items-center justify-center overflow-hidden border-r border-b border-border bg-card px-2 py-3"
+                        title={getDisplayName(player.user)}
+                      >
+                        <ProfilePicture size="xs" user={player.user} />
                       </div>
-                      {scorecardPlayers.map((player) => {
-                        const roundScore =
-                          (round.scores ?? []).find(
-                            (score) => score.userId === player.userId,
-                          )?.scoreDelta ?? 0;
+                      <div className="flex items-center justify-center border-r border-b border-border bg-muted/60 px-2 py-3 text-center text-sm font-black text-foreground">
+                        {getPlayerTotalScore(player)}
+                      </div>
+                      {scorecardRounds.map((round) => {
+                        const roundScore = (round.scores ?? []).find(
+                          (score) => score.userId === player.userId,
+                        )?.scoreDelta;
 
                         return (
-                          <div
+                          <button
                             key={`${round.id}-${player.userId}`}
-                            className="flex items-center justify-center border-r border-b border-border px-2 py-3 text-center text-sm font-medium text-foreground/80"
+                            className={cn(
+                              "flex min-h-12 items-center justify-center border-r border-b border-border px-2 py-3 text-center text-sm font-medium text-foreground/80",
+                              isCreator &&
+                                !isCompleted &&
+                                "cursor-pointer hover:bg-background/70",
+                            )}
+                            disabled={
+                              !isCreator || isCompleted || isNoScoreMode
+                            }
+                            onClick={() =>
+                              openRoundScoreDialog({
+                                playerId: player.userId,
+                                roundNumber: round.roundNumber,
+                              })
+                            }
+                            type="button"
                           >
-                            {roundScore > 0 ? "+" : ""}
-                            {roundScore}
-                          </div>
+                            {roundScore === undefined
+                              ? "-"
+                              : `${roundScore > 0 ? "+" : ""}${roundScore}`}
+                          </button>
                         );
                       })}
                     </Fragment>

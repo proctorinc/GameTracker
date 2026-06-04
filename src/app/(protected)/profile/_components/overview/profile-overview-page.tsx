@@ -8,17 +8,26 @@ import type { ProfileOverviewPageData } from "./types";
 import { AdminToolsCard } from "./sections/admin-tools-card";
 import { ProfileDetailsCard } from "./sections/profile-details-card";
 import { ProfileHeroCard } from "./sections/profile-hero-card";
+import { ProfileOverviewTabs } from "./sections/profile-overview-tabs";
+import { ProfileStatsTab } from "./sections/profile-stats-tab";
 import { PublicProfileCard } from "./sections/public-profile-card";
 
 function ProfileOverviewContent() {
-  const { user } = useProfileOverview();
+  const { user, activeTab } = useProfileOverview();
   return (
     <div className="min-h-screen overflow-y-auto px-4 pb-40">
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <ProfileHeroCard />
-        <PublicProfileCard />
-        <ProfileDetailsCard />
-        {user.role === "admin" ? <AdminToolsCard /> : null}
+        <ProfileOverviewTabs />
+        {activeTab === "stats" ? (
+          <ProfileStatsTab />
+        ) : (
+          <>
+            <PublicProfileCard />
+            <ProfileDetailsCard />
+            {user.role === "admin" ? <AdminToolsCard /> : null}
+          </>
+        )}
       </div>
     </div>
   );

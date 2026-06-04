@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays, Trophy } from "lucide-react";
+import { ArrowRight, CalendarDays, Trophy } from "lucide-react";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Badge } from "@/components/ui/badge";
 import { CardEmpty } from "@/components/ui/card";
@@ -94,53 +94,94 @@ export default function GameHistoryList({
       {games.map((game) => {
         const didWin = game.winners.some((winner) => winner.userId === currentUserId);
         const winner = game.winners[0] ?? null;
+        const title = game.gameTitle;
+        const titleHref = title ? `/titles/${title.id}` : null;
 
         return (
-          <Link
+          <article
             key={game.id}
-            href={`/game/${game.id}/play`}
             className="rounded-[1.5rem] border border-border/80 bg-muted/40 p-4 transition-colors hover:bg-muted"
           >
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="min-w-0 flex-1 space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={game.completedAt ? "default" : "secondary"}>
-                    {game.completedAt ? "Completed" : "In progress"}
-                  </Badge>
-                  {didWin ? (
-                    <WinnerIndicator label="Won" />
-                  ) : null}
-                  {game.creatorId === currentUserId ? (
-                    <Badge variant="outline">Created by you</Badge>
-                  ) : null}
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="text-xl font-black">
-                    {game.gameTitle?.title ?? "New Game"}
-                  </h2>
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    {game.completedAt ? (
-                      <Trophy className="size-4" />
+              <div className="flex min-w-0 flex-1 gap-4">
+                {titleHref ? (
+                  <Link
+                    href={titleHref}
+                    className="relative block h-24 w-20 shrink-0 overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm transition-transform hover:scale-[1.02]"
+                    aria-label={`View ${title?.title ?? "game"} history`}
+                    title={`View ${title?.title ?? "game"} history`}
+                  >
+                    {title?.imageUrl ? (
+                      <div
+                        className="absolute inset-0 bg-cover bg-center"
+                        style={{ backgroundImage: `url("${title.imageUrl}")` }}
+                      />
                     ) : (
-                      <CalendarDays className="size-4" />
+                      <div
+                        className="absolute inset-0"
+                        style={{ backgroundColor: title?.color ?? "var(--muted)" }}
+                      />
                     )}
-                    <span>
-                      {formatDate(
-                        game.completedAt ?? game.createdAt,
-                        game.completedAt ? "Completed" : "Started",
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                    <div className="absolute inset-x-0 bottom-0 p-2">
+                      <span className="line-clamp-2 text-[11px] font-black leading-tight text-white">
+                        {title?.title ?? "New Game"}
+                      </span>
+                    </div>
+                  </Link>
+                ) : null}
+
+                <div className="min-w-0 flex-1 space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={game.completedAt ? "default" : "secondary"}>
+                      {game.completedAt ? "Completed" : "In progress"}
+                    </Badge>
+                    {didWin ? (
+                      <WinnerIndicator label="Won" />
+                    ) : null}
+                    {game.creatorId === currentUserId ? (
+                      <Badge variant="outline">Created by you</Badge>
+                    ) : null}
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      {titleHref ? (
+                        <Link
+                          href={titleHref}
+                          className="text-xl font-black transition-colors hover:text-primary"
+                        >
+                          {title?.title ?? "New Game"}
+                        </Link>
+                      ) : (
+                        <h2 className="text-xl font-black">
+                          {title?.title ?? "New Game"}
+                        </h2>
                       )}
+                    </div>
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                      {game.completedAt ? (
+                        <Trophy className="size-4" />
+                      ) : (
+                        <CalendarDays className="size-4" />
+                      )}
+                      <span>
+                        {formatDate(
+                          game.completedAt ?? game.createdAt,
+                          game.completedAt ? "Completed" : "Started",
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                    <PlayerStack players={game.players} currentUserId={currentUserId} />
+                    <span>
+                      {game.players
+                        .map((player) => getPlayerLabel(player, currentUserId))
+                        .join(", ")}
                     </span>
                   </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                  <PlayerStack players={game.players} currentUserId={currentUserId} />
-                  <span>
-                    {game.players
-                      .map((player) => getPlayerLabel(player, currentUserId))
-                      .join(", ")}
-                  </span>
                 </div>
               </div>
 
@@ -175,9 +216,16 @@ export default function GameHistoryList({
                     </p>
                   </div>
                 )}
+                <Link
+                  href={`/game/${game.id}/play`}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-background px-3 py-2 text-sm font-semibold transition-colors hover:bg-muted"
+                >
+                  Open game
+                  <ArrowRight className="size-4" />
+                </Link>
               </div>
             </div>
-          </Link>
+          </article>
         );
       })}
     </>

@@ -6,6 +6,4 @@ export * from "./friendship.store";
 export * from "./game-players.store";
 export * from "./game.store";
 export * from "./invitation.store";
-export * from "./otp-rate-limits.store";
-export * from "./session.store";
 export * from "./user.store";

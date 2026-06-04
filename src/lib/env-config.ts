@@ -22,47 +22,52 @@ export function resolveAppEnv(): AppEnv {
 const devDefaults = {
   APP_ENV: "development" as const,
   DATABASE_URL: "file:./data/dev.sqlite",
-  SESSION_SECRET: "dev-insecure-session-secret-do-not-use-in-production",
   NEXT_PUBLIC_APP_ENV: "development",
   DEV_SEED_MIN_USERS: "100",
+  CLERK_SIGN_IN_URL: "/login",
+  CLERK_SIGN_UP_URL: "/register",
 };
 
 const testDefaults = {
   APP_ENV: "test" as const,
   DATABASE_URL: "file:./data/test.sqlite",
-  SESSION_SECRET: "test-session-secret-for-tests-only",
   NEXT_PUBLIC_APP_ENV: "test",
+  CLERK_SIGN_IN_URL: "/login",
+  CLERK_SIGN_UP_URL: "/register",
 };
 
-const optionalTwilio = z.object({
-  TWILIO_ACCOUNT_SID: z.string().optional(),
-  TWILIO_AUTH_TOKEN: z.string().optional(),
-  TWILIO_VERIFY_SERVICE_SID: z.string().optional(),
+const optionalClerk = z.object({
+  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().optional(),
+  CLERK_SECRET_KEY: z.string().optional(),
+  CLERK_WEBHOOK_SIGNING_SECRET: z.string().optional(),
+  CLERK_SIGN_IN_URL: z.string().optional(),
+  CLERK_SIGN_UP_URL: z.string().optional(),
 });
 
 function isRemoteLibsqlUrl(databaseUrl: string): boolean {
-  return databaseUrl.startsWith("libsql://") || databaseUrl.startsWith("https://");
+  return (
+    databaseUrl.startsWith("libsql://") || databaseUrl.startsWith("https://")
+  );
 }
 
 const devSchema = z
   .object({
     APP_ENV: z.literal("development"),
     DATABASE_URL: z.string().min(1),
-    SESSION_SECRET: z.string().min(1),
     NEXT_PUBLIC_APP_ENV: z.literal("development"),
     DEV_SEED_MIN_USERS: z.coerce.number().int().positive().optional(),
     DEV_SEED_FORCE: z.enum(["0", "1"]).optional(),
     DEV_SEED_RESET: z.enum(["0", "1"]).optional(),
-    AUTH_MOCK_OTP: z.string().optional(),
     TURSO_AUTH_TOKEN: z.string().optional(),
   })
-  .merge(optionalTwilio)
+  .merge(optionalClerk)
   .superRefine((env, ctx) => {
     if (isRemoteLibsqlUrl(env.DATABASE_URL) && !env.TURSO_AUTH_TOKEN) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["TURSO_AUTH_TOKEN"],
-        message: "is required when DATABASE_URL points to a remote Turso/libSQL database",
+        message:
+          "is required when DATABASE_URL points to a remote Turso/libSQL database",
       });
     }
   });
@@ -71,18 +76,17 @@ const testSchema = z
   .object({
     APP_ENV: z.literal("test"),
     DATABASE_URL: z.string().min(1),
-    SESSION_SECRET: z.string().min(1),
     NEXT_PUBLIC_APP_ENV: z.literal("test"),
-    AUTH_MOCK_OTP: z.string().optional(),
     TURSO_AUTH_TOKEN: z.string().optional(),
   })
-  .merge(optionalTwilio)
+  .merge(optionalClerk)
   .superRefine((env, ctx) => {
     if (isRemoteLibsqlUrl(env.DATABASE_URL) && !env.TURSO_AUTH_TOKEN) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["TURSO_AUTH_TOKEN"],
-        message: "is required when DATABASE_URL points to a remote Turso/libSQL database",
+        message:
+          "is required when DATABASE_URL points to a remote Turso/libSQL database",
       });
     }
   });
@@ -90,11 +94,12 @@ const testSchema = z
 const prodSchema = z.object({
   APP_ENV: z.literal("production"),
   DATABASE_URL: z.string().min(1),
-  SESSION_SECRET: z.string().min(32, "must be at least 32 characters"),
-  TWILIO_ACCOUNT_SID: z.string().min(1),
-  TWILIO_AUTH_TOKEN: z.string().min(1),
-  TWILIO_VERIFY_SERVICE_SID: z.string().min(1),
+  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1),
+  CLERK_SECRET_KEY: z.string().min(1),
+  CLERK_WEBHOOK_SIGNING_SECRET: z.string().optional(),
   NEXT_PUBLIC_APP_ENV: z.literal("production").optional(),
+  CLERK_SIGN_IN_URL: z.string().optional(),
+  CLERK_SIGN_UP_URL: z.string().optional(),
   TURSO_AUTH_TOKEN: z.string().min(1),
 });
 
@@ -107,26 +112,30 @@ function readRawEnv(): Record<string, string | undefined> {
   return { ...process.env };
 }
 
-function applyDevDefaults(raw: Record<string, string | undefined>): Record<string, string | undefined> {
+function applyDevDefaults(raw: Record<string, string | undefined>) {
   return {
     ...devDefaults,
     ...raw,
     APP_ENV: "development",
-    NEXT_PUBLIC_APP_ENV: raw.NEXT_PUBLIC_APP_ENV ?? devDefaults.NEXT_PUBLIC_APP_ENV,
+    NEXT_PUBLIC_APP_ENV:
+      raw.NEXT_PUBLIC_APP_ENV ?? devDefaults.NEXT_PUBLIC_APP_ENV,
     DATABASE_URL: raw.DATABASE_URL ?? devDefaults.DATABASE_URL,
-    SESSION_SECRET: raw.SESSION_SECRET ?? devDefaults.SESSION_SECRET,
     DEV_SEED_MIN_USERS: raw.DEV_SEED_MIN_USERS ?? devDefaults.DEV_SEED_MIN_USERS,
+    CLERK_SIGN_IN_URL: raw.CLERK_SIGN_IN_URL ?? devDefaults.CLERK_SIGN_IN_URL,
+    CLERK_SIGN_UP_URL: raw.CLERK_SIGN_UP_URL ?? devDefaults.CLERK_SIGN_UP_URL,
   };
 }
 
-function applyTestDefaults(raw: Record<string, string | undefined>): Record<string, string | undefined> {
+function applyTestDefaults(raw: Record<string, string | undefined>) {
   return {
     ...testDefaults,
     ...raw,
     APP_ENV: "test",
-    NEXT_PUBLIC_APP_ENV: raw.NEXT_PUBLIC_APP_ENV ?? testDefaults.NEXT_PUBLIC_APP_ENV,
+    NEXT_PUBLIC_APP_ENV:
+      raw.NEXT_PUBLIC_APP_ENV ?? testDefaults.NEXT_PUBLIC_APP_ENV,
     DATABASE_URL: raw.DATABASE_URL ?? testDefaults.DATABASE_URL,
-    SESSION_SECRET: raw.SESSION_SECRET ?? testDefaults.SESSION_SECRET,
+    CLERK_SIGN_IN_URL: raw.CLERK_SIGN_IN_URL ?? testDefaults.CLERK_SIGN_IN_URL,
+    CLERK_SIGN_UP_URL: raw.CLERK_SIGN_UP_URL ?? testDefaults.CLERK_SIGN_UP_URL,
   };
 }
 
@@ -142,32 +151,58 @@ function formatZodEnvError(appEnv: AppEnv, error: z.ZodError): string {
   ].join("\n");
 }
 
+function syncOptionalEnv(name: string, value?: string) {
+  if (value) {
+    process.env[name] = value;
+  } else {
+    delete process.env[name];
+  }
+}
+
 function syncToProcessEnv(config: AppEnvConfig): void {
   process.env.APP_ENV = config.APP_ENV;
   process.env.DATABASE_URL = config.DATABASE_URL;
-  process.env.SESSION_SECRET = config.SESSION_SECRET;
 
   if ("NEXT_PUBLIC_APP_ENV" in config && config.NEXT_PUBLIC_APP_ENV) {
     process.env.NEXT_PUBLIC_APP_ENV = config.NEXT_PUBLIC_APP_ENV;
   }
 
-  if (config.APP_ENV === "development" && "DEV_SEED_MIN_USERS" in config && config.DEV_SEED_MIN_USERS) {
+  if (
+    config.APP_ENV === "development" &&
+    "DEV_SEED_MIN_USERS" in config &&
+    config.DEV_SEED_MIN_USERS
+  ) {
     process.env.DEV_SEED_MIN_USERS = String(config.DEV_SEED_MIN_USERS);
   }
 
   if ("TURSO_AUTH_TOKEN" in config) {
-    if (config.TURSO_AUTH_TOKEN) {
-      process.env.TURSO_AUTH_TOKEN = config.TURSO_AUTH_TOKEN;
-    } else {
-      delete process.env.TURSO_AUTH_TOKEN;
-    }
+    syncOptionalEnv("TURSO_AUTH_TOKEN", config.TURSO_AUTH_TOKEN);
   }
 
-  if (config.APP_ENV === "production") {
-    const prod = config as ProdEnv;
-    process.env.TWILIO_ACCOUNT_SID = prod.TWILIO_ACCOUNT_SID;
-    process.env.TWILIO_AUTH_TOKEN = prod.TWILIO_AUTH_TOKEN;
-    process.env.TWILIO_VERIFY_SERVICE_SID = prod.TWILIO_VERIFY_SERVICE_SID;
+  if ("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" in config) {
+    syncOptionalEnv(
+      "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+      config.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+    );
+  }
+
+  if ("CLERK_SECRET_KEY" in config) {
+    syncOptionalEnv("CLERK_SECRET_KEY", config.CLERK_SECRET_KEY);
+  }
+
+  if ("CLERK_WEBHOOK_SIGNING_SECRET" in config) {
+    syncOptionalEnv(
+      "CLERK_WEBHOOK_SIGNING_SECRET",
+      config.CLERK_WEBHOOK_SIGNING_SECRET,
+    );
+  }
+
+  if ("CLERK_SIGN_IN_URL" in config) {
+    syncOptionalEnv("CLERK_SIGN_IN_URL", config.CLERK_SIGN_IN_URL);
+  }
+
+  if ("CLERK_SIGN_UP_URL" in config) {
+    syncOptionalEnv("CLERK_SIGN_UP_URL", config.CLERK_SIGN_UP_URL);
   }
 }
 
@@ -202,11 +237,13 @@ export function validateEnv(force = false): AppEnvConfig {
         ...raw,
         APP_ENV: "production",
         DATABASE_URL: raw.DATABASE_URL,
-        SESSION_SECRET: raw.SESSION_SECRET,
-        TWILIO_ACCOUNT_SID: raw.TWILIO_ACCOUNT_SID,
-        TWILIO_AUTH_TOKEN: raw.TWILIO_AUTH_TOKEN,
-        TWILIO_VERIFY_SERVICE_SID: raw.TWILIO_VERIFY_SERVICE_SID,
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:
+          raw.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+        CLERK_SECRET_KEY: raw.CLERK_SECRET_KEY,
+        CLERK_WEBHOOK_SIGNING_SECRET: raw.CLERK_WEBHOOK_SIGNING_SECRET,
         NEXT_PUBLIC_APP_ENV: raw.NEXT_PUBLIC_APP_ENV ?? "production",
+        CLERK_SIGN_IN_URL: raw.CLERK_SIGN_IN_URL,
+        CLERK_SIGN_UP_URL: raw.CLERK_SIGN_UP_URL,
         TURSO_AUTH_TOKEN: raw.TURSO_AUTH_TOKEN,
       });
       break;
@@ -227,4 +264,21 @@ export function validateEnv(force = false): AppEnvConfig {
 /** Validated environment (throws on first access if invalid). */
 export function getEnv(): AppEnvConfig {
   return validateEnv();
+}
+
+/**
+ * Route-level validation for Clerk webhooks.
+ * Keep this separate from global env validation so production builds can
+ * complete even when the webhook endpoint is not configured in a given deploy.
+ */
+export function getClerkWebhookSigningSecret(): string {
+  const secret = process.env.CLERK_WEBHOOK_SIGNING_SECRET?.trim();
+
+  if (!secret) {
+    throw new Error(
+      'Missing environment variable "CLERK_WEBHOOK_SIGNING_SECRET" required for Clerk webhooks.',
+    );
+  }
+
+  return secret;
 }

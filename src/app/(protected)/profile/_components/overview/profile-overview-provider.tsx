@@ -8,9 +8,13 @@ import {
 } from "react";
 import type { ProfileOverviewPageData, ProfileOverviewUser } from "./types";
 
+type ProfileOverviewTab = "stats" | "settings";
+
 type ProfileOverviewContextValue = {
   data: ProfileOverviewPageData;
   user: ProfileOverviewUser;
+  activeTab: ProfileOverviewTab;
+  setActiveTab: (tab: ProfileOverviewTab) => void;
   patchUser: (nextUser: Partial<ProfileOverviewUser>) => void;
 };
 
@@ -22,10 +26,13 @@ export function ProfileOverviewProvider({
   children,
 }: PropsWithChildren<{ initialData: ProfileOverviewPageData }>) {
   const [data, setData] = useState(initialData);
+  const [activeTab, setActiveTab] = useState<ProfileOverviewTab>("stats");
 
   const value: ProfileOverviewContextValue = {
     data,
     user: data.user,
+    activeTab,
+    setActiveTab,
     patchUser(nextUser) {
       setData((current) => ({
         ...current,

@@ -13,7 +13,7 @@ describe("validateEnv", () => {
     const env = validateEnv(true);
     expect(env.APP_ENV).toBe("development");
     expect(env.DATABASE_URL).toBe("file:./data/dev.sqlite");
-    expect(env.SESSION_SECRET).toContain("dev-insecure");
+    expect(env.CLERK_SIGN_IN_URL).toBe("/login");
   });
 
   it("does not infer production from NODE_ENV alone", () => {
@@ -28,8 +28,10 @@ describe("validateEnv", () => {
       /Invalid environment configuration for "production"/,
     );
     expect(() => validateEnv(true)).toThrow(/DATABASE_URL/);
-    expect(() => validateEnv(true)).toThrow(/SESSION_SECRET/);
-    expect(() => validateEnv(true)).toThrow(/TWILIO_ACCOUNT_SID/);
+    expect(() => validateEnv(true)).toThrow(
+      /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY/,
+    );
+    expect(() => validateEnv(true)).toThrow(/CLERK_SECRET_KEY/);
   });
 
   it("accepts valid production config", () => {
@@ -37,15 +39,14 @@ describe("validateEnv", () => {
       APP_ENV: "production",
       NODE_ENV: "production",
       DATABASE_URL: "file:./data/prod.sqlite",
-      SESSION_SECRET: "a".repeat(32),
-      TWILIO_ACCOUNT_SID: "ACtest",
-      TWILIO_AUTH_TOKEN: "token",
-      TWILIO_VERIFY_SERVICE_SID: "VATEST",
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_123",
+      CLERK_SECRET_KEY: "sk_test_123",
+      CLERK_WEBHOOK_SIGNING_SECRET: "whsec_test_123",
       TURSO_AUTH_TOKEN: "turso-token",
     };
     const env = validateEnv(true);
     expect(env.APP_ENV).toBe("production");
-    expect(env.TWILIO_ACCOUNT_SID).toBe("ACtest");
+    expect(env.CLERK_SECRET_KEY).toBe("sk_test_123");
   });
 
   it("applies test defaults", () => {
@@ -60,14 +61,15 @@ describe("validateEnv", () => {
       APP_ENV: "test",
       NODE_ENV: "test",
       DATABASE_URL: "libsql://skybo-test.turso.io",
-      SESSION_SECRET: "test-session-secret-for-tests-only",
       NEXT_PUBLIC_APP_ENV: "test",
       TURSO_AUTH_TOKEN: "turso-test-token",
     };
     const env = validateEnv(true);
     expect(env.APP_ENV).toBe("test");
     expect(env.DATABASE_URL).toBe("libsql://skybo-test.turso.io");
-    expect("TURSO_AUTH_TOKEN" in env && env.TURSO_AUTH_TOKEN).toBe("turso-test-token");
+    expect("TURSO_AUTH_TOKEN" in env && env.TURSO_AUTH_TOKEN).toBe(
+      "turso-test-token",
+    );
   });
 
   it("rejects remote test config without a Turso auth token", () => {
@@ -75,7 +77,6 @@ describe("validateEnv", () => {
       APP_ENV: "test",
       NODE_ENV: "test",
       DATABASE_URL: "libsql://skybo-test.turso.io",
-      SESSION_SECRET: "test-session-secret-for-tests-only",
       NEXT_PUBLIC_APP_ENV: "test",
     };
     expect(() => validateEnv(true)).toThrow(/TURSO_AUTH_TOKEN/);

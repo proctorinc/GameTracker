@@ -17,13 +17,6 @@ export function RecentlyPlayedSection() {
 
   return (
     <div className="flex flex-col gap-4 w-full overflow-y-visible">
-      <CardHeader className="flex flex-row items-center justify-between gap-3 w-full overflow-y-visible">
-        <CardTitle>Recently played</CardTitle>
-        <Link href="/titles" className={sectionActionClassName}>
-          View all
-          <ArrowRight />
-        </Link>
-      </CardHeader>
       <CardContent className="overflow-visible px-0">
         {recentGameTitles.length === 0 ? (
           <CardEmpty className="flex flex-col items-center gap-3">
@@ -43,7 +36,7 @@ export function RecentlyPlayedSection() {
                 <div
                   key={`title=${gameTitle.id}`}
                   className={cn(
-                    "relative flex aspect-square h-40 shrink-0 flex-col justify-between overflow-hidden rounded-2xl border border-none shadow-lg",
+                    "relative flex aspect-square h-[30vh] shrink-0 flex-col justify-between overflow-hidden rounded-2xl border border-none shadow-lg",
                   )}
                   style={{ backgroundColor: gameTitle.color }}
                 >

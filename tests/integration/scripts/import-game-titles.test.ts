@@ -35,9 +35,8 @@ async function withScriptTestDatabase(run: () => Promise<void>, name: string) {
     process.env.NODE_ENV = "test";
     process.env.NEXT_PUBLIC_APP_ENV = "test";
     process.env.DATABASE_URL = databaseUrl;
-    process.env.SESSION_SECRET =
-      "test-session-secret-for-integration-tests-1234567890";
-    process.env.AUTH_MOCK_OTP = "123456";
+    process.env.CLERK_SIGN_IN_URL = "/login";
+    process.env.CLERK_SIGN_UP_URL = "/register";
     vi.resetModules();
 
     await run();

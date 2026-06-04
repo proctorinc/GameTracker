@@ -19,9 +19,6 @@ export type UserWithCreatedBy = UserBase & {
 export type UserWithCards = UserBase & {
   cards: Array<typeof db._.fullSchema.cards.$inferSelect>;
 };
-export type UserWithSessions = UserBase & {
-  sessions: Array<typeof db._.fullSchema.sessions.$inferSelect>;
-};
 export type UserWithCardDrops = UserBase & {
   cardDrops: Array<typeof db._.fullSchema.cardDrops.$inferSelect>;
 };
@@ -39,7 +36,6 @@ export type UserFull = UserBase & {
   activeProfileCard: typeof db._.fullSchema.cards.$inferSelect | null;
   createdBy: UserBase | null;
   cards: Array<typeof db._.fullSchema.cards.$inferSelect>;
-  sessions: Array<typeof db._.fullSchema.sessions.$inferSelect>;
   cardDrops: Array<typeof db._.fullSchema.cardDrops.$inferSelect>;
   gamePlayers: Array<typeof db._.fullSchema.gamePlayers.$inferSelect>;
   createdGames: GameFull[];
@@ -55,10 +51,6 @@ export type UserFullRow = UserBase & {
 
 function nowIso() {
   return new Date().toISOString();
-}
-
-export function isPhoneVerified(user: Pick<UserBase, "phone_verified_at">) {
-  return Boolean(user.phone_verified_at);
 }
 
 export async function createUser(input: UserInsert): Promise<UserBase> {
@@ -101,7 +93,10 @@ export async function getUserWithProfileCard(
     where: eq(cards.id, user.profileCardId ?? ""),
   });
 
-  return { ...user, activeProfileCard: profileCard } as any;
+  return {
+    ...user,
+    activeProfileCard: profileCard,
+  };
 }
 
 export async function getUserByPhoneNumber(
@@ -109,6 +104,24 @@ export async function getUserByPhoneNumber(
 ): Promise<UserBase | null> {
   const user = await db.query.users.findFirst({
     where: eq(users.phoneNumber, phoneNumber),
+  });
+
+  return user ?? null;
+}
+
+export async function getUserByEmail(email: string): Promise<UserBase | null> {
+  const user = await db.query.users.findFirst({
+    where: eq(users.email, email),
+  });
+
+  return user ?? null;
+}
+
+export async function getUserByClerkUserId(
+  clerkUserId: string,
+): Promise<UserBase | null> {
+  const user = await db.query.users.findFirst({
+    where: eq(users.clerkUserId, clerkUserId),
   });
 
   return user ?? null;
@@ -249,55 +262,6 @@ export async function updateUser(
 export async function deleteUser(id: string): Promise<UserBase | null> {
   const [user] = await db.delete(users).where(eq(users.id, id)).returning();
   return user ?? null;
-}
-
-export async function createVerifiedUserWithGroup(
-  phoneNumber: string,
-  profile?: {
-    firstName?: string;
-    lastName?: string;
-  },
-): Promise<UserBase> {
-  return createUser({
-    phoneNumber,
-    firstName: profile?.firstName ?? null,
-    lastName: profile?.lastName ?? null,
-    phone_verified_at: nowIso(),
-    isProfileComplete: false,
-    isGuest: false,
-  });
-}
-
-export async function markPhoneVerified(
-  userId: string,
-): Promise<UserBase | null> {
-  return updateUser(userId, {
-    phone_verified_at: nowIso(),
-  });
-}
-
-export async function ensureUserVerifiedAfterOtp(
-  phoneNumber: string,
-  profile?: {
-    firstName?: string;
-    lastName?: string;
-  },
-): Promise<UserBase> {
-  const existing = await getUserByPhoneNumber(phoneNumber);
-  if (!existing) {
-    return createVerifiedUserWithGroup(phoneNumber, profile);
-  }
-
-  if (isPhoneVerified(existing)) {
-    return existing;
-  }
-
-  const verified = await markPhoneVerified(existing.id);
-  if (!verified) {
-    throw new Error("Failed to verify user");
-  }
-
-  return verified;
 }
 
 export async function updateUserProfile(

@@ -14,6 +14,7 @@ import {
   getUserById,
   invitations,
 } from "@/lib/db/store";
+import type { PublicProfileSummaryData } from "../profile-types";
 
 function formatDisplayName(input: {
   firstName: string | null;
@@ -35,41 +36,16 @@ export type PublicProfileViewerState =
     };
 
 export type PublicProfilePageData = {
-  profile: {
-    id: string;
-    firstName: string | null;
-    lastName: string | null;
-    color: string;
-    createdAt: string | null;
-    displayName: string;
-  };
-  bestFriend: {
-    id: string;
-    firstName: string | null;
-    lastName: string | null;
-    color: string;
-    displayName: string;
-    gamesPlayedTogether: number;
-    lastPlayedAt: string | null;
-  } | null;
+  profile: PublicProfileSummaryData["profile"];
+  bestFriend: PublicProfileSummaryData["bestFriend"];
   viewerState: PublicProfileViewerState;
-  stats: {
-    friendCount: number;
-    gamesPlayed: number;
-    gamesWon: number;
-    winRate: number | null;
-    gamesHosted: number;
-    titlesPlayed: number;
-    favoriteTitle: string | null;
-    favoriteTitleCount: number;
-    lastPlayedAt: string | null;
-  };
+  stats: PublicProfileSummaryData["stats"];
 };
 
 export async function getPublicProfilePageData(
   profileId: string,
 ): Promise<PublicProfilePageData | null> {
-  const profileData = await getPublicProfileDataCached(profileId);
+  const profileData = await getPublicProfileSummaryData(profileId);
 
   if (!profileData) {
     return null;
@@ -84,9 +60,9 @@ export async function getPublicProfilePageData(
   };
 }
 
-async function getPublicProfileDataCached(
+export async function getPublicProfileSummaryData(
   profileId: string,
-): Promise<Omit<PublicProfilePageData, "viewerState"> | null> {
+): Promise<PublicProfileSummaryData | null> {
   return unstable_cache(
     async () => {
       const profileUser = await getUserById(profileId);

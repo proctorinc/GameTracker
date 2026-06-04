@@ -1,10 +1,8 @@
-import { cookies } from "next/headers";
+import { auth, clerkClient, currentUser } from "@clerk/nextjs/server";
 import { UnauthorizedError, type AuthUser } from "./session";
-import { isValidSession } from "./protected-session";
-import { hashTokenWithSecret } from "./tokens";
-import { getSessionByTokenHash } from "../db/store/session.store";
 import { type UserBase } from "../db/store/user.store";
 import { getAcceptedFriendshipsByUserId } from "../db/store/friendship.store";
+import { upsertLocalUserFromClerkUser } from "./clerk-user";
 import { logError, logInfo, logWarn } from "../server-log";
 import { getServerRequestContext } from "../server-request-context";
 
@@ -33,36 +31,36 @@ export async function loadCurrentUser(): Promise<AuthUser> {
 
 export async function loadOptionalCurrentUser(): Promise<AuthUser | null> {
   const requestContext = await getServerRequestContext();
-  const cookieStore = await cookies();
-  const sessionToken = cookieStore.get("app_session")?.value;
+  const { userId } = await auth();
 
-  if (!sessionToken) {
+  if (!userId) {
     logInfo("auth.optional_current_user.missing", {
       ...requestContext,
-      reason: "missing_session_cookie",
+      reason: "missing_clerk_user",
     });
     return null;
   }
 
-  const session = await getSessionByTokenHash(hashTokenWithSecret(sessionToken));
+  const backendUser =
+    (await currentUser()) ?? (await (await clerkClient()).users.getUser(userId));
 
-  if (!session || !isValidSession(session)) {
+  if (!backendUser) {
     logWarn("auth.optional_current_user.rejected", {
       ...requestContext,
-      reason: !session ? "invalid_session" : "expired_session",
-      sessionId: session?.id ?? null,
-      userId: session?.user.id ?? null,
+      reason: "missing_clerk_backend_user",
+      userId,
     });
     return null;
   }
 
-  // Return user base data - we don't load relations here to avoid "referencedTable" errors
+  const localUser = await upsertLocalUserFromClerkUser(backendUser);
+
   logInfo("auth.optional_current_user.succeeded", {
     ...requestContext,
-    sessionId: session.id,
-    userId: session.user.id,
+    clerkUserId: backendUser.id,
+    userId: localUser.id,
   });
-  return session.user;
+  return localUser;
 }
 
 /**

@@ -24,6 +24,7 @@ export async function getFriendsOverviewPageData() {
       incomingInvitationCount: data.incomingInvitations.length,
       outgoingInvitationCount: data.outgoingInvitations.length,
       recentEntryCount: data.recentlyPlayedWith.length,
+      activityCount: data.friendActivity.length,
     });
 
     return {

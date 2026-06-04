@@ -4,6 +4,7 @@ import type { FriendsPageData } from "@/app/actions/pages/friends";
 import { FriendsPageProvider, useFriendsPage } from "./friends-page-provider";
 import { GuestActionsDialog } from "./dialogs/guest-actions-dialog";
 import { RemoveFriendDialog } from "./dialogs/remove-friend-dialog";
+import { ActivityTabContent } from "./sections/activity-tab-content";
 import { FriendsPageHeader } from "./sections/friends-page-header";
 import { FriendsTabContent } from "./sections/friends-tab-content";
 import { FriendsTabs } from "./sections/friends-tabs";
@@ -24,9 +25,21 @@ function FriendsPageContent() {
       <div className="mx-auto flex w-full max-w-md flex-col gap-4">
         <FriendsPageHeader />
         <FriendsTabs />
-        <AddFriendCard />
-        <InviteNotices />
-        {activeTab === "friends" ? <FriendsTabContent /> : <InvitationsCard />}
+        {activeTab === "activity" ? <ActivityTabContent /> : null}
+        {activeTab === "friends" ? (
+          <>
+            <AddFriendCard />
+            <InviteNotices />
+            <FriendsTabContent />
+          </>
+        ) : null}
+        {activeTab === "invitations" ? (
+          <>
+            <AddFriendCard />
+            <InviteNotices />
+            <InvitationsCard />
+          </>
+        ) : null}
       </div>
 
       <GuestActionsDialog />

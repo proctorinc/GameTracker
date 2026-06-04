@@ -15,6 +15,13 @@
       "when": 1780290241604,
       "tag": "0001_bizarre_shiva",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1780587740816,
+      "tag": "0002_nasty_namor",
+      "breakpoints": true
     }
   ]
 }

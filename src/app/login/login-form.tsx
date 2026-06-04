@@ -1,123 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { getPostLoginPath } from "@/lib/auth/post-login-path";
+import { SignIn } from "@clerk/nextjs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from "@/components/ui/input-otp";
-import { PhoneNumberInput } from "@/components/ui/phone-number-input";
-import { toast } from "sonner";
+type LoginFormProps = {
+  fallbackRedirectUrl: string;
+};
 
-const IS_DEV = process.env.NEXT_PUBLIC_APP_ENV === "development";
-
-interface LoginFormState {
-  phone: string;
-  otpCode: string;
-}
-
-export default function LoginForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [step, setStep] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [formData, setFormData] = useState<LoginFormState>({
-    phone: IS_DEV ? "15550009999" : "",
-    otpCode: "",
-  });
-
-  async function loginWithPhone(phone: string, code?: string) {
-    setLoading(true);
-    setError(null);
-
-    try {
-      if (!IS_DEV) {
-        const requestRes = await fetch("/api/auth/otp/request", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone }),
-        });
-        const requestData = await requestRes.json();
-        if (!requestRes.ok) {
-          throw new Error(
-            requestData.error || "Failed to send verification code",
-          );
-        }
-      }
-
-      const verifyRes = await fetch("/api/auth/otp/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, code: code ?? "000000" }),
-      });
-
-      const verifyData = await verifyRes.json();
-
-      if (!verifyRes.ok) {
-        throw new Error(verifyData.error || "Failed to sign in");
-      }
-
-      router.push(
-        getPostLoginPath({
-          requestedPath: searchParams.get("from"),
-          hasPendingInvitations: Boolean(verifyData.hasPendingInvitations),
-        }),
-      );
-      router.refresh();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to sign in");
-      setError(err instanceof Error ? err.message : "Failed to sign in");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handlePhoneSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!formData.phone) return;
-
-    if (IS_DEV) {
-      await loginWithPhone(formData.phone);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch("/api/auth/otp/request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: formData.phone }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to send verification code");
-      }
-
-      setStep(2);
-    } catch (err: unknown) {
-      toast.error("Failed to send verification code");
-      setError(
-        err instanceof Error ? err.message : "Failed to send verification code",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleOtpVerify(e: React.FormEvent) {
-    e.preventDefault();
-    if (!formData.phone) return;
-    await loginWithPhone(formData.phone, formData.otpCode);
-  }
+export default function LoginForm({ fallbackRedirectUrl }: LoginFormProps) {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
@@ -127,79 +16,13 @@ export default function LoginForm() {
         </CardHeader>
 
         <CardContent>
-          {error && (
-            <div
-              className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4"
-              data-testid="login-error"
-            >
-              {error}
-            </div>
-          )}
-
-          {step === 1 || IS_DEV ? (
-            <form onSubmit={handlePhoneSubmit} className="space-y-4">
-              <label className="mb-2 block text-sm font-medium text-foreground">
-                Phone Number
-              </label>
-              <PhoneNumberInput
-                autoFocus
-                value={formData.phone}
-                data-testid="login-phone"
-                onChange={(value) => setFormData({ ...formData, phone: value })}
-                required
-              />
-              <Button type="submit" disabled={loading} className="w-full">
-                {loading ? "Signing in…" : IS_DEV ? "Sign in" : "Send Code"}
-              </Button>
-
-              {!IS_DEV && (
-                <p className="mt-4 text-center text-sm text-muted-foreground">
-                  We will send a 6-digit code via SMS.
-                </p>
-              )}
-            </form>
-          ) : (
-            <form onSubmit={handleOtpVerify} className="space-y-4">
-              <label className="mb-2 block text-sm font-medium text-foreground">
-                Verification Code
-              </label>
-              <InputOTP
-                type="number"
-                autoFocus
-                maxLength={6}
-                value={formData.otpCode}
-                className="w-full"
-                containerClassName="w-full"
-                data-testid="login-otp"
-                onChange={(value) =>
-                  setFormData({ ...formData, otpCode: value })
-                }
-              >
-                <InputOTPGroup className="grid w-full grid-cols-6 *:data-[slot=input-otp-slot]:h-12 *:data-[slot=input-otp-slot]:w-full *:data-[slot=input-otp-slot]:text-xl">
-                  <InputOTPSlot index={0} />
-                  <InputOTPSlot index={1} />
-                  <InputOTPSlot index={2} />
-                  <InputOTPSlot index={3} />
-                  <InputOTPSlot index={4} />
-                  <InputOTPSlot index={5} />
-                </InputOTPGroup>
-              </InputOTP>
-              <Button type="submit" disabled={loading} className="w-full">
-                {loading ? "Verifying…" : "Verify Code"}
-              </Button>
-
-              <p className="mt-4 text-center text-sm text-muted-foreground">
-                Didn&apos;t receive the code?{" "}
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="text-primary hover:underline"
-                >
-                  Resend
-                </button>
-              </p>
-            </form>
-          )}
+          <SignIn
+            path="/login"
+            routing="path"
+            signUpUrl="/register"
+            withSignUp
+            fallbackRedirectUrl={fallbackRedirectUrl}
+          />
         </CardContent>
       </Card>
     </div>

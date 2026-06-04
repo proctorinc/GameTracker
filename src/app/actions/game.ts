@@ -593,10 +593,11 @@ export async function upsertActiveRoundScore(input: {
       meta.roundNumber = activeRoundNumber;
       meta.createdScore = !existingScore;
       meta.normalizedScoreDelta = normalizedDelta;
+      meta.previousScoreDelta = existingScore?.scoreDelta ?? 0;
 
       if (existingScore) {
         await updateGameRoundScore(existingScore.id, {
-          scoreDelta: existingScore.scoreDelta + normalizedDelta,
+          scoreDelta: normalizedDelta,
         });
       } else {
         await createGameRoundScores({
@@ -611,7 +612,7 @@ export async function upsertActiveRoundScore(input: {
       }
 
       const result = await updateGamePlayer(player.id, {
-        score: player.score + normalizedDelta,
+        score: player.score + (normalizedDelta - (existingScore?.scoreDelta ?? 0)),
       });
 
       revalidateDashboardPages(getDashboardUserIdsForGame(game));
@@ -620,6 +621,95 @@ export async function upsertActiveRoundScore(input: {
     },
     (result) => ({
       gamePlayerId: result?.id ?? null,
+      updatedScore: result?.score ?? null,
+    }),
+  );
+}
+
+export async function updateRecordedRoundScore(input: {
+  gameId: string;
+  roundNumber: number;
+  userId: string;
+  scoreDelta: number;
+}) {
+  const meta: LogMeta = {
+    gameId: input.gameId,
+    roundNumber: input.roundNumber,
+    subjectUserId: input.userId,
+    scoreDelta: input.scoreDelta,
+    actorUserId: null,
+  };
+
+  return runGameAction(
+    "round_score.recorded.update",
+    meta,
+    async () => {
+      const { user, game } = await requireGameCreator(input.gameId);
+      meta.actorUserId = user.id;
+
+      if (game.completedAt) {
+        throw new Error("Game is already complete");
+      }
+
+      if (!Number.isFinite(input.scoreDelta)) {
+        throw new Error("Round scores must be valid numbers");
+      }
+
+      const normalizedDelta = Math.trunc(input.scoreDelta);
+      const player = game.players.find((entry) => entry.userId === input.userId);
+
+      if (!player) {
+        throw new Error("Game player not found");
+      }
+
+      const round =
+        game.rounds.find((entry) => entry.roundNumber === input.roundNumber) ??
+        (await getGameRoundByGameAndNumber({
+          gameId: game.id,
+          roundNumber: input.roundNumber,
+        }));
+
+      if (!round) {
+        throw new Error("Round not found");
+      }
+
+      const existingScore =
+        round.scores.find((score) => score.userId === input.userId) ??
+        (await getGameRoundScoreByRoundAndUser({
+          gameRoundId: round.id,
+          userId: input.userId,
+        }));
+
+      meta.roundId = round.id;
+      meta.createdScore = !existingScore;
+      meta.previousScoreDelta = existingScore?.scoreDelta ?? 0;
+      meta.normalizedScoreDelta = normalizedDelta;
+
+      if (existingScore) {
+        await updateGameRoundScore(existingScore.id, {
+          scoreDelta: normalizedDelta,
+        });
+      } else {
+        await createGameRoundScores({
+          gameRoundId: round.id,
+          scores: [
+            {
+              userId: input.userId,
+              scoreDelta: normalizedDelta,
+            },
+          ],
+        });
+      }
+
+      const result = await updateGamePlayer(player.id, {
+        score: player.score + (normalizedDelta - (existingScore?.scoreDelta ?? 0)),
+      });
+
+      revalidateDashboardPages(getDashboardUserIdsForGame(game));
+      revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
+      return result;
+    },
+    (result) => ({
       updatedScore: result?.score ?? null,
     }),
   );

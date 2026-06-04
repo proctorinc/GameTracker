@@ -1,23 +1,15 @@
 "use client";
 
-import { deleteCreatedGame, updateGameSettings } from "@/app/actions/game";
+import { updateGameSettings } from "@/app/actions/game";
 import GameSettingsFields, {
   type EditableGameSettings,
 } from "@/components/game/game-settings-fields";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { formatResolvedEndingSummary } from "@/lib/game/title-defaults";
 import type { GameForPlayPage } from "@/lib/db/store/game.store";
-import { ArrowLeft, ChevronDown, LoaderCircle, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
@@ -69,11 +61,9 @@ function areSettingsEqual(
 export default function GameSettingsPage({ game }: { game: GameForPlayPage }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [isDeletePending, startDeleteTransition] = useTransition();
   const initialSettings = useMemo(() => toEditableSettings(game), [game]);
   const [settings, setSettings] =
     useState<EditableGameSettings>(initialSettings);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const gameHasStarted = hasRecordedGameActivity(game);
   const disableScoringModeSelection = gameHasStarted;
@@ -132,21 +122,6 @@ export default function GameSettingsPage({ game }: { game: GameForPlayPage }) {
       } catch (error) {
         toast.error(
           error instanceof Error ? error.message : "Could not update settings",
-        );
-      }
-    });
-  }
-
-  function handleDelete() {
-    startDeleteTransition(async () => {
-      try {
-        await deleteCreatedGame({ gameId: game.id });
-        toast.success("Game deleted");
-        router.push("/dashboard");
-        router.refresh();
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "Could not delete game",
         );
       }
     });
@@ -272,7 +247,7 @@ export default function GameSettingsPage({ game }: { game: GameForPlayPage }) {
             <div className="flex gap-3">
               <Button
                 className="flex-1"
-                disabled={!hasChanges || isPending || isDeletePending}
+                disabled={!hasChanges || isPending}
                 onClick={handleReset}
                 type="button"
                 variant="outline"
@@ -284,8 +259,7 @@ export default function GameSettingsPage({ game }: { game: GameForPlayPage }) {
                 disabled={
                   Boolean(game.completedAt) ||
                   !hasChanges ||
-                  isPending ||
-                  isDeletePending
+                  isPending
                 }
                 onClick={handleSave}
                 type="button"
@@ -296,58 +270,7 @@ export default function GameSettingsPage({ game }: { game: GameForPlayPage }) {
             </div>
           </CardContent>
         </Card>
-
-        <Card className="border-destructive/20">
-          <CardHeader>
-            <CardTitle className="text-xl font-black">Delete game</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Delete removes the game, its players, rounds, and scores
-              permanently. Completed games can’t be deleted from here.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <Button
-              className="w-full"
-              disabled={
-                Boolean(game.completedAt) || isPending || isDeletePending
-              }
-              onClick={() => setIsDeleteDialogOpen(true)}
-              type="button"
-              variant="destructive"
-            >
-              <Trash2 className="size-4" />
-              Delete game
-            </Button>
-          </CardContent>
-        </Card>
       </div>
-
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="max-w-[calc(100%-1.5rem)] rounded-[2rem] p-5">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-black">
-              Delete this game?
-            </DialogTitle>
-            <DialogDescription className="text-base">
-              This permanently removes the game and all recorded progress. This
-              can’t be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="bg-transparent p-0 pt-2" showCloseButton>
-            <Button
-              disabled={isDeletePending}
-              onClick={handleDelete}
-              type="button"
-              variant="destructive"
-            >
-              {isDeletePending ? (
-                <LoaderCircle className="animate-spin" />
-              ) : null}
-              Delete game
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

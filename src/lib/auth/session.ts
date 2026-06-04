@@ -1,12 +1,6 @@
-export interface AuthUser {
-  id: string;
-  role: "user" | "admin";
-  phoneNumber: string | null;
-  firstName: string | null;
-  lastName: string | null;
-  phone_verified_at: string | null;
-  isProfileComplete: boolean;
-}
+import type { UserBase } from "@/lib/db/store/user.store";
+
+export type AuthUser = UserBase;
 
 /**
  * Session validation errors. Use specific messages for better logging/monitoring.

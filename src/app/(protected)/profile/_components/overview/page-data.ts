@@ -4,6 +4,7 @@ import { unstable_cache } from "next/cache";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
 import { getProfileOverviewTag, getPublicProfileTag } from "@/lib/cache-tags";
 import { getUserById } from "@/lib/db/store";
+import { getPublicProfileSummaryData } from "../../[id]/page-data";
 import type { ProfileOverviewPageData } from "./types";
 
 export async function getProfileOverviewPageData(): Promise<ProfileOverviewPageData> {
@@ -17,9 +18,12 @@ async function getProfileOverviewPageDataCached(
 ): Promise<ProfileOverviewPageData> {
   return unstable_cache(
     async () => {
-      const user = await getUserById(userId);
+      const [user, publicProfile] = await Promise.all([
+        getUserById(userId),
+        getPublicProfileSummaryData(userId),
+      ]);
 
-      if (!user) {
+      if (!user || !publicProfile) {
         throw new Error("Authenticated user not found");
       }
 
@@ -27,13 +31,16 @@ async function getProfileOverviewPageDataCached(
         user: {
           id: user.id,
           role: user.role,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        color: user.color,
-        phoneNumber: user.phoneNumber,
-        createdAt: user.createdAt,
-      },
-    };
+          firstName: user.firstName,
+          lastName: user.lastName,
+          color: user.color,
+          phoneNumber: user.phoneNumber,
+          createdAt: user.createdAt,
+        },
+        profile: publicProfile.profile,
+        bestFriend: publicProfile.bestFriend,
+        stats: publicProfile.stats,
+      };
     },
     [userId],
     {

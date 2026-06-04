@@ -7,13 +7,17 @@ function createDashboardPageData(): DashboardPageData {
   return {
     user: {
       id: "user-a",
+      clerkUserId: null,
       profileCardId: null,
       color: "#ffffff",
       phoneNumber: "15555551111",
+      email: null,
+      avatarUrl: null,
       firstName: "Alex",
       lastName: "Avery",
-      phone_verified_at: null,
       created_by_user_id: null,
+      mergedIntoUserId: null,
+      mergedAt: null,
       isProfileComplete: true,
       isGuest: false,
       createdAt: null,
@@ -21,7 +25,6 @@ function createDashboardPageData(): DashboardPageData {
       activeProfileCard: null,
       createdBy: null,
       cards: [],
-      sessions: [],
       cardDrops: [],
       gamePlayers: [],
       createdGames: [],
@@ -142,7 +145,6 @@ describe("DashboardPageView", () => {
     );
 
     expect(markup).toContain("Hi, Alex!");
-    expect(markup).toContain("Recently played");
     expect(markup).toContain("History");
     expect(markup).toContain("Continue Playing");
     expect(markup).toContain("Me, Blair");

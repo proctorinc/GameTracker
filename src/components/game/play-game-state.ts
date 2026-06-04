@@ -16,6 +16,7 @@ export type PlayGameSnapshot = {
 export type PlayGameMutation =
   | {
       type: "upsert-score";
+      roundNumber: number;
       userId: string;
       scoreDelta: number;
     }
@@ -90,24 +91,24 @@ function applyOptimisticScore(
     return snapshot;
   }
 
-  const nextRoundNumber = snapshot.game.completedRounds + 1;
   const existingRound = snapshot.game.rounds.find(
-    (round) => round.roundNumber === nextRoundNumber,
+    (round) => round.roundNumber === mutation.roundNumber,
   );
   const round =
     existingRound ??
     buildOptimisticRound({
       gameId: snapshot.game.id,
-      roundNumber: nextRoundNumber,
+      roundNumber: mutation.roundNumber,
     });
 
   const existingScore = round.scores.find(
     (score) => score.userId === mutation.userId,
   );
+  const previousScoreDelta = existingScore?.scoreDelta ?? 0;
   const nextScore = existingScore
     ? {
         ...existingScore,
-        scoreDelta: existingScore.scoreDelta + normalizedDelta,
+        scoreDelta: normalizedDelta,
       }
     : {
         id: `optimistic-score-${round.id}-${mutation.userId}`,
@@ -126,7 +127,7 @@ function applyOptimisticScore(
         entry.userId === mutation.userId
           ? {
               ...entry,
-              score: (entry.score ?? 0) + normalizedDelta,
+              score: (entry.score ?? 0) + (normalizedDelta - previousScoreDelta),
             }
           : entry,
       ),

@@ -8,7 +8,6 @@ import GameSettingsPage from "./game-settings-page";
 const routerPush = vi.fn();
 const routerRefresh = vi.fn();
 const updateGameSettings = vi.fn();
-const deleteCreatedGame = vi.fn();
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
 
@@ -21,7 +20,6 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/app/actions/game", () => ({
   updateGameSettings: (...args: unknown[]) => updateGameSettings(...args),
-  deleteCreatedGame: (...args: unknown[]) => deleteCreatedGame(...args),
 }));
 
 vi.mock("sonner", () => ({
@@ -39,13 +37,15 @@ function createUser(input: {
 }): UserBase {
   return {
     id: input.id,
+    clerkUserId: null,
     profileCardId: null,
     color: input.color ?? "#ffffff",
     role: "user",
     phoneNumber: null,
+    email: null,
+    avatarUrl: null,
     firstName: input.firstName,
     lastName: input.lastName ?? null,
-    phone_verified_at: null,
     created_by_user_id: null,
     mergedIntoUserId: null,
     mergedAt: null,
@@ -138,7 +138,6 @@ describe("GameSettingsPage", () => {
     routerPush.mockReset();
     routerRefresh.mockReset();
     updateGameSettings.mockReset();
-    deleteCreatedGame.mockReset();
     toastSuccess.mockReset();
     toastError.mockReset();
   });
@@ -179,7 +178,9 @@ describe("GameSettingsPage", () => {
     renderWithProviders(<GameSettingsPage game={createGame({ started: true })} />);
 
     expect(
-      screen.getByText(/Scoring and end conditions are locked once rounds or scores have been recorded/i),
+      screen.getByText(
+        /Settings cannot be update after scoring or rounds have been completed/i,
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Highest score/i })).toBeDisabled();
     expect(
@@ -187,24 +188,11 @@ describe("GameSettingsPage", () => {
     ).toBeDisabled();
   });
 
-  it("deletes the game after confirmation", async () => {
-    deleteCreatedGame.mockResolvedValue({ id: "game-1" });
-
+  it("does not show delete controls on the settings page", () => {
     renderWithProviders(<GameSettingsPage game={createGame()} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /^Delete game$/i }));
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole("heading", { name: /Delete this game\?/i }),
-      ).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: /^Delete game$/i }));
-
-    await waitFor(() => {
-      expect(deleteCreatedGame).toHaveBeenCalledWith({ gameId: "game-1" });
-    });
-    expect(routerPush).toHaveBeenCalledWith("/dashboard");
+    expect(
+      screen.queryByRole("button", { name: /^Delete game$/i }),
+    ).not.toBeInTheDocument();
   });
 });
