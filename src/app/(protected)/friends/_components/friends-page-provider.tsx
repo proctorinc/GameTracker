@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState, useTransition } from "react";
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  useTransition,
+} from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { FriendsPageData } from "@/app/actions/pages/friends";
@@ -14,6 +20,7 @@ import {
   revokeInvitation,
 } from "@/app/actions/friends";
 import type { RecentlyPlayedItem, TabKey } from "./utils";
+import { APP_NAME } from "@/lib/app-config";
 
 type FriendsPageProviderProps = {
   data: FriendsPageData;
@@ -147,8 +154,8 @@ export function FriendsPageProvider({
     try {
       if (navigator.share) {
         await navigator.share({
-          title: `${profileName} on Skyjo`,
-          text: `Check out ${profileName}'s public profile on Skyjo.`,
+          title: `${profileName} on ${APP_NAME}`,
+          text: `Check out ${profileName}'s profile on ${APP_NAME}.`,
           url: publicProfileUrl,
         });
         return;

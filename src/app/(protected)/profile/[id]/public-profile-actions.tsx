@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { createFriendInvitationByUserId } from "@/app/actions/friends";
 import { Button, buttonVariants } from "@/components/ui/button";
 import type { PublicProfileViewerState } from "./page-data";
+import { APP_NAME } from "@/lib/app-config";
 
 type PublicProfileActionsProps = {
   profileId: string;
@@ -29,8 +30,8 @@ export function PublicProfileActions({
     try {
       if (navigator.share) {
         await navigator.share({
-          title: `${profileName} on Skyjo`,
-          text: `Check out ${profileName}'s public profile on Skyjo.`,
+          title: `${profileName} on ${APP_NAME}`,
+          text: `Check out ${profileName}'s public profile on ${APP_NAME}.`,
           url: profileUrl,
         });
         return;
