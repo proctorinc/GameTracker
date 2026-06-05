@@ -22,10 +22,14 @@ function FriendsPageContent() {
 
   return (
     <div className="min-h-screen overflow-y-auto px-4 pb-40">
-      <div className="mx-auto flex w-full max-w-md flex-col gap-4">
+      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-4">
         <FriendsPageHeader />
         <FriendsTabs />
-        {activeTab === "activity" ? <ActivityTabContent /> : null}
+        {activeTab === "activity" ? (
+          <div className="flex flex-1 flex-col">
+            <ActivityTabContent />
+          </div>
+        ) : null}
         {activeTab === "friends" ? (
           <>
             <AddFriendCard />

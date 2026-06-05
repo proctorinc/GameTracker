@@ -1,8 +1,51 @@
+import { useSyncExternalStore } from "react";
 import type { FriendsPageData } from "@/app/actions/pages/friends";
 
 export type TabKey = "activity" | "friends" | "invitations";
 export type RecentlyPlayedItem = FriendsPageData["recentlyPlayedWith"][number];
 export type FriendActivityItem = FriendsPageData["friendActivity"][number];
+
+type DateFormattingOptions = {
+  mounted: boolean;
+  timeZone?: string;
+  now?: Date;
+};
+
+function subscribe() {
+  return () => {};
+}
+
+function getClientSnapshot() {
+  return true;
+}
+
+function getServerSnapshot() {
+  return false;
+}
+
+function getDateTimeFormatOptions(
+  options: DateFormattingOptions,
+) {
+  return options.mounted && options.timeZone
+    ? { timeZone: options.timeZone }
+    : undefined;
+}
+
+export function useClientDateFormatting(): DateFormattingOptions {
+  const mounted = useSyncExternalStore(
+    subscribe,
+    getClientSnapshot,
+    getServerSnapshot,
+  );
+  const timeZone = mounted
+    ? Intl.DateTimeFormat().resolvedOptions().timeZone
+    : undefined;
+
+  return {
+    mounted,
+    timeZone,
+  };
+}
 
 export function getDisplayName(input: {
   firstName?: string | null;
@@ -14,51 +57,94 @@ export function getDisplayName(input: {
   );
 }
 
-export function formatLastPlayedAt(value: string | null) {
+export function formatLastPlayedAt(
+  value: string | null,
+  options: DateFormattingOptions,
+) {
   if (!value) {
     return "Played together";
+  }
+
+  if (!options.mounted) {
+    return "Played recently";
   }
 
   return `Played ${new Date(value).toLocaleDateString([], {
     month: "short",
     day: "numeric",
+    ...getDateTimeFormatOptions(options),
   })}`;
 }
 
-export function formatActivityDay(value: string | null) {
+export function formatActivityDay(
+  value: string | null,
+  options: DateFormattingOptions,
+) {
   if (!value) {
     return "Recently";
   }
 
+  if (!options.mounted) {
+    return "Recent activity";
+  }
+
   const date = new Date(value);
-  const today = new Date();
+  const today = options.now ? new Date(options.now) : new Date();
   const yesterday = new Date();
+  yesterday.setTime(today.getTime());
   yesterday.setDate(today.getDate() - 1);
 
-  const dateKey = date.toDateString();
+  const formatterOptions = getDateTimeFormatOptions(options);
+  const dateKey = date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    ...formatterOptions,
+  });
+  const todayKey = today.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    ...formatterOptions,
+  });
+  const yesterdayKey = yesterday.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    ...formatterOptions,
+  });
 
-  if (dateKey === today.toDateString()) {
+  if (dateKey === todayKey) {
     return "Today";
   }
 
-  if (dateKey === yesterday.toDateString()) {
+  if (dateKey === yesterdayKey) {
     return "Yesterday";
   }
 
   return date.toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
+    ...formatterOptions,
   });
 }
 
-export function formatActivityTime(value: string | null) {
+export function formatActivityTime(
+  value: string | null,
+  options: DateFormattingOptions,
+) {
   if (!value) {
+    return "";
+  }
+
+  if (!options.mounted) {
     return "";
   }
 
   return new Date(value).toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
+    ...getDateTimeFormatOptions(options),
   });
 }
 

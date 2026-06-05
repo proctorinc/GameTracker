@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { eq } from "drizzle-orm";
 import { createUserFixture } from "../../fixtures/users";
 import { withTestDatabase } from "../../helpers/test-db";
 
@@ -94,5 +95,343 @@ describe("server action integration", () => {
       expect(persistedGame?.targetRounds).toBe(5);
       expect(titles.some((title) => title.title === "Skybo Test Title")).toBe(true);
     }, "game-action");
+  });
+
+  it("marks the profile complete and sets a short-lived bypass cookie", async () => {
+    await withTestDatabase(async () => {
+      const user = await createUserFixture({
+        firstName: null,
+        lastName: null,
+        color: "#FFFFFF",
+        isProfileComplete: false,
+      });
+      mockAuthenticatedUser(user.id);
+
+      const revalidatePath = vi.fn();
+      const revalidateTag = vi.fn();
+      const cookieSet = vi.fn();
+
+      vi.doMock("next/cache", () => ({
+        revalidatePath,
+        revalidateTag,
+      }));
+      vi.doMock("next/headers", () => ({
+        cookies: async () => ({
+          set: cookieSet,
+        }),
+      }));
+
+      const {
+        updateUserProfile,
+      } = await import("../../../src/app/actions/user");
+      const {
+        PROFILE_COMPLETION_BYPASS_COOKIE,
+      } = await import("../../../src/lib/auth/profile-completion-cookie");
+      await updateUserProfile({
+        firstName: "Sky",
+        lastName: "Bo",
+        color: "#3B82F6",
+      });
+
+      const { getUserById } = await import("../../../src/lib/db/store/user.store");
+      const updatedUser = await getUserById(user.id);
+
+      expect(updatedUser?.firstName).toBe("Sky");
+      expect(updatedUser?.lastName).toBe("Bo");
+      expect(updatedUser?.color).toBe("#3B82F6");
+      expect(updatedUser?.isProfileComplete).toBe(true);
+      expect(cookieSet).toHaveBeenCalledWith(
+        PROFILE_COMPLETION_BYPASS_COOKIE,
+        "1",
+        expect.objectContaining({
+          httpOnly: true,
+          sameSite: "lax",
+          secure: true,
+          path: "/",
+          maxAge: 30,
+        }),
+      );
+    }, "profile-complete-action");
+  });
+
+  it("replaces guest references across game and relationship records during merge", async () => {
+    await withTestDatabase(async () => {
+      const inviter = await createUserFixture();
+      const recipient = await createUserFixture();
+      const guest = await createUserFixture({
+        isGuest: true,
+        created_by_user_id: inviter.id,
+      });
+      const otherUser = await createUserFixture();
+      const childUser = await createUserFixture({
+        created_by_user_id: guest.id,
+      });
+
+      const {
+        db,
+        cards,
+        cardDrops,
+        decks,
+        gamePlayers,
+        gameRounds,
+        gameRoundScores,
+        gameTitle,
+        gameWinners,
+        games,
+        userGameTitle,
+        users,
+      } = await import("../../../src/lib/db");
+      const { createFriendship } = await import(
+        "../../../src/lib/db/store/friendship.store"
+      );
+      const { createInvitation } = await import(
+        "../../../src/lib/db/store/invitation.store"
+      );
+      const { mergeGuestUserIntoUser, getUserById } = await import(
+        "../../../src/lib/db/store/user.store"
+      );
+
+      await createFriendship({
+        user1Id: guest.id,
+        user2Id: otherUser.id,
+        inviterId: guest.id,
+      });
+      await createFriendship({
+        user1Id: recipient.id,
+        user2Id: otherUser.id,
+        inviterId: recipient.id,
+      });
+
+      const [guestCreatedTitle] = await db
+        .insert(gameTitle)
+        .values({
+          title: "Merge Fixture",
+          normalizedTitle: `merge-fixture-${guest.id}`,
+          createdByUserId: guest.id,
+        })
+        .returning();
+
+      await db.insert(userGameTitle).values({
+        userId: guest.id,
+        gameTitleId: guestCreatedTitle.id,
+        source: "played",
+        acquiredFromUserId: guest.id,
+      });
+      await db.insert(userGameTitle).values({
+        userId: recipient.id,
+        gameTitleId: guestCreatedTitle.id,
+        source: "shared",
+        acquiredFromUserId: guest.id,
+      });
+
+      const [soloGuestGame] = await db
+        .insert(games)
+        .values({
+          gameTitleId: guestCreatedTitle.id,
+          creatorId: guest.id,
+          scoringMode: "highest_wins",
+          endingMode: "none",
+        })
+        .returning();
+      const [duplicateSeatGame] = await db
+        .insert(games)
+        .values({
+          gameTitleId: guestCreatedTitle.id,
+          creatorId: guest.id,
+          scoringMode: "highest_wins",
+          endingMode: "none",
+        })
+        .returning();
+
+      await db.insert(gamePlayers).values([
+        {
+          gameId: soloGuestGame.id,
+          userId: guest.id,
+          score: 42,
+        },
+        {
+          gameId: duplicateSeatGame.id,
+          userId: guest.id,
+          score: 12,
+        },
+        {
+          gameId: duplicateSeatGame.id,
+          userId: recipient.id,
+          score: 7,
+        },
+      ]);
+
+      await db.insert(gameWinners).values([
+        {
+          gameId: soloGuestGame.id,
+          userId: guest.id,
+        },
+        {
+          gameId: duplicateSeatGame.id,
+          userId: guest.id,
+        },
+        {
+          gameId: duplicateSeatGame.id,
+          userId: recipient.id,
+        },
+      ]);
+
+      const [soloRound] = await db
+        .insert(gameRounds)
+        .values({
+          gameId: soloGuestGame.id,
+          roundNumber: 1,
+        })
+        .returning();
+      const [duplicateRound] = await db
+        .insert(gameRounds)
+        .values({
+          gameId: duplicateSeatGame.id,
+          roundNumber: 1,
+        })
+        .returning();
+
+      await db.insert(gameRoundScores).values([
+        {
+          gameRoundId: soloRound.id,
+          userId: guest.id,
+          scoreDelta: 42,
+        },
+        {
+          gameRoundId: duplicateRound.id,
+          userId: guest.id,
+          scoreDelta: 12,
+        },
+        {
+          gameRoundId: duplicateRound.id,
+          userId: recipient.id,
+          scoreDelta: 7,
+        },
+      ]);
+
+      await db.insert(decks).values({
+        name: "skyjo",
+        description: "Test deck",
+      });
+
+      await db.insert(cards).values({
+        ownerId: guest.id,
+        deckName: "skyjo",
+        value: 1,
+        suit: "sun",
+        weight: 1,
+        probability: 1,
+        suitProbability: 1,
+      });
+      await db.insert(cardDrops).values({
+        userId: guest.id,
+        gameId: soloGuestGame.id,
+        cardCount: 1,
+        deckName: "skyjo",
+      });
+
+      await createInvitation({
+        inviterUserId: guest.id,
+        targetType: "user",
+        inviteeUserId: otherUser.id,
+        guestUserId: guest.id,
+        acceptedByUserId: guest.id,
+        kind: "claim_guest",
+        status: "accepted",
+      });
+      await createInvitation({
+        inviterUserId: inviter.id,
+        targetType: "user",
+        inviteeUserId: guest.id,
+        kind: "friend",
+        status: "pending",
+      });
+
+      const mergeResult = await mergeGuestUserIntoUser({
+        guestUserId: guest.id,
+        recipientUserId: recipient.id,
+        inviterUserId: inviter.id,
+      });
+
+      expect(mergeResult).toEqual({
+        mergedGamePlayerCount: 1,
+        deletedDuplicateGamePlayerCount: 1,
+      });
+
+      const [
+        mergedGuest,
+        updatedChild,
+        winnerRows,
+        playerRows,
+        roundScoreRows,
+        cardRows,
+        cardDropRows,
+        invitationRows,
+        titleRows,
+        titleOwnershipRows,
+        friendshipRows,
+        createdGames,
+      ] = await Promise.all([
+        getUserById(guest.id),
+        getUserById(childUser.id),
+        db.query.gameWinners.findMany(),
+        db.query.gamePlayers.findMany(),
+        db.query.gameRoundScores.findMany(),
+        db.query.cards.findMany(),
+        db.query.cardDrops.findMany(),
+        db.query.invitations.findMany(),
+        db.query.gameTitle.findMany(),
+        db.query.userGameTitle.findMany(),
+        db.query.friendships.findMany(),
+        db.query.games.findMany(),
+      ]);
+
+      expect(mergedGuest).toBeNull();
+      expect(updatedChild?.created_by_user_id).toBe(recipient.id);
+      expect(createdGames.every((game) => game.creatorId !== guest.id)).toBe(true);
+      expect(createdGames.every((game) => game.creatorId === recipient.id)).toBe(true);
+      expect(titleRows.every((title) => title.createdByUserId === recipient.id)).toBe(true);
+      expect(cardRows.every((card) => card.ownerId === recipient.id)).toBe(true);
+      expect(cardDropRows.every((drop) => drop.userId === recipient.id)).toBe(true);
+      expect(winnerRows.every((winner) => winner.userId === recipient.id)).toBe(true);
+      expect(playerRows.every((player) => player.userId === recipient.id)).toBe(true);
+      expect(roundScoreRows.every((score) => score.userId === recipient.id)).toBe(true);
+      expect(
+        winnerRows.filter((winner) => winner.gameId === duplicateSeatGame.id),
+      ).toHaveLength(1);
+      expect(
+        playerRows.filter((player) => player.gameId === duplicateSeatGame.id),
+      ).toHaveLength(1);
+      expect(
+        titleOwnershipRows.filter(
+          (ownership) =>
+            ownership.userId === recipient.id &&
+            ownership.gameTitleId === guestCreatedTitle.id,
+        ),
+      ).toHaveLength(1);
+      expect(titleOwnershipRows.some((ownership) => ownership.userId === guest.id)).toBe(
+        false,
+      );
+      expect(
+        friendshipRows.some(
+          (friendship) =>
+            friendship.user1Id === guest.id || friendship.user2Id === guest.id,
+        ),
+      ).toBe(false);
+      expect(
+        invitationRows.some(
+          (invitation) =>
+            invitation.inviterUserId === guest.id ||
+            invitation.inviteeUserId === guest.id ||
+            invitation.guestUserId === guest.id ||
+            invitation.acceptedByUserId === guest.id,
+        ),
+      ).toBe(false);
+
+      const refreshedGuest = await db.query.users.findFirst({
+        where: eq(users.id, guest.id),
+      });
+      expect(refreshedGuest).toBeFalsy();
+    }, "guest-merge");
   });
 });

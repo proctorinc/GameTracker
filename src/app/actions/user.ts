@@ -1,5 +1,6 @@
 "use server";
 
+import { cookies } from "next/headers";
 import {
   getUserById,
   getUserFullById,
@@ -15,6 +16,7 @@ import {
   revalidateProfileOverviewPage,
   revalidatePublicProfilePage,
 } from "@/lib/cache-invalidation";
+import { PROFILE_COMPLETION_BYPASS_COOKIE } from "@/lib/auth/profile-completion-cookie";
 import { logError, logInfo, type LogMeta } from "@/lib/server-log";
 
 function logUserActionSuccess(action: string, meta: LogMeta) {
@@ -53,6 +55,15 @@ export async function updateUserProfile(data: {
     revalidateProfileOverviewPage(user.id);
     revalidatePublicProfilePage(user.id);
     revalidateFriendsPage(user.id);
+    revalidateDashboardPage(user.id);
+    const cookieStore = await cookies();
+    cookieStore.set(PROFILE_COMPLETION_BYPASS_COOKIE, "1", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: true,
+      path: "/",
+      maxAge: 30,
+    });
     logUserActionSuccess("profile.update", {
       actorUserId: user.id,
       updatedColor: Boolean(data.color),

@@ -1,9 +1,11 @@
 import { ArrowRight, Receipt, Users } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import AppLogo from "@/components/app-logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { loadOptionalCurrentUser } from "@/lib/auth/auth-me";
 import { LandingHeroCarousel } from "./_components/landing-hero-carousel";
 
 const featureCards = [
@@ -21,7 +23,13 @@ const featureCards = [
   },
 ] as const;
 
-export default function HomePage() {
+export default async function HomePage() {
+  const currentUser = await loadOptionalCurrentUser();
+
+  if (currentUser) {
+    redirect(currentUser.isProfileComplete ? "/dashboard" : "/profile/complete");
+  }
+
   return (
     <div className="relative overflow-hidden">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[26rem] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.98),rgba(241,245,249,0.82)_40%,transparent_72%)] dark:bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.08),transparent_56%)]" />

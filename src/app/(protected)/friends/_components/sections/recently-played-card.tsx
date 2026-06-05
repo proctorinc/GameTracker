@@ -19,9 +19,14 @@ import {
   sectionItemTitleClassName,
 } from "@/components/ui/section-styles";
 import { useFriendsPage } from "../friends-page-provider";
-import { formatLastPlayedAt, getDisplayName } from "../utils";
+import {
+  formatLastPlayedAt,
+  getDisplayName,
+  useClientDateFormatting,
+} from "../utils";
 
 export function RecentlyPlayedCard() {
+  const dateFormatting = useClientDateFormatting();
   const {
     data,
     isPending,
@@ -80,7 +85,7 @@ export function RecentlyPlayedCard() {
                       {getDisplayName(entry.user)}
                     </p>
                     <p className={sectionItemMetaClassName}>
-                      {formatLastPlayedAt(entry.lastPlayedAt)}
+                      {formatLastPlayedAt(entry.lastPlayedAt, dateFormatting)}
                     </p>
                   </div>
                 </button>

@@ -1422,8 +1422,8 @@ export default function PlayGame(props: PlayGameProps) {
                           {activeRoundDelta}
                         </div>
                       ) : null}
-                      <div className="min-w-[5.5rem] rounded-[1.4rem] border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-3 py-3 shadow-sm backdrop-blur-[2px]">
-                        <div className="flex items-center justify-end">
+                      <div className="w-[5.5rem] rounded-[1.4rem] border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-0 py-3 shadow-sm backdrop-blur-[2px]">
+                        <div className="flex w-full items-center justify-center text-center">
                           <p className="text-3xl font-black text-[color:var(--profile-surface-text)]">
                             {getPlayerTotalScore(player)}
                           </p>
@@ -1432,7 +1432,7 @@ export default function PlayGame(props: PlayGameProps) {
                     </div>
                   ) : !isNoScoreMode && isCreator ? (
                     <Button
-                      className="relative z-10 min-w-14 overflow-visible rounded-[1.4rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-3 py-3 text-[color:var(--profile-surface-text)] shadow-sm backdrop-blur-[2px]"
+                      className="relative z-10 w-[5.5rem] overflow-visible rounded-[1.4rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-0 py-3 text-[color:var(--profile-surface-text)] shadow-sm backdrop-blur-[2px]"
                       data-testid={`player-score-button-${player.userId}`}
                       disabled={isCompleted}
                       onClick={() => openScoreDialog(player)}
@@ -1444,7 +1444,7 @@ export default function PlayGame(props: PlayGameProps) {
                           {activeRoundDelta}
                         </div>
                       ) : null}
-                      <div className="flex items-center justify-end">
+                      <div className="flex w-full items-center justify-center text-center">
                         <span className="text-3xl font-black">
                           {getPlayerTotalScore(player)}
                         </span>
@@ -1452,7 +1452,7 @@ export default function PlayGame(props: PlayGameProps) {
                     </Button>
                   ) : !isNoScoreMode ? (
                     <div
-                      className="relative z-10 min-w-14 overflow-visible rounded-[1.4rem] border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-3 py-3 text-[color:var(--profile-surface-text)] shadow-sm backdrop-blur-[2px]"
+                      className="relative z-10 w-[5.5rem] overflow-visible rounded-[1.4rem] border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-0 py-3 text-[color:var(--profile-surface-text)] shadow-sm backdrop-blur-[2px]"
                       data-testid={`player-score-display-${player.userId}`}
                     >
                       {showsRounds && activeRoundDelta !== undefined ? (
@@ -1461,7 +1461,7 @@ export default function PlayGame(props: PlayGameProps) {
                           {activeRoundDelta}
                         </div>
                       ) : null}
-                      <div className="flex items-center justify-end">
+                      <div className="flex w-full items-center justify-center text-center">
                         <span className="text-3xl font-black">
                           {getPlayerTotalScore(player)}
                         </span>

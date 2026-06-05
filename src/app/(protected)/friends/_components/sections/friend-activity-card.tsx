@@ -18,6 +18,7 @@ import {
   getActivityDisplayName,
   getActivityShortName,
   type FriendActivityItem,
+  useClientDateFormatting,
 } from "../utils";
 
 type ActivityGroup = {
@@ -92,11 +93,15 @@ function getPlayedBySummary(
 
 function groupActivity(
   games: FriendActivityItem[],
+  dateFormatting: Parameters<typeof formatActivityDay>[1],
 ) {
   const groups: ActivityGroup[] = [];
 
   for (const game of games) {
-    const dayLabel = formatActivityDay(game.completedAt ?? game.createdAt);
+    const dayLabel = formatActivityDay(
+      game.completedAt ?? game.createdAt,
+      dateFormatting,
+    );
     const lastGroup = groups[groups.length - 1];
 
     if (lastGroup?.dayLabel === dayLabel) {
@@ -115,17 +120,20 @@ function groupActivity(
 
 export function FriendActivityCard() {
   const { data } = useFriendsPage();
-  const groups = groupActivity(data.friendActivity);
+  const dateFormatting = useClientDateFormatting();
+  const groups = groupActivity(data.friendActivity, dateFormatting);
   const friendIds = new Set(data.friends.map((friend) => friend.id));
 
   return (
-    <Card>
+    <Card className="flex-1">
       <CardHeader>
         <CardTitle>Activity</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-1 flex-col">
         {groups.length === 0 ? (
-          <CardEmpty>No friend activity in the last 30 days</CardEmpty>
+          <CardEmpty className="flex flex-1 items-center justify-center">
+            No friend activity in the last 30 days
+          </CardEmpty>
         ) : (
           <div className="flex flex-col gap-4">
             {groups.map((group) => (
@@ -137,6 +145,15 @@ export function FriendActivityCard() {
                   {group.entries.map((game) => {
                     const includesCurrentUser = game.players.some(
                       (player) => player.userId === data.user.id,
+                    );
+                    const activityDate = game.completedAt ?? game.createdAt;
+                    const activityDay = formatActivityDay(
+                      activityDate,
+                      dateFormatting,
+                    );
+                    const activityTime = formatActivityTime(
+                      activityDate,
+                      dateFormatting,
                     );
 
                     return (
@@ -161,10 +178,8 @@ export function FriendActivityCard() {
                             {game.gameTitle?.title ?? "New Game"}
                           </span>
                           <span className="ml-2 text-[11px]">
-                            {formatActivityDay(game.completedAt ?? game.createdAt)}
-                            {formatActivityTime(game.completedAt ?? game.createdAt)
-                              ? ` at ${formatActivityTime(game.completedAt ?? game.createdAt)}`
-                              : ""}
+                            {activityDay}
+                            {activityTime ? ` at ${activityTime}` : ""}
                           </span>
                         </p>
                         <Link
