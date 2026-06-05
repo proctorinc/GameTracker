@@ -1,4 +1,4 @@
-import { type Metadata } from "next";
+import { type Metadata, type Viewport } from "next";
 import {
   ClerkProvider,
   Show,
@@ -20,6 +20,11 @@ import { Button } from "@/components/ui/button";
 export const metadata: Metadata = {
   title: APP_NAME,
   description: APP_DESCRIPTION,
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: APP_NAME,
+  },
   icons: {
     apple: "/apple-touch-icon.png",
     icon: [
@@ -36,6 +41,15 @@ export const metadata: Metadata = {
     ],
   },
   manifest: "/site.webmanifest",
+};
+
+export const viewport: Viewport = {
+  colorScheme: "light dark",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f1f5f9" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+  ],
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
