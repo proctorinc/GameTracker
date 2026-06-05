@@ -26,10 +26,7 @@ type ActivityGroup = {
   entries: FriendActivityItem[];
 };
 
-function getWinnerSummary(
-  game: FriendActivityItem,
-  currentUserId: string,
-) {
+function getWinnerSummary(game: FriendActivityItem, currentUserId: string) {
   if (game.winners.length === 0) {
     return "No winner recorded yet";
   }
@@ -66,10 +63,7 @@ function getPlayedBySummary(
       }),
     );
   const labels = includesCurrentUser
-    ? [
-        "You",
-        ...friendLabels.filter((label) => label !== "You"),
-      ]
+    ? ["You", ...friendLabels.filter((label) => label !== "You")]
     : friendLabels;
 
   if (labels.length === 0) {
@@ -84,11 +78,7 @@ function getPlayedBySummary(
     return `${labels[0]} and ${labels[1]}`;
   }
 
-  if (labels.length === 3) {
-    return `${labels[0]}, ${labels[1]}, and ${labels[2]}`;
-  }
-
-  return `${labels[0]}, ${labels[1]}, and ${labels.length - 2} others`;
+  return `${labels[0]}, and ${labels.length - 1} others`;
 }
 
 function groupActivity(
@@ -98,10 +88,7 @@ function groupActivity(
   const groups: ActivityGroup[] = [];
 
   for (const game of games) {
-    const dayLabel = formatActivityDay(
-      game.completedAt ?? game.createdAt,
-      dateFormatting,
-    );
+    const dayLabel = formatActivityDay(game.createdAt, dateFormatting);
     const lastGroup = groups[groups.length - 1];
 
     if (lastGroup?.dayLabel === dayLabel) {
@@ -147,10 +134,6 @@ export function FriendActivityCard() {
                       (player) => player.userId === data.user.id,
                     );
                     const activityDate = game.completedAt ?? game.createdAt;
-                    const activityDay = formatActivityDay(
-                      activityDate,
-                      dateFormatting,
-                    );
                     const activityTime = formatActivityTime(
                       activityDate,
                       dateFormatting,
@@ -177,8 +160,8 @@ export function FriendActivityCard() {
                           <span className="font-medium text-foreground">
                             {game.gameTitle?.title ?? "New Game"}
                           </span>
-                          <span className="ml-2 text-[11px]">
-                            {activityDay}
+                          <span className="text-[11px]">
+                            {/*{activityDay}*/}
                             {activityTime ? ` at ${activityTime}` : ""}
                           </span>
                         </p>
