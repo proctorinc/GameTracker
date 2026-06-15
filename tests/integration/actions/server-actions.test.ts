@@ -97,6 +97,65 @@ describe("server action integration", () => {
     }, "game-action");
   });
 
+  it("creates a rematch with the same players and settings but reset progress", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const opponent = await createUserFixture();
+      mockAuthenticatedUser(creator.id);
+
+      const { createConfiguredGame, commitGameRound, addGamePlayer, createRematchGame } =
+        await import("../../../src/app/actions/game");
+
+      const originalGame = await createConfiguredGame({
+        gameTitleName: "Rematch Fixture",
+        scoringMode: "lowest_wins",
+        endingMode: "round_count",
+        targetRounds: 3,
+      });
+
+      await addGamePlayer({
+        gameId: originalGame.id,
+        userId: opponent.id,
+      });
+
+      const { upsertActiveRoundScore, getGame } = await import(
+        "../../../src/app/actions/game"
+      );
+
+      await upsertActiveRoundScore({
+        gameId: originalGame.id,
+        userId: creator.id,
+        scoreDelta: 10,
+      });
+      await upsertActiveRoundScore({
+        gameId: originalGame.id,
+        userId: opponent.id,
+        scoreDelta: 15,
+      });
+      await commitGameRound({
+        gameId: originalGame.id,
+        completeGame: true,
+      });
+
+      const rematch = await createRematchGame(originalGame.id);
+      const persistedRematch = await getGame(rematch.id);
+
+      expect(rematch.id).not.toBe(originalGame.id);
+      expect(rematch.creatorId).toBe(creator.id);
+      expect(rematch.gameTitleId).toBe(originalGame.gameTitleId);
+      expect(rematch.scoringMode).toBe("lowest_wins");
+      expect(rematch.endingMode).toBe("round_count");
+      expect(rematch.targetRounds).toBe(3);
+      expect(rematch.completedRounds).toBe(0);
+      expect(rematch.completedAt).toBeNull();
+      expect(persistedRematch?.players.map((player) => player.userId)).toEqual(
+        expect.arrayContaining([creator.id, opponent.id]),
+      );
+      expect(persistedRematch?.players).toHaveLength(2);
+      expect(persistedRematch?.rounds).toHaveLength(0);
+    }, "game-rematch-action");
+  });
+
   it("marks the profile complete and sets a short-lived bypass cookie", async () => {
     await withTestDatabase(async () => {
       const user = await createUserFixture({

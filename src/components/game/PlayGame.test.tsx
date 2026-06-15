@@ -15,6 +15,7 @@ const toastError = vi.fn();
 const addGamePlayer = vi.fn();
 const addGuestGamePlayer = vi.fn();
 const commitGameRound = vi.fn();
+const createRematchGameAndRedirect = vi.fn();
 const deleteCreatedGame = vi.fn();
 const getPlayGameSnapshot = vi.fn();
 const removeGamePlayer = vi.fn();
@@ -42,6 +43,8 @@ vi.mock("@/app/actions/game", () => ({
   addGamePlayer: (...args: unknown[]) => addGamePlayer(...args),
   addGuestGamePlayer: (...args: unknown[]) => addGuestGamePlayer(...args),
   commitGameRound: (...args: unknown[]) => commitGameRound(...args),
+  createRematchGameAndRedirect: (...args: unknown[]) =>
+    createRematchGameAndRedirect(...args),
   deleteCreatedGame: (...args: unknown[]) => deleteCreatedGame(...args),
   getPlayGameSnapshot: (...args: unknown[]) => getPlayGameSnapshot(...args),
   removeGamePlayer: (...args: unknown[]) => removeGamePlayer(...args),
@@ -500,11 +503,26 @@ describe("PlayGame", () => {
     });
 
     expect(screen.getByText("Mia won!")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rematch" })).toBeInTheDocument();
     expect(screen.getByText("1st place")).toBeInTheDocument();
     expect(screen.getByText("2nd place")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Score" })).toBeInTheDocument();
     expect(screen.queryByTestId("player-score-button-user-1")).not.toBeInTheDocument();
     expect(screen.queryByTestId("player-score-button-user-2")).not.toBeInTheDocument();
+  });
+
+  it("confirms rematches before creating a new game", () => {
+    renderComponent({
+      game: createCompletedGameSnapshot(),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Rematch" }));
+
+    expect(screen.getByRole("heading", { name: "Start rematch?" })).toBeInTheDocument();
+    expect(
+      screen.getByText(/This will start a new/i),
+    ).toHaveTextContent("This will start a new Skyjo game with 2 users.");
+    expect(screen.getByRole("button", { name: "Start rematch" })).toBeInTheDocument();
   });
 
   it("formats player names with a last initial on the play page", () => {

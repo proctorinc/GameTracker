@@ -1,12 +1,7 @@
 "use client";
 
 import { sectionActionClassName } from "@/components/ui/section-styles";
-import {
-  CardContent,
-  CardEmpty,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { CardContent, CardEmpty } from "@/components/ui/card";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useDashboardPage } from "../dashboard-page-provider";
@@ -36,7 +31,7 @@ export function RecentlyPlayedSection() {
                 <div
                   key={`title=${gameTitle.id}`}
                   className={cn(
-                    "relative flex aspect-square h-[30vh] shrink-0 flex-col justify-between overflow-hidden rounded-2xl border border-none shadow-lg",
+                    "relative flex aspect-[4/5] h-[30vh] shrink-0 flex-col justify-between overflow-hidden rounded-2xl border border-none shadow-lg",
                   )}
                   style={{ backgroundColor: gameTitle.color }}
                 >

@@ -50,6 +50,7 @@ import {
 } from "@/lib/db/store/game-players.store";
 import { createUser } from "@/lib/db/store/user.store";
 import { logError, logInfo, type LogMeta } from "@/lib/server-log";
+import { redirect } from "next/navigation";
 
 function nowIso() {
   return new Date().toISOString();
@@ -372,6 +373,71 @@ export async function createConfiguredGame(input: {
       gameId: result.id,
     }),
   );
+}
+
+export async function createRematchGame(sourceGameId: string) {
+  const meta: LogMeta = {
+    sourceGameId,
+    actorUserId: null,
+  };
+
+  return runGameAction(
+    "rematch.create",
+    meta,
+    async () => {
+      const { user, game } = await requireGameMembership(sourceGameId);
+      meta.actorUserId = user.id;
+
+      if (!game.completedAt) {
+        throw new Error("Only completed games can be rematched");
+      }
+
+      const rematch = await createGame({
+        creatorId: user.id,
+        version: game.version,
+        gameTitleId: game.gameTitleId,
+        scoringMode: game.scoringMode,
+        endingMode: game.endingMode,
+        trackRounds: game.trackRounds,
+        targetRounds: game.targetRounds,
+        scoreThreshold: game.scoreThreshold,
+        scoreThresholdDirection: game.scoreThresholdDirection,
+        completedRounds: 0,
+      });
+
+      const playerUserIds = Array.from(
+        new Set(game.players.map((player) => player.userId)),
+      );
+
+      for (const playerUserId of playerUserIds) {
+        await addPlayerToGame(rematch.id, playerUserId);
+      }
+
+      if (game.gameTitleId) {
+        await grantGameTitleToGameParticipants({
+          gameId: rematch.id,
+          gameTitleId: game.gameTitleId,
+          source: "played",
+          acquiredFromUserId: user.id,
+        });
+      }
+
+      const affectedUserIds = Array.from(new Set([user.id, ...playerUserIds]));
+      revalidateDashboardPages(affectedUserIds);
+      revalidateGameHistoryPages(affectedUserIds);
+      revalidateTitlesPages(affectedUserIds);
+
+      return rematch;
+    },
+    (result) => ({
+      gameId: result.id,
+    }),
+  );
+}
+
+export async function createRematchGameAndRedirect(sourceGameId: string) {
+  const game = await createRematchGame(sourceGameId);
+  redirect(`/game/${game.id}/play`);
 }
 
 export async function updateGamePlayerScore(input: {

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import type { FriendsPageData } from "@/app/actions/pages/friends";
 
-export type TabKey = "activity" | "friends" | "invitations";
+export type TabKey = "activity" | "friends";
 export type RecentlyPlayedItem = FriendsPageData["recentlyPlayedWith"][number];
 export type FriendActivityItem = FriendsPageData["friendActivity"][number];
 

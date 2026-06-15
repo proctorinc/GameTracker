@@ -1,35 +1,23 @@
-"use client";
+import { countIncomingPendingInvitationsForUser } from "@/lib/db/store";
+import { loadCurrentUser } from "@/lib/auth/auth-me";
+import { ProtectedLayoutShell } from "./protected-layout-shell";
 
-import { usePathname } from "next/navigation";
-import NavBar from "@/components/NavBar";
-
-const HIDE_NAV_EXACT_PATHS = ["/card/pull", "/profile/complete"];
-const HIDE_NAV_PATHS = ["/game/create/settings", "/play"];
-
-function shouldHideNav(pathname: string) {
-  return (
-    HIDE_NAV_EXACT_PATHS.includes(pathname) ||
-    HIDE_NAV_PATHS.some(
-      (prefix) =>
-        pathname === prefix ||
-        pathname.startsWith(`${prefix}/`) ||
-        pathname.endsWith(`${prefix}`),
-    )
-  );
-}
-
-export default function ProtectedLayout({
+export default async function ProtectedLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const pathname = usePathname();
-  const hideNav = shouldHideNav(pathname);
+  const user = await loadCurrentUser();
+  const pendingInvitationCount = await countIncomingPendingInvitationsForUser({
+    userId: user.id,
+    phoneNumber: user.phoneNumber,
+  });
 
   return (
-    <>
+    <ProtectedLayoutShell
+      hasPendingFriendInvitations={pendingInvitationCount > 0}
+    >
       {children}
-      {!hideNav && <NavBar />}
-    </>
+    </ProtectedLayoutShell>
   );
 }

@@ -1,7 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { DashboardPageData } from "@/app/actions/pages/dashboard";
 import { DashboardPageView } from "./dashboard-page";
+
+vi.mock("@/components/game/rematch-button", () => ({
+  RematchButton: () => <button type="button">Rematch</button>,
+}));
 
 function createDashboardPageData(): DashboardPageData {
   return {
@@ -151,6 +155,7 @@ describe("DashboardPageView", () => {
     expect(markup).toContain("Completed games");
     expect(markup).toContain("Casey");
     expect(markup).toContain("won");
+    expect(markup).toContain("Rematch");
     expect(markup).toContain("Me, Drew");
   });
 });

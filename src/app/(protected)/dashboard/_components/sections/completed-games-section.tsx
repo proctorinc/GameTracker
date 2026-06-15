@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import ProfilePicture from "@/components/profile/profile-picture";
+import { RematchButton } from "@/components/game/rematch-button";
 import { WinnerIndicator } from "@/components/ui/winner-indicator";
 import { cn } from "@/lib/utils";
 import { ArrowRight, Trophy } from "lucide-react";
@@ -58,12 +59,11 @@ export function CompletedGamesSection() {
             const winner = getWinner(game, user.id);
 
             return (
-              <Link
+              <div
                 key={`completed-game-${game.id}`}
-                href={`/game/${game.id}/play`}
                 className={cn(
                   sectionItemClassName,
-                  "relative overflow-hidden transition-colors hover:bg-muted/80 border-none",
+                  "relative overflow-hidden border-none p-0",
                 )}
                 style={{ backgroundColor: game.gameTitle?.color ?? undefined }}
               >
@@ -78,60 +78,76 @@ export function CompletedGamesSection() {
                     <div className="absolute inset-0 bg-background/75" />
                   </>
                 ) : null}
-                <div className="relative z-10 flex items-center justify-between gap-3">
-                  <h3
-                    className={cn(
-                      "min-w-0 truncate",
-                      sectionItemTitleClassName,
-                      "font-bold",
-                    )}
-                  >
-                    {game.gameTitle?.title ?? "New Game"}
-                  </h3>
-                  <div
-                    className={cn(
-                      "flex shrink-0 items-center gap-1",
-                      sectionItemMetaClassName,
-                    )}
-                  >
-                    <Trophy className="size-3.5" />
-                    <span>{formatGameDate(game.completedAt)}</span>
+                <Link
+                  href={`/game/${game.id}/play`}
+                  className="relative z-10 block p-4 transition-colors hover:bg-muted/80"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <h3
+                      className={cn(
+                        "min-w-0 truncate",
+                        sectionItemTitleClassName,
+                        "font-bold",
+                      )}
+                    >
+                      {game.gameTitle?.title ?? "New Game"}
+                    </h3>
+                    <div
+                      className={cn(
+                        "flex shrink-0 items-center gap-1",
+                        sectionItemMetaClassName,
+                      )}
+                    >
+                      <Trophy className="size-3.5" />
+                      <span>{formatGameDate(game.completedAt)}</span>
+                    </div>
                   </div>
-                </div>
-                <div className="relative z-10 mt-2 flex items-center gap-3">
-                  <GamePlayerStack players={game.players} />
-                  <div className="min-w-0 flex-1">
-                    {winner ? (
-                      <div className="flex items-center justify-end gap-2">
-                        <p
-                          className={cn(
-                            "truncate font-semibold text-[color:var(--winner-text)]",
-                            sectionItemMetaClassName,
-                          )}
-                        >
-                          {winner.label} won
+                  <div className="mt-2 flex items-center gap-3">
+                    <GamePlayerStack players={game.players} />
+                    <div className="min-w-0 flex-1">
+                      {winner ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <p
+                            className={cn(
+                              "truncate font-semibold text-[color:var(--winner-text)]",
+                              sectionItemMetaClassName,
+                            )}
+                          >
+                            {winner.label} won
+                          </p>
+                          <ProfilePicture
+                            user={winner.user}
+                            size="sm"
+                            className="winner-avatar-ring"
+                          />
+                          <WinnerIndicator
+                            aria-hidden
+                            className="hidden sm:inline-flex"
+                            label="Winner"
+                          />
+                        </div>
+                      ) : (
+                        <p className={cn("truncate", sectionItemMetaClassName)}>
+                          {game.players
+                            .map((player) => getPlayerLabel(player, user.id))
+                            .join(", ")}
                         </p>
-                        <ProfilePicture
-                          user={winner.user}
-                          size="sm"
-                          className="winner-avatar-ring"
-                        />
-                        <WinnerIndicator
-                          aria-hidden
-                          className="hidden sm:inline-flex"
-                          label="Winner"
-                        />
-                      </div>
-                    ) : (
-                      <p className={cn("truncate", sectionItemMetaClassName)}>
-                        {game.players
-                          .map((player) => getPlayerLabel(player, user.id))
-                          .join(", ")}
-                      </p>
-                    )}
+                      )}
+                    </div>
                   </div>
+                </Link>
+                <div className="relative z-10 px-4 pb-4">
+                  <RematchButton
+                    className="h-9 w-full rounded-xl border border-white/20 bg-foreground/8 px-3 text-sm text-foreground shadow-none backdrop-blur-sm hover:bg-foreground/14 dark:border-white/10 dark:bg-white/8 dark:hover:bg-white/14"
+                    confirmButtonClassName="bg-primary text-primary-foreground hover:bg-primary/90"
+                    gameId={game.id}
+                    gameTitle={game.gameTitle?.title ?? "Untitled game"}
+                    playerCount={game.players.length}
+                    size="sm"
+                    variant="ghost"
+                  />
                 </div>
-              </Link>
+              </div>
             );
           })
         )}

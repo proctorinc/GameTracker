@@ -9,7 +9,6 @@ import { FriendsPageHeader } from "./sections/friends-page-header";
 import { FriendsTabContent } from "./sections/friends-tab-content";
 import { FriendsTabs } from "./sections/friends-tabs";
 import { InviteNotices } from "./sections/invite-notices";
-import { InvitationsCard } from "./sections/invitations-card";
 import { AddFriendCard } from "./sections/add-friend-card";
 
 type FriendsPageProps = {
@@ -35,13 +34,6 @@ function FriendsPageContent() {
             <AddFriendCard />
             <InviteNotices />
             <FriendsTabContent />
-          </>
-        ) : null}
-        {activeTab === "invitations" ? (
-          <>
-            <AddFriendCard />
-            <InviteNotices />
-            <InvitationsCard />
           </>
         ) : null}
       </div>

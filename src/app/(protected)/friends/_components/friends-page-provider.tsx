@@ -79,8 +79,9 @@ export function FriendsPageProvider({
 }: FriendsPageProviderProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const hasPendingInvitations = data.incomingInvitations.length > 0;
   const [activeTab, setActiveTab] = useState<TabKey>(
-    showInviteNotice ? "invitations" : "activity",
+    showInviteNotice || hasPendingInvitations ? "friends" : "activity",
   );
   const [invitePhone, setInvitePhone] = useState("");
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
@@ -196,7 +197,7 @@ export function FriendsPageProvider({
       () => {
         setInvitePhone("");
         setIsInviteDialogOpen(false);
-        setActiveTab("invitations");
+        setActiveTab("friends");
       },
     );
   }
@@ -210,7 +211,7 @@ export function FriendsPageProvider({
         error: "Failed to create invitation",
       },
       () => {
-        setActiveTab("invitations");
+        setActiveTab("friends");
       },
     );
   }
@@ -240,7 +241,7 @@ export function FriendsPageProvider({
         setGuestPhoneInput("");
         setMergeFriendUserId("");
         setActiveRecentPlayer(null);
-        setActiveTab("invitations");
+        setActiveTab("friends");
       },
     );
   }

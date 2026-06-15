@@ -17,6 +17,7 @@ import ProfilePicture from "@/components/profile/profile-picture";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardEmpty, CardHeader } from "@/components/ui/card";
+import { RematchButton } from "@/components/game/rematch-button";
 import {
   Command,
   CommandEmpty,
@@ -1308,6 +1309,16 @@ export default function PlayGame(props: PlayGameProps) {
             <CardHeader className="gap-3 text-center text-[color:var(--winner-text)]">
               <div className="flex items-center justify-center gap-3 text-2xl font-bold">
                 <span>{formatWinners(game)}</span>
+              </div>
+              <div className="flex justify-center">
+                <RematchButton
+                  className="min-w-44 rounded-2xl border border-[var(--winner-border)] bg-white/40 text-[color:var(--winner-text)] shadow-sm backdrop-blur-sm hover:bg-white/55 dark:bg-black/10 dark:hover:bg-black/20"
+                  confirmButtonClassName="border border-[var(--winner-border)] bg-[color:var(--winner-text)] text-[color:var(--winner-surface-soft)] hover:bg-[color:var(--winner-text)]/90"
+                  gameId={game.id}
+                  gameTitle={game.gameTitle?.title ?? "Untitled game"}
+                  playerCount={game.players.length}
+                  variant="ghost"
+                />
               </div>
             </CardHeader>
           </Card>

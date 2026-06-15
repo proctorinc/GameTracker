@@ -27,7 +27,13 @@ const navItems = [
   },
 ] as const;
 
-export default function NavBar() {
+type NavBarProps = {
+  hasPendingFriendInvitations?: boolean;
+};
+
+export default function NavBar({
+  hasPendingFriendInvitations = false,
+}: NavBarProps) {
   const pathname = usePathname();
 
   return (
@@ -36,6 +42,8 @@ export default function NavBar() {
         <div className="flex justify-between gap-2">
           {navItems.map(({ href, label, icon: Icon, matches }) => {
             const isActive = matches(pathname);
+            const showInviteIndicator =
+              href === "/friends" && hasPendingFriendInvitations;
 
             return (
               <Link
@@ -43,12 +51,15 @@ export default function NavBar() {
                 href={href}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "flex h-16 flex-col w-fit min-w-20 px-4 items-center justify-center gap-1 rounded-[1.4rem] border text-[0.68rem] font-semibold tracking-[0.08em] uppercase transition-colors",
+                  "relative flex h-16 w-fit min-w-20 flex-col items-center justify-center gap-1 rounded-[1.4rem] border px-4 text-[0.68rem] font-semibold tracking-[0.08em] uppercase transition-colors",
                   isActive
                     ? "border-transparent bg-primary text-primary-foreground"
                     : "border-border bg-background hover:bg-muted",
                 )}
               >
+                {showInviteIndicator ? (
+                  <span className="absolute right-3 top-3 size-2.5 rounded-full bg-red-500" />
+                ) : null}
                 <Icon className="size-5" />
                 <span>{label}</span>
               </Link>

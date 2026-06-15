@@ -1,14 +1,19 @@
 "use client";
 
-import { AudioLines, Mail, Users } from "lucide-react";
+import { AudioLines, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFriendsPage } from "../friends-page-provider";
 
 export function FriendsTabs() {
-  const { activeTab, setActiveTab } = useFriendsPage();
+  const {
+    activeTab,
+    data: { incomingInvitations },
+    setActiveTab,
+  } = useFriendsPage();
+  const hasPendingInvitations = incomingInvitations.length > 0;
 
   return (
-    <div className="grid grid-cols-3 gap-2 rounded-2xl border border-border/70 bg-muted/70 p-1">
+    <div className="grid grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-muted/70 p-1">
       <Button
         variant={activeTab === "activity" ? "default" : "ghost"}
         className="rounded-xl"
@@ -20,21 +25,15 @@ export function FriendsTabs() {
       </Button>
       <Button
         variant={activeTab === "friends" ? "default" : "ghost"}
-        className="rounded-xl"
+        className="relative rounded-xl"
         size="sm"
         onClick={() => setActiveTab("friends")}
       >
+        {hasPendingInvitations ? (
+          <span className="absolute right-2 top-2 size-2.5 rounded-full bg-red-500" />
+        ) : null}
         <Users />
         Friends
-      </Button>
-      <Button
-        variant={activeTab === "invitations" ? "default" : "ghost"}
-        className="rounded-xl"
-        size="sm"
-        onClick={() => setActiveTab("invitations")}
-      >
-        <Mail />
-        Invites
       </Button>
     </div>
   );
