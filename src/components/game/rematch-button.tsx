@@ -25,7 +25,7 @@ type RematchButtonProps = {
 };
 
 function getPlayerLabel(playerCount: number) {
-  return `${playerCount} user${playerCount === 1 ? "" : "s"}`;
+  return `${playerCount} player${playerCount === 1 ? "" : "s"}`;
 }
 
 export function RematchButton({
@@ -68,9 +68,15 @@ export function RematchButton({
                   Start rematch?
                 </DialogTitle>
                 <DialogDescription className="text-base">
-                  This will start a new <span className="font-semibold text-foreground">{gameTitle}</span> game with{" "}
-                  <span className="font-semibold text-foreground">{playerLabel}</span>.
-                  Scores, rounds, and winners will be reset.
+                  Start a new{" "}
+                  <span className="font-semibold text-foreground">
+                    {gameTitle}
+                  </span>{" "}
+                  game with{" "}
+                  <span className="font-semibold text-foreground">
+                    {playerLabel}
+                  </span>
+                  ?
                 </DialogDescription>
               </DialogHeader>
             </div>

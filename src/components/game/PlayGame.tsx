@@ -113,6 +113,7 @@ type PendingMutationEntry = {
 
 const SCORE_DRAWER_KEYBOARD_MAX_HEIGHT_CLASS = "max-h-[360px]";
 const SCORE_DRAWER_KEYBOARD_MAX_HEIGHT = "360px";
+const SCORE_DRAWER_CLOSE_DURATION_MS = 180;
 
 function getDisplayName(
   user: Pick<UserBase, "firstName" | "lastName" | "isGuest">,
@@ -354,6 +355,7 @@ export default function PlayGame(props: PlayGameProps) {
   const [isDeleteGamePending, startDeleteGameTransition] = useTransition();
   const [scoreDialogState, setScoreDialogState] =
     useState<ScoreDialogState | null>(null);
+  const [isScoreDrawerOpen, setIsScoreDrawerOpen] = useState(false);
   const [scoreAmountInput, setScoreAmountInput] = useState("0");
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
   const [isAddPlayerMode, setIsAddPlayerMode] = useState(false);
@@ -384,6 +386,9 @@ export default function PlayGame(props: PlayGameProps) {
     PendingMutationEntry[]
   >([]);
   const deferredPlayerSearch = useDeferredValue(playerSearch);
+  const scoreDrawerCloseTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
 
   const projectedSnapshot = useMemo(
     () =>
@@ -410,6 +415,14 @@ export default function PlayGame(props: PlayGameProps) {
   useEffect(() => {
     pendingMutationsRef.current = pendingMutations;
   }, [pendingMutations]);
+
+  useEffect(() => {
+    return () => {
+      if (scoreDrawerCloseTimeoutRef.current) {
+        clearTimeout(scoreDrawerCloseTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const snapshot = optimisticSnapshot;
   const game = snapshot.game;
@@ -583,15 +596,6 @@ export default function PlayGame(props: PlayGameProps) {
     [game],
   );
   const hasThresholdMet = useMemo(() => hasGameMetScoreThreshold(game), [game]);
-  const roundSummaryScores = useMemo(
-    () =>
-      game.players.map((player) => ({
-        userId: player.userId,
-        scoreDelta: activeRoundScoreByUserId.get(player.userId) ?? null,
-        player,
-      })),
-    [activeRoundScoreByUserId, game.players],
-  );
   const projectedWinnerIds = useMemo(() => {
     if (game.scoringMode === "no_score") {
       return new Set(selectedWinnerUserIds);
@@ -828,6 +832,11 @@ export default function PlayGame(props: PlayGameProps) {
       return;
     }
 
+    if (scoreDrawerCloseTimeoutRef.current) {
+      clearTimeout(scoreDrawerCloseTimeoutRef.current);
+      scoreDrawerCloseTimeoutRef.current = null;
+    }
+
     setScoreDialogState({
       playerId: player.userId,
       roundNumber: nextRoundNumber,
@@ -836,6 +845,7 @@ export default function PlayGame(props: PlayGameProps) {
     setScoreAmountInput(
       String(activeRoundScoreByUserId.get(player.userId) ?? 0),
     );
+    setIsScoreDrawerOpen(true);
   }
 
   function openRoundScoreDialog(input: {
@@ -844,6 +854,11 @@ export default function PlayGame(props: PlayGameProps) {
   }) {
     if (!isCreator || isCompleted || isNoScoreMode) {
       return;
+    }
+
+    if (scoreDrawerCloseTimeoutRef.current) {
+      clearTimeout(scoreDrawerCloseTimeoutRef.current);
+      scoreDrawerCloseTimeoutRef.current = null;
     }
 
     const round = game.rounds.find(
@@ -859,6 +874,7 @@ export default function PlayGame(props: PlayGameProps) {
       mode: "history",
     });
     setScoreAmountInput(String(roundScore));
+    setIsScoreDrawerOpen(true);
   }
 
   function openColorDialog(player: GameForPlayPage["players"][number]) {
@@ -964,6 +980,24 @@ export default function PlayGame(props: PlayGameProps) {
     });
   }
 
+  function finalizeScoreDrawerClose() {
+    setScoreDialogState(null);
+    setScoreAmountInput("0");
+    scoreDrawerCloseTimeoutRef.current = null;
+  }
+
+  function closeScoreDrawer() {
+    setIsScoreDrawerOpen(false);
+
+    if (scoreDrawerCloseTimeoutRef.current) {
+      clearTimeout(scoreDrawerCloseTimeoutRef.current);
+    }
+
+    scoreDrawerCloseTimeoutRef.current = setTimeout(() => {
+      finalizeScoreDrawerClose();
+    }, SCORE_DRAWER_CLOSE_DURATION_MS);
+  }
+
   function handleScoreSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -1006,16 +1040,19 @@ export default function PlayGame(props: PlayGameProps) {
         });
       },
       onOptimistic: () => {
-        setScoreDialogState(null);
-        setScoreAmountInput("0");
+        closeScoreDrawer();
       },
     });
   }
 
   function handleScoreDrawerOpenChange(open: boolean) {
-    if (!open) {
-      setScoreDialogState(null);
-      setScoreAmountInput("0");
+    if (open) {
+      setIsScoreDrawerOpen(true);
+      return;
+    }
+
+    if (isScoreDrawerOpen) {
+      closeScoreDrawer();
     }
   }
 
@@ -1326,23 +1363,35 @@ export default function PlayGame(props: PlayGameProps) {
         </Card>
 
         {isCompleted ? (
-          <Card className="winner-surface overflow-hidden rounded-3xl border">
-            <CardHeader className="gap-3 text-center text-[color:var(--winner-text)]">
-              <div className="flex items-center justify-center gap-3 text-2xl font-bold">
-                <span>{formatWinners(game)}</span>
-              </div>
-              <div className="flex justify-center">
-                <RematchButton
-                  className="min-w-44 rounded-2xl border border-[var(--winner-border)] bg-white/40 text-[color:var(--winner-text)] shadow-sm backdrop-blur-sm hover:bg-white/55 dark:bg-black/10 dark:hover:bg-black/20"
-                  confirmButtonClassName="border border-[var(--winner-border)] bg-[color:var(--winner-text)] text-[color:var(--winner-surface-soft)] hover:bg-[color:var(--winner-text)]/90"
-                  gameId={game.id}
-                  gameTitle={game.gameTitle?.title ?? "Untitled game"}
-                  playerCount={game.players.length}
-                  variant="ghost"
-                />
-              </div>
-            </CardHeader>
-          </Card>
+          <div className="flex flex-col gap-3">
+            <Card
+              className="winner-surface overflow-hidden rounded-3xl border"
+              size="sm"
+            >
+              <CardContent className="flex items-center gap-3 py-3 text-[color:var(--winner-text)]">
+                <div className="winner-icon flex size-11 shrink-0 items-center justify-center rounded-2xl">
+                  <Trophy className="size-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="winner-muted text-[0.7rem] font-semibold uppercase tracking-[0.18em]">
+                    Winner
+                  </p>
+                  <p className="text-2xl font-bold">{formatWinners(game)}</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex justify-center">
+              <RematchButton
+                className="w-full rounded-2xl border border-[var(--winner-border)] bg-white/40 text-[color:var(--winner-text)] shadow-sm backdrop-blur-sm hover:bg-white/55 dark:bg-black/10 dark:hover:bg-black/20"
+                confirmButtonClassName="border border-[var(--winner-border)] bg-[color:var(--winner-text)] text-[color:var(--winner-surface-soft)] hover:bg-[color:var(--winner-text)]/90"
+                gameId={game.id}
+                gameTitle={game.gameTitle?.title ?? "Untitled game"}
+                playerCount={game.players.length}
+                variant="ghost"
+              />
+            </div>
+          </div>
         ) : null}
 
         <div className="flex flex-col gap-3">
@@ -1650,10 +1699,10 @@ export default function PlayGame(props: PlayGameProps) {
 
       <Drawer
         onOpenChange={handleScoreDrawerOpenChange}
-        open={Boolean(scoreDialogPlayer)}
+        open={isScoreDrawerOpen}
       >
         <DrawerContent
-          className="left-1/2 right-auto max-h-[92vh] w-[calc(100%-1rem)] max-w-sm -translate-x-1/2 gap-0 overflow-hidden rounded-t-[2rem] p-0"
+          className="left-1/2 right-auto max-h-[92vh] w-full max-w-sm -translate-x-1/2 gap-0 overflow-hidden rounded-t-[2rem] p-0 text-[color:var(--profile-surface-text)]"
           style={
             scoreDialogPlayer
               ? getProfileColorSurfaceStyles(scoreDialogPlayer.user.color)
@@ -1667,7 +1716,7 @@ export default function PlayGame(props: PlayGameProps) {
             className="relative z-10 flex min-h-0 w-full flex-1 flex-col"
             onSubmit={handleScoreSubmit}
           >
-            <DrawerHeader className="px-5 pb-3">
+            <DrawerHeader className="px-5 pt-5 pb-3">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <DrawerTitle className="text-[clamp(1.5rem,6vw,2rem)] font-black">
@@ -1681,8 +1730,8 @@ export default function PlayGame(props: PlayGameProps) {
                 </div>
                 <Button
                   aria-label="Close score drawer"
-                  className="size-11 rounded-[1.1rem] border-[var(--profile-surface-panel-border)] bg-[color:color-mix(in_srgb,var(--profile-surface-panel)_78%,white_22%)] text-[color:var(--profile-surface-text)] shadow-sm"
-                  onClick={() => handleScoreDrawerOpenChange(false)}
+                  className="size-11 rounded-[1.1rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[color:var(--profile-surface-text)] shadow-sm"
+                  onClick={closeScoreDrawer}
                   size="icon-lg"
                   type="button"
                   variant="outline"
@@ -1697,7 +1746,7 @@ export default function PlayGame(props: PlayGameProps) {
                 <div className="flex items-center justify-between gap-3">
                   <Button
                     aria-label="Decrease score by 1"
-                    className="h-14 w-14 shrink-0 rounded-[1.25rem] border-[var(--profile-surface-panel-border)] bg-[color:color-mix(in_srgb,var(--profile-surface-panel)_70%,white_30%)] text-[color:var(--profile-surface-text)] shadow-sm"
+                    className="h-14 w-14 shrink-0 rounded-[1.25rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[color:var(--profile-surface-text)] shadow-sm"
                     disabled={isCompleted || scoreMutationPending}
                     onClick={() => {
                       const scoreAmount =
@@ -1710,14 +1759,14 @@ export default function PlayGame(props: PlayGameProps) {
                     <Minus className="size-5" />
                   </Button>
                   <p
-                    className="flex-1 text-center text-[clamp(2.5rem,12vw,3.5rem)] font-black leading-none"
+                    className="flex-1 text-center text-[clamp(2.5rem,12vw,3.5rem)] font-black leading-none text-[color:var(--profile-surface-text)]"
                     data-testid="score-drawer-entry"
                   >
                     {scoreAmountInput}
                   </p>
                   <Button
                     aria-label="Increase score by 1"
-                    className="h-14 w-14 shrink-0 rounded-[1.25rem] border-[var(--profile-surface-panel-border)] bg-[color:color-mix(in_srgb,var(--profile-surface-panel)_70%,white_30%)] text-[color:var(--profile-surface-text)] shadow-sm"
+                    className="h-14 w-14 shrink-0 rounded-[1.25rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[color:var(--profile-surface-text)] shadow-sm"
                     disabled={isCompleted || scoreMutationPending}
                     onClick={() => {
                       const scoreAmount =
@@ -1733,7 +1782,7 @@ export default function PlayGame(props: PlayGameProps) {
               </div>
             </div>
 
-            <div className="mt-auto border-t border-[var(--profile-surface-panel-border)] bg-[color:color-mix(in_srgb,var(--profile-surface-panel)_74%,white_26%)] px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-4 backdrop-blur-sm">
+            <div className="mt-auto bg-transparent px-5 py-4 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
               <div
                 className={cn(
                   "mx-auto flex w-full flex-col justify-start",
@@ -1748,7 +1797,7 @@ export default function PlayGame(props: PlayGameProps) {
                     <Button
                       key={digit}
                       aria-label={`Enter ${digit}`}
-                      className="h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[color:color-mix(in_srgb,var(--profile-surface-panel)_64%,white_36%)] text-[clamp(0.95rem,4vw,1.5rem)] font-black shadow-sm"
+                      className="h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[clamp(0.95rem,4vw,1.5rem)] font-black text-[color:var(--profile-surface-text)] shadow-sm"
                       disabled={isCompleted || scoreMutationPending}
                       onClick={() =>
                         setScoreAmountInput(
@@ -1763,7 +1812,7 @@ export default function PlayGame(props: PlayGameProps) {
                   ))}
                   <Button
                     aria-label="Toggle positive or negative"
-                    className="h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[color:color-mix(in_srgb,var(--profile-surface-panel)_64%,white_36%)] text-[clamp(0.85rem,3.6vw,1.25rem)] font-black shadow-sm"
+                    className="h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[clamp(0.85rem,3.6vw,1.25rem)] font-black text-[color:var(--profile-surface-text)] shadow-sm"
                     disabled={scoreMutationPending}
                     onClick={() =>
                       setScoreAmountInput(
@@ -1777,7 +1826,7 @@ export default function PlayGame(props: PlayGameProps) {
                   </Button>
                   <Button
                     aria-label="Enter 0"
-                    className="h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[color:color-mix(in_srgb,var(--profile-surface-panel)_64%,white_36%)] text-[clamp(0.95rem,4vw,1.5rem)] font-black shadow-sm"
+                    className="h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[clamp(0.95rem,4vw,1.5rem)] font-black text-[color:var(--profile-surface-text)] shadow-sm"
                     disabled={isCompleted || scoreMutationPending}
                     onClick={() =>
                       setScoreAmountInput(
@@ -1791,7 +1840,7 @@ export default function PlayGame(props: PlayGameProps) {
                   </Button>
                   <Button
                     aria-label="Delete digit"
-                    className="h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[color:color-mix(in_srgb,var(--profile-surface-panel)_64%,white_36%)] text-[clamp(0.85rem,3.6vw,1.25rem)] font-black shadow-sm"
+                    className="h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[clamp(0.85rem,3.6vw,1.25rem)] font-black text-[color:var(--profile-surface-text)] shadow-sm"
                     disabled={isCompleted || scoreMutationPending}
                     onClick={() =>
                       setScoreAmountInput(
@@ -1806,7 +1855,7 @@ export default function PlayGame(props: PlayGameProps) {
                 </div>
                 <Button
                   aria-label="Confirm"
-                  className="mt-3 h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[color:color-mix(in_srgb,var(--profile-surface-panel)_60%,white_40%)] text-[clamp(1rem,4vw,1.25rem)] font-black shadow-sm"
+                  className="mt-3 h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[clamp(1rem,4vw,1.25rem)] font-black text-[color:var(--profile-surface-text)] shadow-sm"
                   disabled={scoreMutationPending}
                   type="submit"
                   variant="outline"
@@ -2200,21 +2249,19 @@ export default function PlayGame(props: PlayGameProps) {
             !(isRoundlessFreePlay || hasThresholdMet) && (
               <div className="rounded-3xl border border-border bg-muted/50 p-4">
                 <p className="mb-3 text-sm font-bold uppercase tracking-[0.18em] text-muted-foreground">
-                  Round summary
+                  Total scores
                 </p>
                 <div className="flex flex-col gap-2">
-                  {roundSummaryScores.map((score) => (
+                  {sortedPlayers.map((player) => (
                     <div
-                      key={score.userId}
+                      key={player.userId}
                       className="flex items-center justify-between gap-3 text-sm"
                     >
                       <span className="font-medium text-foreground/80">
-                        {getDisplayName(score.player.user)}
+                        {getDisplayName(player.user)}
                       </span>
                       <span className="font-black text-foreground">
-                        {score.scoreDelta === null
-                          ? 0
-                          : `${score.scoreDelta > 0 ? "+" : ""}${score.scoreDelta}`}
+                        {getPlayerTotalScore(player)}
                       </span>
                     </div>
                   ))}
@@ -2315,13 +2362,7 @@ export default function PlayGame(props: PlayGameProps) {
                       key={round.id}
                       className="border-b border-r border-border bg-muted px-3 py-3 text-center text-xs font-black uppercase tracking-[0.18em] text-muted-foreground"
                     >
-                      <span>
-                        R{round.roundNumber}
-                        {round.roundNumber === nextRoundNumber &&
-                        (round.scores?.length ?? 0) > 0
-                          ? " (current)"
-                          : ""}
-                      </span>
+                      <span>R{round.roundNumber}</span>
                     </div>
                   ))}
 

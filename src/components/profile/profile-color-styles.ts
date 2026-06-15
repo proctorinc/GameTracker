@@ -49,7 +49,6 @@ export function getProfileColorSurfaceStyles(color: string): CSSProperties {
   const textTint = isDark
     ? mixColors({ r: 255, g: 255, b: 255 }, rgb, 0.18)
     : mixColors({ r: 15, g: 23, b: 42 }, rgb, 0.22);
-
   return {
     backgroundColor: color,
     color: textTint,

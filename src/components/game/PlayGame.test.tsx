@@ -48,8 +48,10 @@ vi.mock("@/app/actions/game", () => ({
   deleteCreatedGame: (...args: unknown[]) => deleteCreatedGame(...args),
   getPlayGameSnapshot: (...args: unknown[]) => getPlayGameSnapshot(...args),
   removeGamePlayer: (...args: unknown[]) => removeGamePlayer(...args),
-  updateRecordedRoundScore: (...args: unknown[]) => updateRecordedRoundScore(...args),
-  upsertActiveRoundScore: (...args: unknown[]) => upsertActiveRoundScore(...args),
+  updateRecordedRoundScore: (...args: unknown[]) =>
+    updateRecordedRoundScore(...args),
+  upsertActiveRoundScore: (...args: unknown[]) =>
+    upsertActiveRoundScore(...args),
 }));
 
 vi.mock("@/app/actions/user", () => ({
@@ -84,8 +86,16 @@ function createUser(input: {
 }
 
 function createGameSnapshot(score = 0): GameForPlayPage {
-  const creator = createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" });
-  const opponent = createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" });
+  const creator = createUser({
+    id: "user-1",
+    firstName: "Mia",
+    color: "#aaaaaa",
+  });
+  const opponent = createUser({
+    id: "user-2",
+    firstName: "Kai",
+    color: "#bbbbbb",
+  });
 
   return {
     id: "game-1",
@@ -348,7 +358,9 @@ describe("PlayGame", () => {
     tapScoreDigits("5");
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
-    expect(screen.getByTestId("player-score-button-user-2")).toHaveTextContent("5");
+    expect(screen.getByTestId("player-score-button-user-2")).toHaveTextContent(
+      "5",
+    );
 
     getPlayGameSnapshot.mockResolvedValue({
       currentUserId: "user-1",
@@ -385,7 +397,9 @@ describe("PlayGame", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
     expect(screen.queryByTestId("score-drawer-entry")).not.toBeInTheDocument();
-    expect(screen.getByTestId("player-score-button-user-2")).toHaveTextContent("5");
+    expect(screen.getByTestId("player-score-button-user-2")).toHaveTextContent(
+      "5",
+    );
   });
 
   it("opens scoring when the player card is clicked", () => {
@@ -444,12 +458,16 @@ describe("PlayGame", () => {
     tapScoreDigits("5");
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
-    expect(screen.getByTestId("player-score-button-user-2")).toHaveTextContent("5");
+    expect(screen.getByTestId("player-score-button-user-2")).toHaveTextContent(
+      "5",
+    );
 
     deferred.reject(new Error("Score save failed"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("player-score-button-user-2")).toHaveTextContent("0");
+      expect(
+        screen.getByTestId("player-score-button-user-2"),
+      ).toHaveTextContent("0");
     });
     expect(toastError).toHaveBeenCalledWith("Score save failed");
   });
@@ -481,7 +499,9 @@ describe("PlayGame", () => {
       isCreator: false,
     });
 
-    expect(screen.getByTestId("player-score-display-user-2")).toHaveTextContent("0");
+    expect(screen.getByTestId("player-score-display-user-2")).toHaveTextContent(
+      "0",
+    );
 
     await act(async () => {
       window.dispatchEvent(new Event("focus"));
@@ -489,7 +509,9 @@ describe("PlayGame", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId("player-score-display-user-2")).toHaveTextContent("7");
+      expect(
+        screen.getByTestId("player-score-display-user-2"),
+      ).toHaveTextContent("7");
     });
   });
 
@@ -503,8 +525,12 @@ describe("PlayGame", () => {
     expect(screen.getByText("1st place")).toBeInTheDocument();
     expect(screen.getByText("2nd place")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Score" })).toBeInTheDocument();
-    expect(screen.queryByTestId("player-score-button-user-1")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("player-score-button-user-2")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("player-score-button-user-1"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("player-score-button-user-2"),
+    ).not.toBeInTheDocument();
   });
 
   it("confirms rematches before creating a new game", () => {
@@ -514,11 +540,15 @@ describe("PlayGame", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Rematch" }));
 
-    expect(screen.getByRole("heading", { name: "Start rematch?" })).toBeInTheDocument();
     expect(
-      screen.getByText(/This will start a new/i),
-    ).toHaveTextContent("This will start a new Skyjo game with 2 users.");
-    expect(screen.getByRole("button", { name: "Start rematch" })).toBeInTheDocument();
+      screen.getByRole("heading", { name: "Start rematch?" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Start a new/i)).toHaveTextContent(
+      "Start a new Skyjo game with 2 players.",
+    );
+    expect(
+      screen.getByRole("button", { name: "Start rematch" }),
+    ).toBeInTheDocument();
   });
 
   it("formats player names with a last initial on the play page", () => {
@@ -582,7 +612,9 @@ describe("PlayGame", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Score" }));
 
-    expect(screen.getByRole("heading", { name: "Score breakdown" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Score breakdown" }),
+    ).toBeInTheDocument();
   });
 
   it("shows an empty state in the score breakdown modal before any rounds are recorded", () => {
@@ -593,7 +625,9 @@ describe("PlayGame", () => {
     fireEvent.click(screen.getByRole("button", { name: "Score" }));
 
     expect(
-      screen.getByText("Nothing here yet. Scores will show up after the first round."),
+      screen.getByText(
+        "Nothing here yet. Scores will show up after the first round.",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -604,7 +638,7 @@ describe("PlayGame", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Score" }));
 
-    expect(screen.getByText("R2 (current)")).toBeInTheDocument();
+    expect(screen.getByText("R2")).toBeInTheDocument();
     expect(screen.getAllByText("+2")).toHaveLength(2);
   });
 
@@ -632,14 +666,16 @@ describe("PlayGame", () => {
           {
             ...createRoundTrackedGameWithActiveScoresSnapshot().rounds[1]!,
             scores: [
-              ...createRoundTrackedGameWithActiveScoresSnapshot().rounds[1]!.scores,
+              ...createRoundTrackedGameWithActiveScoresSnapshot().rounds[1]!
+                .scores,
               {
                 id: "round-2-score-user-2",
                 gameRoundId: "round-2",
                 userId: "user-2",
                 scoreDelta: -4,
                 createdAt: "2025-01-02T00:00:00.000Z",
-                user: createRoundTrackedGameWithActiveScoresSnapshot().players[1]!.user,
+                user: createRoundTrackedGameWithActiveScoresSnapshot()
+                  .players[1]!.user,
               },
             ],
           },
@@ -669,9 +705,15 @@ describe("PlayGame", () => {
     });
 
     expect(screen.getByText("No score")).toBeInTheDocument();
-    expect(screen.queryByTestId("player-score-display-user-1")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("player-score-display-user-2")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Score" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("player-score-display-user-1"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("player-score-display-user-2"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Score" }),
+    ).not.toBeInTheDocument();
   });
 
   it("lets the creator choose winners manually for no-score games", async () => {
@@ -701,15 +743,27 @@ describe("PlayGame", () => {
     expect(
       screen.getByRole("button", { name: "Change game settings" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "End game" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Delete game" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "End game" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Delete game" }),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
 
-    expect(screen.getByRole("heading", { name: "Manage users" })).toBeInTheDocument();
-    expect(screen.getByTestId("remove-player-button-user-2")).toBeInTheDocument();
-    expect(screen.queryByTestId("remove-player-button-user-1")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Manage users" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("remove-player-button-user-2"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("remove-player-button-user-1"),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Player" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Back to game" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Back to game" }),
+    ).toBeInTheDocument();
   });
 
   it("shows add user UI only after tapping add user", () => {
@@ -719,9 +773,15 @@ describe("PlayGame", () => {
     fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
     fireEvent.click(screen.getByRole("button", { name: "Player" }));
 
-    expect(screen.getByRole("heading", { name: "Add user" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Back to users" })).toBeInTheDocument();
-    expect(screen.queryByTestId("remove-player-button-user-2")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Add user" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Back to users" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("remove-player-button-user-2"),
+    ).not.toBeInTheDocument();
   });
 
   it("removes a player optimistically after confirmation", async () => {
@@ -734,7 +794,9 @@ describe("PlayGame", () => {
     fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
     fireEvent.click(screen.getByTestId("remove-player-button-user-2"));
 
-    expect(screen.getByRole("heading", { name: "Remove this user?" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Remove this user?" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Remove user" }));
 
@@ -782,7 +844,11 @@ describe("PlayGame", () => {
     });
 
     renderComponent({
-      playerOptions: [createUser({ id: "user-1", firstName: "Mia" }), createUser({ id: "user-2", firstName: "Kai" }), friend],
+      playerOptions: [
+        createUser({ id: "user-1", firstName: "Mia" }),
+        createUser({ id: "user-2", firstName: "Kai" }),
+        friend,
+      ],
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Game options" }));
@@ -790,8 +856,12 @@ describe("PlayGame", () => {
     fireEvent.click(screen.getByRole("button", { name: "Player" }));
     fireEvent.click(screen.getByText("June"));
 
-    expect(screen.getByRole("heading", { name: "Manage users" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Back to game" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Manage users" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Back to game" }),
+    ).toBeInTheDocument();
 
     deferred.resolve();
 
