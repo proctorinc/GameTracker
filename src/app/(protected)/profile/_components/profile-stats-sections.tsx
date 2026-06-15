@@ -4,7 +4,7 @@ import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
 import {
   BadgeCheck,
   Flame,
-  Layers3,
+  Gamepad2,
   Orbit,
   Search,
   Target,
@@ -367,7 +367,7 @@ export function ProfileStatsSections({ data }: { data: ProfileStatsPageData }) {
         <StatCard
           label="Games"
           value={data.stats.completedGames}
-          icon={<Layers3 className="size-6" />}
+          icon={<Gamepad2 className="size-6" />}
           className="bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.03)_100%)]"
           iconClassName="bg-slate-950 text-white border-slate-900/20 dark:bg-white dark:text-slate-950 dark:border-white/20"
         />
@@ -420,14 +420,6 @@ export function ProfileStatsSections({ data }: { data: ProfileStatsPageData }) {
                   Matchup
                 </p>
               </div>
-              {isBestFriendSelected ? (
-                <Badge
-                  variant="outline"
-                  className="rounded-full border-[var(--profile-accent-line)] bg-[var(--profile-accent-soft)] px-3 py-1 dark:text-white"
-                >
-                  Best friend
-                </Badge>
-              ) : null}
             </div>
 
             {data.comparisonOptions.length > 0 ? (
@@ -488,28 +480,28 @@ export function ProfileStatsSections({ data }: { data: ProfileStatsPageData }) {
                   </div>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-[1.5rem] border border-border/70 bg-muted/50 p-4 text-center dark:border-white/10 dark:bg-white/6">
+                <div className="grid gap-3 grid-cols-3">
+                  <div className="flex flex-col justify-between rounded-[1.5rem] border border-border/70 bg-muted/50 p-4 text-center dark:border-white/10 dark:bg-white/6">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground dark:text-white/60">
                       Win rate
                     </p>
-                    <p className="mt-2 text-3xl font-black text-foreground dark:text-white">
+                    <p className="mt-2 text-xl font-black text-foreground dark:text-white">
                       {formatPercent(selectedComparison.winRate)}
                     </p>
                   </div>
-                  <div className="rounded-[1.5rem] border border-border/70 bg-muted/50 p-4 text-center dark:border-white/10 dark:bg-white/6">
+                  <div className="flex flex-col justify-between rounded-[1.5rem] border border-border/70 bg-muted/50 p-4 text-center dark:border-white/10 dark:bg-white/6">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground dark:text-white/60">
                       Games
                     </p>
-                    <p className="mt-2 text-3xl font-black text-foreground dark:text-white">
+                    <p className="mt-2 text-xl font-black text-foreground dark:text-white">
                       {selectedComparison.completedGamesTogether}
                     </p>
                   </div>
-                  <div className="rounded-[1.5rem] border border-border/70 bg-muted/50 p-4 text-center dark:border-white/10 dark:bg-white/6">
+                  <div className="flex flex-col justify-between rounded-[1.5rem] border border-border/70 bg-muted/50 p-4 text-center dark:border-white/10 dark:bg-white/6">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground dark:text-white/60">
                       Streak against
                     </p>
-                    <p className="mt-2 text-3xl font-black text-foreground dark:text-white">
+                    <p className="mt-2 text-xl font-black text-foreground dark:text-white">
                       {formatStreak(
                         selectedComparison.currentStreak.type,
                         selectedComparison.currentStreak.count,
