@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { getPlayersOrderedByPlacement } from "@/app/(protected)/dashboard/_components/utils";
 import { useFriendsPage } from "../friends-page-provider";
 import {
   formatActivityDay,
@@ -36,7 +37,6 @@ function getWinnerSummary(game: FriendActivityItem, currentUserId: string) {
     return `${getActivityDisplayName({
       id: winner.user.id,
       firstName: winner.user.firstName,
-      lastName: winner.user.lastName,
       currentUserId,
     })} won`;
   }
@@ -133,7 +133,8 @@ export function FriendActivityCard() {
                     const includesCurrentUser = game.players.some(
                       (player) => player.userId === data.user.id,
                     );
-                    const activityDate = game.completedAt ?? game.createdAt;
+                    const orderedPlayers = getPlayersOrderedByPlacement(game);
+                    const activityDate = game.createdAt;
                     const activityTime = formatActivityTime(
                       activityDate,
                       dateFormatting,
@@ -194,7 +195,7 @@ export function FriendActivityCard() {
                             </div>
                             <div className="flex shrink-0 items-center gap-2">
                               <div className="flex -space-x-2">
-                                {game.players.slice(0, 4).map((player) => (
+                                {orderedPlayers.slice(0, 4).map((player) => (
                                   <ProfilePicture
                                     key={player.id}
                                     user={player.user}

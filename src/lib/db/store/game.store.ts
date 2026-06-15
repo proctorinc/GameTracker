@@ -756,7 +756,7 @@ export async function listRecentActiveGames(userId: string) {
         ),
       ),
     orderBy: (games, { desc }) => desc(games.createdAt),
-    limit: 3,
+    limit: 4,
     with: gameFullRelations,
   });
 }

@@ -21,6 +21,13 @@ type ProfileOverviewContextValue = {
 const ProfileOverviewContext =
   createContext<ProfileOverviewContextValue | null>(null);
 
+function formatDisplayName(input: {
+  firstName: string | null;
+  lastName: string | null;
+}) {
+  return [input.firstName, input.lastName].filter(Boolean).join(" ").trim() || "Your profile";
+}
+
 export function ProfileOverviewProvider({
   initialData,
   children,
@@ -39,6 +46,16 @@ export function ProfileOverviewProvider({
         user: {
           ...current.user,
           ...nextUser,
+        },
+        profile: {
+          ...current.profile,
+          firstName: nextUser.firstName ?? current.profile.firstName,
+          lastName: nextUser.lastName ?? current.profile.lastName,
+          color: nextUser.color ?? current.profile.color,
+          displayName: formatDisplayName({
+            firstName: nextUser.firstName ?? current.profile.firstName,
+            lastName: nextUser.lastName ?? current.profile.lastName,
+          }),
         },
       }));
     },

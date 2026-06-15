@@ -544,11 +544,44 @@ describe("PlayGame", () => {
       screen.getByRole("heading", { name: "Start rematch?" }),
     ).toBeInTheDocument();
     expect(screen.getByText(/Start a new/i)).toHaveTextContent(
-      "Start a new Skyjo game with 2 players.",
+      "Start a new Skyjo game with 2 players?",
     );
     expect(
       screen.getByRole("button", { name: "Start rematch" }),
     ).toBeInTheDocument();
+  });
+
+  it("prevents duplicate rematch submissions while the new game is being created", async () => {
+    let resolveRematch: (() => void) | null = null;
+    createRematchGameAndRedirect.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRematch = resolve;
+        }),
+    );
+
+    renderComponent({
+      game: createCompletedGameSnapshot(),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Rematch" }));
+
+    const startRematchButton = screen.getByRole("button", {
+      name: "Start rematch",
+    });
+
+    fireEvent.click(startRematchButton);
+    fireEvent.click(startRematchButton);
+
+    await waitFor(() => {
+      expect(createRematchGameAndRedirect).toHaveBeenCalledTimes(1);
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Starting rematch..." }),
+    ).toBeDisabled();
+
+    resolveRematch?.();
   });
 
   it("formats player names with a last initial on the play page", () => {

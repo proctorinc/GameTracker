@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { updateUserProfile } from "@/app/actions/user";
 import { ProfileColorSelector } from "@/components/profile/profile-color-selector";
 import { useProfileOverview } from "../profile-overview-provider";
-import { useState } from "react";
+import { startTransition, useState } from "react";
 
 export function ProfileColorPanel({
   hidePreview = false,
@@ -30,7 +30,9 @@ export function ProfileColorPanel({
         lastName: user.lastName ?? "",
         color: nextColor,
       });
-      router.refresh();
+      startTransition(() => {
+        router.refresh();
+      });
     } catch (error) {
       patchUser({ color: previousColor });
       console.error("Failed to update profile color:", error);

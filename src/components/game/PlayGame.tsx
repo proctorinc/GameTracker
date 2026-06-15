@@ -16,7 +16,13 @@ import { ProfileColorSelector } from "@/components/profile/profile-color-selecto
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardEmpty, CardHeader } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardEmpty,
+  CardFooter,
+  CardHeader,
+} from "@/components/ui/card";
 import { RematchButton } from "@/components/game/rematch-button";
 import {
   Command,
@@ -1924,19 +1930,6 @@ export default function PlayGame(props: PlayGameProps) {
           </DialogHeader>
           {isAddPlayerMode ? (
             <>
-              <div className="px-5">
-                <Button
-                  className="w-full"
-                  onClick={() => {
-                    setIsAddPlayerMode(false);
-                    setPlayerSearch("");
-                  }}
-                  type="button"
-                  variant="outline"
-                >
-                  Back to users
-                </Button>
-              </div>
               <Command className="border-0 bg-transparent px-4">
                 <CommandInput
                   className="text-lg"
@@ -2011,81 +2004,87 @@ export default function PlayGame(props: PlayGameProps) {
                   ) : null}
                 </CommandList>
               </Command>
+              <DialogFooter>
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    setIsAddPlayerMode(false);
+                    setPlayerSearch("");
+                  }}
+                  type="button"
+                  variant="outline"
+                >
+                  Back to users
+                </Button>
+              </DialogFooter>
             </>
           ) : (
-            <div className="px-5 pb-4">
-              <div className="rounded-3xl border border-border bg-muted/40 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                    Players
-                  </p>
-                  <Button
-                    className="rounded-xl"
-                    onClick={() => setIsAddPlayerMode(true)}
-                    size="sm"
-                    type="button"
-                  >
-                    <Plus className="size-4" />
-                    Player
-                  </Button>
-                </div>
-                <div className="mt-3 flex flex-col gap-2">
-                  {game.players.map((player) => {
-                    const playerPending = pendingKeySet.has(
-                      `remove-player:${player.userId}`,
-                    );
-                    const canRemoveSelf = player.userId !== currentUserId;
-                    const disableRemoval =
-                      game.players.length <= 1 || playerPending;
+            <>
+              <div className="px-5 pb-4">
+                <div className="rounded-3xl border border-border bg-muted/40 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                      Players
+                    </p>
+                  </div>
+                  <div className="mt-3 flex flex-col gap-2">
+                    {game.players.map((player) => {
+                      const playerPending = pendingKeySet.has(
+                        `remove-player:${player.userId}`,
+                      );
+                      const canRemoveSelf = player.userId !== currentUserId;
+                      const disableRemoval =
+                        game.players.length <= 1 || playerPending;
 
-                    return (
-                      <div
-                        key={player.id}
-                        className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-background px-3 py-3"
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <ProfilePicture
-                            className="border-none"
-                            size="xs"
-                            user={player.user}
-                          />
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-bold text-foreground">
-                              {getDisplayName(player.user)}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {player.user.isGuest ? "Guest" : "Player"}
-                            </p>
+                      return (
+                        <div
+                          key={player.id}
+                          className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-background px-3 py-3"
+                        >
+                          <div className="flex min-w-0 items-center gap-3">
+                            <ProfilePicture
+                              className="border-none"
+                              size="xs"
+                              user={player.user}
+                            />
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-bold text-foreground">
+                                {getDisplayName(player.user)}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {player.user.isGuest ? "Guest" : "Player"}
+                              </p>
+                            </div>
                           </div>
+                          {canRemoveSelf ? (
+                            <Button
+                              className="rounded-xl"
+                              data-testid={`remove-player-button-${player.userId}`}
+                              disabled={disableRemoval}
+                              onClick={() =>
+                                openRemovePlayerDialog(player.userId)
+                              }
+                              size="sm"
+                              type="button"
+                              variant="outline"
+                            >
+                              {playerPending ? (
+                                <LoaderCircle className="animate-spin" />
+                              ) : (
+                                <Trash2 className="size-4" />
+                              )}
+                              Remove
+                            </Button>
+                          ) : (
+                            <Badge variant="outline">You</Badge>
+                          )}
                         </div>
-                        {canRemoveSelf ? (
-                          <Button
-                            className="rounded-xl"
-                            data-testid={`remove-player-button-${player.userId}`}
-                            disabled={disableRemoval}
-                            onClick={() =>
-                              openRemovePlayerDialog(player.userId)
-                            }
-                            size="sm"
-                            type="button"
-                            variant="outline"
-                          >
-                            {playerPending ? (
-                              <LoaderCircle className="animate-spin" />
-                            ) : (
-                              <Trash2 className="size-4" />
-                            )}
-                            Remove
-                          </Button>
-                        ) : (
-                          <Badge variant="outline">You</Badge>
-                        )}
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-              <div className="pt-4">
+              <DialogFooter className="pt-4">
                 <Button
                   className="w-full"
                   onClick={() => setIsAddPlayerOpen(false)}
@@ -2094,8 +2093,16 @@ export default function PlayGame(props: PlayGameProps) {
                 >
                   Back to game
                 </Button>
-              </div>
-            </div>
+                <Button
+                  className="w-full"
+                  onClick={() => setIsAddPlayerMode(true)}
+                  type="button"
+                >
+                  <Plus className="size-4" />
+                  Player
+                </Button>
+              </DialogFooter>
+            </>
           )}
         </DialogContent>
       </Dialog>

@@ -30,41 +30,30 @@ export default async function PublicProfilePage({
   }
 
   return (
-    <main className="min-h-screen px-4 pb-40">
-      <div className="mx-auto flex w-full max-w-md flex-col gap-6">
-        <Card className="overflow-hidden border border-border/80 bg-card/95 pt-0 shadow-2xl">
-          <div
-            className="h-28 w-full"
-            style={{
-              background: `linear-gradient(135deg, ${data.profile.color}, rgba(15,23,42,0.18))`,
-            }}
-          />
-          <CardContent className="-mt-14 flex flex-col gap-5">
-            <div className="flex flex-col gap-4">
+    <main className="relative min-h-screen px-4 pb-40">
+      <div
+        className="pointer-events-none fixed inset-x-0 top-0 h-72"
+        style={{
+          background: `linear-gradient(180deg, color-mix(in srgb, ${data.profile.color} 16%, transparent) 0%, color-mix(in srgb, ${data.profile.color} 10%, transparent) 38%, transparent 100%), radial-gradient(circle at top, color-mix(in srgb, ${data.profile.color} 14%, transparent) 0%, transparent 68%)`,
+        }}
+      />
+      <div className="relative mx-auto flex w-full max-w-md flex-col gap-6">
+        <Card className="overflow-hidden border border-border/80 bg-card/95 shadow-2xl">
+          <CardContent className="flex flex-col gap-4 pt-5">
+            <div className="flex items-end gap-4">
               <ProfilePicture
                 size="xl"
                 user={data.profile}
                 className="border-4 border-background shadow-xl"
               />
-              <div className="space-y-3">
+              <div className="min-w-0 flex-1 space-y-2 pb-1">
                 <div className="space-y-1">
                   <h1 className="text-4xl font-black tracking-tight text-foreground">
                     {data.profile.displayName}
                   </h1>
-                  <p className="text-base text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     {formatMemberSince(data.profile.createdAt)}
                   </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary" className="rounded-full px-3 py-1">
-                    Public profile
-                  </Badge>
-                  <Badge variant="secondary" className="rounded-full px-3 py-1">
-                    {data.stats.friendCount} friends
-                  </Badge>
-                  <Badge variant="secondary" className="rounded-full px-3 py-1">
-                    {data.stats.completedGames} completed games
-                  </Badge>
                 </div>
               </div>
             </div>

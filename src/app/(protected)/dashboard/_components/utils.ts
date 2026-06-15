@@ -1,4 +1,12 @@
+import type { CSSProperties } from "react";
 import type { DashboardPageData } from "@/app/actions/pages/dashboard";
+
+type DashboardGamePlayers = DashboardPageData["recentActiveGames"][number]["players"];
+type DashboardGameLike = {
+  players: DashboardGamePlayers;
+  scoringMode: DashboardPageData["recentActiveGames"][number]["scoringMode"];
+  completedRounds?: DashboardPageData["recentActiveGames"][number]["completedRounds"];
+};
 
 export function formatGameDate(value: string | null | undefined) {
   if (!value) return "";
@@ -18,21 +26,155 @@ export function getPlayerLabel(
     : (player.user.firstName ?? "Player");
 }
 
-export function getWinner(
-  game: DashboardPageData["recentCompletedGames"][number],
+export function getOrdinalLabel(value: number) {
+  const mod100 = value % 100;
+
+  if (mod100 >= 11 && mod100 <= 13) {
+    return `${value}th`;
+  }
+
+  switch (value % 10) {
+    case 1:
+      return `${value}st`;
+    case 2:
+      return `${value}nd`;
+    case 3:
+      return `${value}rd`;
+    default:
+      return `${value}th`;
+  }
+}
+
+export function getPlayerPlacement(
+  game: DashboardGameLike,
   currentUserId: string,
 ) {
-  const winner = game.winners[0];
-
-  if (!winner) {
+  if (game.scoringMode === "no_score") {
     return null;
   }
 
+  if (
+    game.completedRounds === 0 &&
+    game.players.every((player) => player.score === game.players[0]?.score)
+  ) {
+    return null;
+  }
+
+  const currentPlayer = game.players.find((player) => player.userId === currentUserId);
+
+  if (!currentPlayer) {
+    return null;
+  }
+
+  const sortedPlayers = [...game.players].sort((left, right) =>
+    game.scoringMode === "highest_wins"
+      ? right.score - left.score
+      : left.score - right.score,
+  );
+
+  let place = 0;
+  let lastScore: number | null = null;
+
+  for (const player of sortedPlayers) {
+    if (lastScore === null || player.score !== lastScore) {
+      place += 1;
+      lastScore = player.score;
+    }
+
+    if (player.userId === currentUserId) {
+      return place;
+    }
+  }
+
+  return null;
+}
+
+export function getPlayersOrderedByPlacement<T extends DashboardGamePlayers[number]>(
+  game: DashboardGameLike & { players: T[] },
+) {
+  if (game.scoringMode === "no_score") {
+    return game.players;
+  }
+
+  if (
+    game.completedRounds === 0 &&
+    game.players.every((player) => player.score === game.players[0]?.score)
+  ) {
+    return game.players;
+  }
+
+  return [...game.players].sort((left, right) =>
+    game.scoringMode === "highest_wins"
+      ? right.score - left.score
+      : left.score - right.score,
+  );
+}
+
+export function getPlayerPlacementDisplay(
+  game: DashboardGameLike,
+  currentUserId: string,
+  prefix = "Currently",
+) {
+  const place = getPlayerPlacement(game, currentUserId);
+
+  if (!place) {
+    return null;
+  }
+
+  if (place === 1) {
+    return {
+      place,
+      label: `${prefix} ${getOrdinalLabel(place)}`,
+      className: "placement-badge",
+      style: {} satisfies CSSProperties,
+      trophyClassName: "",
+      showTrophy: true,
+    };
+  }
+
+  if (place === 2) {
+    return {
+      place,
+      label: `${prefix} ${getOrdinalLabel(place)}`,
+      className: "placement-badge",
+      style: {
+        ["--placement-surface-soft" as string]: "oklch(0.985 0.006 255)",
+        ["--placement-surface-strong" as string]: "oklch(0.84 0.02 255)",
+        ["--placement-border" as string]: "oklch(0.73 0.018 255)",
+        ["--placement-text" as string]: "oklch(0.39 0.02 255)",
+        ["--placement-shadow" as string]:
+          "0 18px 38px -24px rgba(100, 116, 139, 0.45)",
+      } satisfies CSSProperties,
+      trophyClassName: "",
+      showTrophy: true,
+    };
+  }
+
+  if (place === 3) {
+    return {
+      place,
+      label: `${prefix} ${getOrdinalLabel(place)}`,
+      className: "placement-badge",
+      style: {
+        ["--placement-surface-soft" as string]: "oklch(0.985 0.018 60)",
+        ["--placement-surface-strong" as string]: "oklch(0.8 0.065 55)",
+        ["--placement-border" as string]: "oklch(0.69 0.075 53)",
+        ["--placement-text" as string]: "oklch(0.41 0.06 48)",
+        ["--placement-shadow" as string]:
+          "0 18px 38px -24px rgba(180, 103, 47, 0.48)",
+      } satisfies CSSProperties,
+      trophyClassName: "",
+      showTrophy: true,
+    };
+  }
+
   return {
-    label:
-      winner.userId === currentUserId
-        ? "You"
-        : (winner.user.firstName ?? "Player"),
-    user: winner.user,
+    place,
+    label: `${prefix} ${getOrdinalLabel(place)}`,
+    className:
+      "bg-background/60 text-foreground ring-1 ring-black/8 dark:ring-white/10",
+    style: {} satisfies CSSProperties,
+    trophyClassName: "",
+    showTrophy: false,
   };
 }

@@ -14,15 +14,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import ProfilePicture from "@/components/profile/profile-picture";
 import { RematchButton } from "@/components/game/rematch-button";
-import { WinnerIndicator } from "@/components/ui/winner-indicator";
 import { cn } from "@/lib/utils";
 import { ArrowRight, Trophy } from "lucide-react";
 import Link from "next/link";
 import { GamePlayerStack } from "../controls/game-player-stack";
 import { useDashboardPage } from "../dashboard-page-provider";
-import { formatGameDate, getPlayerLabel, getWinner } from "../utils";
+import {
+  formatGameDate,
+  getPlayerPlacementDisplay,
+  getPlayersOrderedByPlacement,
+} from "../utils";
 
 export function CompletedGamesSection() {
   const { recentCompletedGames, user } = useDashboardPage();
@@ -30,7 +32,7 @@ export function CompletedGamesSection() {
   return (
     <Card className="mx-4">
       <CardHeader>
-        <CardTitle>Completed games</CardTitle>
+        <CardTitle>Recent games</CardTitle>
         <CardAction>
           <Link
             href="/game/history?status=completed"
@@ -56,7 +58,12 @@ export function CompletedGamesSection() {
           </CardEmpty>
         ) : (
           recentCompletedGames.map((game) => {
-            const winner = getWinner(game, user.id);
+            const placement = getPlayerPlacementDisplay(
+              game,
+              user.id,
+              "Finished",
+            );
+            const orderedPlayers = getPlayersOrderedByPlacement(game);
 
             return (
               <div
@@ -98,40 +105,39 @@ export function CompletedGamesSection() {
                         sectionItemMetaClassName,
                       )}
                     >
-                      <Trophy className="size-3.5" />
                       <span>{formatGameDate(game.completedAt)}</span>
                     </div>
                   </div>
-                  <div className="mt-2 flex items-center gap-3">
-                    <GamePlayerStack players={game.players} />
-                    <div className="min-w-0 flex-1">
-                      {winner ? (
-                        <div className="flex items-center justify-end gap-2">
-                          <p
-                            className={cn(
-                              "truncate font-semibold text-[color:var(--winner-text)]",
-                              sectionItemMetaClassName,
-                            )}
-                          >
-                            {winner.label} won
-                          </p>
-                          <ProfilePicture
-                            user={winner.user}
-                            size="sm"
-                            className="winner-avatar-ring"
-                          />
-                          <WinnerIndicator
-                            aria-hidden
-                            className="hidden sm:inline-flex"
-                            label="Winner"
-                          />
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <GamePlayerStack
+                      players={orderedPlayers}
+                      winnerUserIds={game.winners.map((winner) => winner.userId)}
+                    />
+                    <div className="ml-auto flex shrink-0 items-center gap-2">
+                      {placement ? (
+                        <div
+                          className={cn(
+                            "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold backdrop-blur-sm",
+                            placement.className,
+                          )}
+                          style={placement.style}
+                        >
+                          {placement.showTrophy ? (
+                            <Trophy
+                              className={cn(
+                                "size-3.5",
+                                placement.trophyClassName,
+                              )}
+                            />
+                          ) : null}
+                          <span>{placement.label}</span>
                         </div>
                       ) : (
-                        <p className={cn("truncate", sectionItemMetaClassName)}>
-                          {game.players
-                            .map((player) => getPlayerLabel(player, user.id))
-                            .join(", ")}
-                        </p>
+                        <div className="rounded-full bg-background/80 px-2.5 py-1 backdrop-blur-sm">
+                          <span className="text-xs font-semibold text-foreground">
+                            Finished
+                          </span>
+                        </div>
                       )}
                     </div>
                   </div>

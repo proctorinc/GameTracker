@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { startTransition, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { updateUserProfile } from "@/app/actions/user";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,9 @@ export function EditNameForm() {
         lastName,
         color: user.color,
       });
-      router.refresh();
+      startTransition(() => {
+        router.refresh();
+      });
     } catch (error) {
       patchUser(previousProfile);
       console.error("Failed to update profile:", error);

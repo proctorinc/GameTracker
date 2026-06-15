@@ -53,26 +53,6 @@ function formatStreak(type: "win" | "loss" | null, count: number) {
   return `${type === "win" ? "W" : "L"}${count}`;
 }
 
-function formatBestFriendNarrative(input: {
-  name: string;
-  recentWins: number;
-  recentGamesCount: number;
-}) {
-  if (input.recentGamesCount === 0) {
-    return `No finished showdowns with ${input.name} yet.`;
-  }
-
-  if (input.recentWins === 0) {
-    return `${input.name} owns the recent run.`;
-  }
-
-  if (input.recentWins === input.recentGamesCount) {
-    return `You’ve had ${input.name}'s number lately.`;
-  }
-
-  return `You’ve been getting the better of ${input.name} lately.`;
-}
-
 function alphaColor(hex: string, alpha: number) {
   const normalized = hex.replace("#", "");
   const safe =
@@ -245,6 +225,13 @@ export function ProfileStatsSections({ data }: { data: ProfileStatsPageData }) {
 
     return data.comparisonSummariesByUserId[selectedComparisonUserId] ?? null;
   }, [data.comparisonSummariesByUserId, selectedComparisonUserId]);
+  const selectedComparisonStyles = useMemo(
+    () =>
+      buildAccentStyles(
+        selectedComparison?.user.color ?? data.profile.color,
+      ),
+    [data.profile.color, selectedComparison?.user.color],
+  );
 
   const isBestFriendSelected =
     Boolean(data.defaultBestFriend) &&
@@ -270,9 +257,6 @@ export function ProfileStatsSections({ data }: { data: ProfileStatsPageData }) {
                 <h2 className="text-2xl font-black tracking-tight text-foreground dark:text-white sm:text-[2.1rem]">
                   {data.stats.storyline.label}
                 </h2>
-                <p className="max-w-2xl text-sm text-muted-foreground dark:text-white/72">
-                  {data.stats.storyline.detail}
-                </p>
               </div>
               <div
                 className="mt-4 flex size-12 shrink-0 items-center justify-center rounded-[1.25rem] border dark:border-white/10"
@@ -407,7 +391,7 @@ export function ProfileStatsSections({ data }: { data: ProfileStatsPageData }) {
           value={data.stats.bestFriendGames}
           icon={<Users className="size-6" />}
           className="bg-[linear-gradient(180deg,var(--profile-accent-soft),rgba(255,255,255,0.94)_75%)] dark:bg-[linear-gradient(180deg,var(--profile-accent-panel),rgba(255,255,255,0.03)_100%)]"
-          iconClassName="text-white border-transparent"
+          iconClassName="border-[var(--profile-accent-line)] bg-[var(--profile-accent)] text-white dark:border-white/10"
         />
       </section>
 
@@ -435,7 +419,12 @@ export function ProfileStatsSections({ data }: { data: ProfileStatsPageData }) {
 
             {selectedComparison ? (
               <div className="mt-5 space-y-5">
-                <div className="overflow-hidden rounded-[1.75rem] border border-border/70 bg-[linear-gradient(135deg,var(--profile-accent-soft),rgba(255,255,255,0.96)_46%,rgba(248,250,252,0.92)_100%)] dark:border-white/10 dark:bg-[linear-gradient(135deg,var(--profile-accent-panel),rgba(20,24,34,0.9)_46%,rgba(10,14,24,0.96)_100%)]">
+                <div
+                  className="overflow-hidden rounded-[1.75rem] border border-border/70 bg-[linear-gradient(135deg,var(--profile-accent-glow),var(--profile-accent-soft)_34%,rgba(255,255,255,0.96)_72%,rgba(248,250,252,0.92)_100%)] dark:border-white/10 dark:bg-[linear-gradient(135deg,var(--profile-accent-panel),rgba(255,255,255,0.08)_28%,rgba(20,24,34,0.9)_64%,rgba(10,14,24,0.96)_100%)]"
+                  style={{
+                    ...selectedComparisonStyles,
+                  }}
+                >
                   <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-end sm:justify-between sm:p-6">
                     <div className="flex min-w-0 items-center gap-4">
                       <ProfilePicture
@@ -458,14 +447,6 @@ export function ProfileStatsSections({ data }: { data: ProfileStatsPageData }) {
                             </Badge>
                           ) : null}
                         </div>
-                        <p className="mt-2 max-w-md text-sm text-muted-foreground dark:text-white/72">
-                          {formatBestFriendNarrative({
-                            name: selectedComparison.user.displayName,
-                            recentWins: selectedComparison.recentWins,
-                            recentGamesCount:
-                              selectedComparison.recentGamesCount,
-                          })}
-                        </p>
                       </div>
                     </div>
 

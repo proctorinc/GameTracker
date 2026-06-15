@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { createRematchGameAndRedirect } from "@/app/actions/game";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,27 +39,50 @@ export function RematchButton({
 }: RematchButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
   const playerLabel = useMemo(() => getPlayerLabel(playerCount), [playerCount]);
+
+  async function handleStartRematch() {
+    if (isSubmittingRef.current) {
+      return;
+    }
+
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+
+    try {
+      await createRematchGameAndRedirect(gameId);
+    } catch (error) {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+      throw error;
+    }
+  }
 
   return (
     <>
       <Button
         className={className}
+        disabled={isSubmitting}
         onClick={() => setIsOpen(true)}
         size={size}
         type="button"
         variant={variant}
       >
-        <Redo2 className="size-4" />
-        Rematch
+        {isSubmitting ? (
+          <LoaderCircle className="size-4 animate-spin" />
+        ) : (
+          <Redo2 className="size-4" />
+        )}
+        {isSubmitting ? "Starting rematch..." : "Rematch"}
       </Button>
 
       <Dialog onOpenChange={setIsOpen} open={isOpen}>
         <DialogContent className="rounded-[2rem] p-0 sm:max-w-md">
           <form
-            action={async () => {
-              setIsSubmitting(true);
-              await createRematchGameAndRedirect(gameId);
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleStartRematch();
             }}
           >
             <div className="p-6">
@@ -91,7 +114,7 @@ export function RematchButton({
                 ) : (
                   <Redo2 className="size-4" />
                 )}
-                Start rematch
+                {isSubmitting ? "Starting rematch..." : "Start rematch"}
               </Button>
             </DialogFooter>
           </form>

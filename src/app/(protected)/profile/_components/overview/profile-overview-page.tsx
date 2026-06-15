@@ -15,8 +15,14 @@ import { PublicProfileCard } from "./sections/public-profile-card";
 function ProfileOverviewContent() {
   const { user, activeTab } = useProfileOverview();
   return (
-    <div className="min-h-screen overflow-y-auto px-4 pb-40">
-      <div className="mx-auto flex w-full max-w-md flex-col gap-6">
+    <div className="relative min-h-screen overflow-y-auto px-4 pb-40">
+      <div
+        className="pointer-events-none fixed inset-x-0 top-0 h-72"
+        style={{
+          background: `linear-gradient(180deg, color-mix(in srgb, ${user.color} 16%, transparent) 0%, color-mix(in srgb, ${user.color} 10%, transparent) 38%, transparent 100%), radial-gradient(circle at top, color-mix(in srgb, ${user.color} 14%, transparent) 0%, transparent 68%)`,
+        }}
+      />
+      <div className="relative mx-auto flex w-full max-w-md flex-col gap-6">
         <ProfileHeroCard />
         <ProfileOverviewTabs />
         {activeTab === "stats" ? (
@@ -39,10 +45,7 @@ export function ProfileOverviewPage({
   initialData: ProfileOverviewPageData;
 }) {
   return (
-    <ProfileOverviewProvider
-      key={`${initialData.user.id}:${initialData.user.firstName ?? ""}:${initialData.user.lastName ?? ""}:${initialData.user.color}`}
-      initialData={initialData}
-    >
+    <ProfileOverviewProvider initialData={initialData}>
       <ProfileOverviewContent />
     </ProfileOverviewProvider>
   );

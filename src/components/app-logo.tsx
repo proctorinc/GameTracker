@@ -26,7 +26,7 @@ const appLogoImageVariants = cva("object-contain", {
       sm: "size-10",
       default: "size-14",
       lg: "size-16 sm:size-20",
-      xl: "size-20 sm:size-24",
+      xl: "size-30 sm:size-30",
     },
   },
   defaultVariants: {

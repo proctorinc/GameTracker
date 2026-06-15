@@ -2,6 +2,7 @@
 
 import type { DashboardPageData } from "@/app/actions/pages/dashboard";
 import ProfilePicture from "@/components/profile/profile-picture";
+import { Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function getPlayerLabel(
@@ -16,13 +17,17 @@ function getPlayerLabel(
 export function GamePlayerStack({
   players,
   currentUserId,
+  winnerUserIds,
 }: {
   players: DashboardPageData["recentActiveGames"][number]["players"];
   currentUserId?: string;
+  winnerUserIds?: string[];
 }) {
   return (
     <div className="flex items-center">
       {players.map((player, index) => {
+        const isWinner = winnerUserIds?.includes(player.userId) ?? false;
+
         return (
           <div
             key={`${player.gameId}-player-${player.id}`}
@@ -42,6 +47,13 @@ export function GamePlayerStack({
                 ) : undefined
               }
             />
+            {isWinner ? (
+              <div className="pointer-events-none absolute -top-1 -left-0.5 z-0 -rotate-[18deg]">
+                <div className="winner-icon flex size-4 items-center justify-center rounded-full">
+                  <Crown className="size-2.5" />
+                </div>
+              </div>
+            ) : null}
           </div>
         );
       })}

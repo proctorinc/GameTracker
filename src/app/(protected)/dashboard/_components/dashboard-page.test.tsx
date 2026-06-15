@@ -47,6 +47,7 @@ function createDashboardPageData(): DashboardPageData {
       {
         id: "active-1",
         createdAt: "2025-01-15T00:00:00.000Z",
+        scoringMode: "lowest_wins",
         gameTitle: {
           title: "Skyjo",
         },
@@ -54,6 +55,8 @@ function createDashboardPageData(): DashboardPageData {
           {
             id: "player-1",
             gameId: "active-1",
+            userId: "user-a",
+            score: 12,
             user: {
               id: "user-a",
               firstName: "Alex",
@@ -63,6 +66,8 @@ function createDashboardPageData(): DashboardPageData {
           {
             id: "player-2",
             gameId: "active-1",
+            userId: "user-b",
+            score: 28,
             user: {
               id: "user-b",
               firstName: "Blair",
@@ -76,6 +81,7 @@ function createDashboardPageData(): DashboardPageData {
       {
         id: "completed-1",
         completedAt: "2025-01-16T00:00:00.000Z",
+        scoringMode: "lowest_wins",
         gameTitle: {
           title: "Skyjo",
         },
@@ -83,6 +89,8 @@ function createDashboardPageData(): DashboardPageData {
           {
             id: "player-3",
             gameId: "completed-1",
+            userId: "user-a",
+            score: 18,
             user: {
               id: "user-a",
               firstName: "Alex",
@@ -92,6 +100,8 @@ function createDashboardPageData(): DashboardPageData {
           {
             id: "player-4",
             gameId: "completed-1",
+            userId: "user-c",
+            score: 24,
             user: {
               id: "user-c",
               firstName: "Casey",
@@ -113,6 +123,7 @@ function createDashboardPageData(): DashboardPageData {
       {
         id: "completed-2",
         completedAt: "2025-01-17T00:00:00.000Z",
+        scoringMode: "lowest_wins",
         gameTitle: {
           title: "Skyjo Classic",
         },
@@ -120,6 +131,8 @@ function createDashboardPageData(): DashboardPageData {
           {
             id: "player-5",
             gameId: "completed-2",
+            userId: "user-a",
+            score: 31,
             user: {
               id: "user-a",
               firstName: "Alex",
@@ -129,6 +142,8 @@ function createDashboardPageData(): DashboardPageData {
           {
             id: "player-6",
             gameId: "completed-2",
+            userId: "user-d",
+            score: 12,
             user: {
               id: "user-d",
               firstName: "Drew",
@@ -151,11 +166,12 @@ describe("DashboardPageView", () => {
     expect(markup).toContain("Hi, Alex!");
     expect(markup).toContain("History");
     expect(markup).toContain("Continue Playing");
-    expect(markup).toContain("Me, Blair");
-    expect(markup).toContain("Completed games");
-    expect(markup).toContain("Casey");
-    expect(markup).toContain("won");
+    expect(markup).toContain("Play");
+    expect(markup).toContain("12");
+    expect(markup).toContain("28");
+    expect(markup).toContain("Recent games");
+    expect(markup).toContain("Finished 1st");
     expect(markup).toContain("Rematch");
-    expect(markup).toContain("Me, Drew");
+    expect(markup).toContain("Finished 2nd");
   });
 });
