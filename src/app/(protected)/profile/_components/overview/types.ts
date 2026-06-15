@@ -1,4 +1,4 @@
-import type { PublicProfileSummaryData } from "../../profile-types";
+import type { ProfileStatsPageData } from "../../profile-types";
 
 export type ProfileOverviewUser = {
   id: string;
@@ -12,7 +12,10 @@ export type ProfileOverviewUser = {
 
 export type ProfileOverviewPageData = {
   user: ProfileOverviewUser;
-  profile: PublicProfileSummaryData["profile"];
-  bestFriend: PublicProfileSummaryData["bestFriend"];
-  stats: PublicProfileSummaryData["stats"];
+  profile: ProfileStatsPageData["profile"];
+  defaultBestFriend: ProfileStatsPageData["defaultBestFriend"];
+  stats: ProfileStatsPageData["stats"];
+  comparisonOptions: ProfileStatsPageData["comparisonOptions"];
+  comparisonSummariesByUserId: ProfileStatsPageData["comparisonSummariesByUserId"];
+  defaultComparisonUserId: ProfileStatsPageData["defaultComparisonUserId"];
 };

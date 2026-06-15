@@ -1,3 +1,12 @@
+import type {
+  ProfileStatsBestFriend,
+  ProfileStatsComparisonOption,
+  ProfileStatsComparisonSummary,
+  ProfileStatsSignatureTitle,
+  ProfileStatsStoryline,
+  ProfileStatsStreak,
+} from "@/lib/profile-stats";
+
 export type PublicProfileSummaryData = {
   profile: {
     id: string;
@@ -7,24 +16,23 @@ export type PublicProfileSummaryData = {
     createdAt: string | null;
     displayName: string;
   };
-  bestFriend: {
-    id: string;
-    firstName: string | null;
-    lastName: string | null;
-    color: string;
-    displayName: string;
-    gamesPlayedTogether: number;
-    lastPlayedAt: string | null;
-  } | null;
+  defaultBestFriend: ProfileStatsBestFriend | null;
   stats: {
     friendCount: number;
-    gamesPlayed: number;
-    gamesWon: number;
+    completedGames: number;
+    wins: number;
     winRate: number | null;
-    gamesHosted: number;
-    titlesPlayed: number;
-    favoriteTitle: string | null;
-    favoriteTitleCount: number;
+    bestFriendGames: number;
+    bestWinStreak: number;
+    currentStreak: ProfileStatsStreak;
+    storyline: ProfileStatsStoryline;
+    signatureTitle: ProfileStatsSignatureTitle | null;
     lastPlayedAt: string | null;
   };
+};
+
+export type ProfileStatsPageData = PublicProfileSummaryData & {
+  comparisonOptions: ProfileStatsComparisonOption[];
+  comparisonSummariesByUserId: Record<string, ProfileStatsComparisonSummary>;
+  defaultComparisonUserId: string | null;
 };

@@ -10,8 +10,11 @@ export function ProfileStatsTab() {
     <ProfileStatsSections
       data={{
         profile: data.profile,
-        bestFriend: data.bestFriend,
+        defaultBestFriend: data.defaultBestFriend,
         stats: data.stats,
+        comparisonOptions: data.comparisonOptions,
+        comparisonSummariesByUserId: data.comparisonSummariesByUserId,
+        defaultComparisonUserId: data.defaultComparisonUserId,
       }}
     />
   );

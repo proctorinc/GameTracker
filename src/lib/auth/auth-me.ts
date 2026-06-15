@@ -1,4 +1,5 @@
 import { auth, clerkClient, currentUser } from "@clerk/nextjs/server";
+import { cache } from "react";
 import { UnauthorizedError, type AuthUser } from "./session";
 import { type UserBase } from "../db/store/user.store";
 import { getAcceptedFriendshipsByUserId } from "../db/store/friendship.store";
@@ -29,7 +30,7 @@ export async function loadCurrentUser(): Promise<AuthUser> {
   return user;
 }
 
-export async function loadOptionalCurrentUser(): Promise<AuthUser | null> {
+const loadOptionalCurrentUserCached = cache(async (): Promise<AuthUser | null> => {
   const requestContext = await getServerRequestContext();
   const { userId } = await auth();
 
@@ -61,6 +62,10 @@ export async function loadOptionalCurrentUser(): Promise<AuthUser | null> {
     userId: localUser.id,
   });
   return localUser;
+});
+
+export async function loadOptionalCurrentUser(): Promise<AuthUser | null> {
+  return loadOptionalCurrentUserCached();
 }
 
 /**

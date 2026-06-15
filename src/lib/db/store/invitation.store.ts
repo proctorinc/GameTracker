@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { db, invitations } from "../index";
 
 export type InvitationBase = typeof invitations.$inferSelect;
@@ -143,8 +143,35 @@ export async function countIncomingPendingInvitationsForUser(input: {
   userId: string;
   phoneNumber?: string | null;
 }): Promise<number> {
-  const invitationsForUser = await listIncomingInvitationsForUser(input);
-  return invitationsForUser.length;
+  const predicates = [
+    and(
+      eq(invitations.status, "pending"),
+      eq(invitations.targetType, "user"),
+      eq(invitations.inviteeUserId, input.userId),
+    ),
+    and(
+      eq(invitations.status, "pending"),
+      eq(invitations.targetType, "link"),
+      eq(invitations.inviteeUserId, input.userId),
+    ),
+  ];
+
+  if (input.phoneNumber) {
+    predicates.push(
+      and(
+        eq(invitations.status, "pending"),
+        eq(invitations.targetType, "phone"),
+        eq(invitations.inviteePhoneNumber, input.phoneNumber),
+      ),
+    );
+  }
+
+  const [result] = await db
+    .select({ count: count() })
+    .from(invitations)
+    .where(or(...predicates));
+
+  return result?.count ?? 0;
 }
 
 export async function listPendingInvitationsForGuest(

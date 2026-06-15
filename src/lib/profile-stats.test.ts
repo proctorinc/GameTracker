@@ -1,0 +1,185 @@
+import {
+  buildComparisonOptions,
+  buildProfileStats,
+  type ProfileStatsCompletedGame,
+  type ProfileStatsUser,
+} from "./profile-stats";
+
+function createUser(overrides: Partial<ProfileStatsUser> = {}): ProfileStatsUser {
+  return {
+    id: "user-1",
+    firstName: "Alex",
+    lastName: "Player",
+    color: "#111111",
+    isGuest: false,
+    mergedIntoUserId: null,
+    ...overrides,
+  };
+}
+
+function createGame(
+  overrides: Partial<ProfileStatsCompletedGame> = {},
+): ProfileStatsCompletedGame {
+  return {
+    id: "game-1",
+    createdAt: "2025-01-01T00:00:00.000Z",
+    completedAt: "2025-01-01T01:00:00.000Z",
+    title: {
+      id: "title-1",
+      title: "Skyjo",
+      imageUrl: "/images/skyjo.png",
+    },
+    participantUserIds: ["user-1", "user-2"],
+    winnerUserIds: ["user-1"],
+    ...overrides,
+  };
+}
+
+describe("buildComparisonOptions", () => {
+  it("includes friends and standalone guests on the owner's profile", () => {
+    const options = buildComparisonOptions({
+      profileUserId: "user-1",
+      friends: [createUser({ id: "user-2", firstName: "Ben" })],
+      guests: [createUser({ id: "guest-1", firstName: "Taylor", isGuest: true })],
+      includeGuests: true,
+    });
+
+    expect(options.map((option) => option.id)).toEqual(["user-2", "guest-1"]);
+    expect(options.find((option) => option.id === "guest-1")?.isGuest).toBe(true);
+  });
+
+  it("excludes guests from public-profile comparison options", () => {
+    const options = buildComparisonOptions({
+      profileUserId: "user-1",
+      friends: [createUser({ id: "user-2", firstName: "Ben" })],
+      guests: [createUser({ id: "guest-1", firstName: "Taylor", isGuest: true })],
+      includeGuests: false,
+    });
+
+    expect(options.map((option) => option.id)).toEqual(["user-2"]);
+  });
+
+  it("filters merged guests out of the owner selector", () => {
+    const options = buildComparisonOptions({
+      profileUserId: "user-1",
+      friends: [],
+      guests: [
+        createUser({
+          id: "guest-1",
+          firstName: "Taylor",
+          isGuest: true,
+          mergedIntoUserId: "user-9",
+        }),
+      ],
+      includeGuests: true,
+    });
+
+    expect(options).toEqual([]);
+  });
+});
+
+describe("buildProfileStats", () => {
+  it("defaults best friend by completed shared games and ignores active games by construction", () => {
+    const options = buildComparisonOptions({
+      profileUserId: "user-1",
+      friends: [
+        createUser({ id: "user-2", firstName: "Ben" }),
+        createUser({ id: "user-3", firstName: "Casey" }),
+      ],
+      includeGuests: false,
+    });
+
+    const result = buildProfileStats({
+      profileUserId: "user-1",
+      comparisonOptions: options,
+      friendCount: 2,
+      completedGames: [
+        createGame({
+          id: "game-1",
+          completedAt: "2025-01-03T00:00:00.000Z",
+          participantUserIds: ["user-1", "user-2"],
+        }),
+        createGame({
+          id: "game-2",
+          completedAt: "2025-01-02T00:00:00.000Z",
+          participantUserIds: ["user-1", "user-2"],
+          winnerUserIds: ["user-2"],
+        }),
+        createGame({
+          id: "game-3",
+          completedAt: "2025-01-01T00:00:00.000Z",
+          participantUserIds: ["user-1", "user-3"],
+          winnerUserIds: ["user-3"],
+        }),
+      ],
+    });
+
+    expect(result.defaultBestFriend?.id).toBe("user-2");
+    expect(result.defaultBestFriend?.completedGamesTogether).toBe(2);
+    expect(result.stats.completedGames).toBe(3);
+  });
+
+  it("builds comparison summaries for selector changes", () => {
+    const options = buildComparisonOptions({
+      profileUserId: "user-1",
+      friends: [createUser({ id: "user-2", firstName: "Ben" })],
+      includeGuests: false,
+    });
+
+    const result = buildProfileStats({
+      profileUserId: "user-1",
+      comparisonOptions: options,
+      friendCount: 1,
+      completedGames: [
+        createGame({
+          id: "game-1",
+          completedAt: "2025-01-03T00:00:00.000Z",
+          winnerUserIds: ["user-1"],
+        }),
+        createGame({
+          id: "game-2",
+          completedAt: "2025-01-02T00:00:00.000Z",
+          winnerUserIds: ["user-2"],
+        }),
+        createGame({
+          id: "game-3",
+          completedAt: "2025-01-01T00:00:00.000Z",
+          winnerUserIds: ["user-1"],
+        }),
+      ],
+    });
+
+    expect(result.comparisonSummariesByUserId["user-2"]).toMatchObject({
+      completedGamesTogether: 3,
+      wins: 2,
+      losses: 1,
+      winRate: 67,
+      recentWins: 2,
+      recentGamesCount: 3,
+    });
+  });
+
+  it("falls back cleanly when no comparison target has completed games", () => {
+    const options = buildComparisonOptions({
+      profileUserId: "user-1",
+      friends: [createUser({ id: "user-2", firstName: "Ben" })],
+      includeGuests: false,
+    });
+
+    const result = buildProfileStats({
+      profileUserId: "user-1",
+      comparisonOptions: options,
+      friendCount: 1,
+      completedGames: [],
+    });
+
+    expect(result.defaultBestFriend).toBeNull();
+    expect(result.defaultComparisonUserId).toBe("user-2");
+    expect(result.comparisonSummariesByUserId["user-2"]).toMatchObject({
+      completedGamesTogether: 0,
+      wins: 0,
+      losses: 0,
+      winRate: null,
+    });
+  });
+});

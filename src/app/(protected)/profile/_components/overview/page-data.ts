@@ -4,7 +4,7 @@ import { unstable_cache } from "next/cache";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
 import { getProfileOverviewTag, getPublicProfileTag } from "@/lib/cache-tags";
 import { getUserById } from "@/lib/db/store";
-import { getPublicProfileSummaryData } from "../../[id]/page-data";
+import { getOwnProfileStatsPageData } from "../../[id]/page-data";
 import type { ProfileOverviewPageData } from "./types";
 
 export async function getProfileOverviewPageData(): Promise<ProfileOverviewPageData> {
@@ -20,7 +20,7 @@ async function getProfileOverviewPageDataCached(
     async () => {
       const [user, publicProfile] = await Promise.all([
         getUserById(userId),
-        getPublicProfileSummaryData(userId),
+        getOwnProfileStatsPageData(userId),
       ]);
 
       if (!user || !publicProfile) {
@@ -38,8 +38,11 @@ async function getProfileOverviewPageDataCached(
           createdAt: user.createdAt,
         },
         profile: publicProfile.profile,
-        bestFriend: publicProfile.bestFriend,
+        defaultBestFriend: publicProfile.defaultBestFriend,
         stats: publicProfile.stats,
+        comparisonOptions: publicProfile.comparisonOptions,
+        comparisonSummariesByUserId: publicProfile.comparisonSummariesByUserId,
+        defaultComparisonUserId: publicProfile.defaultComparisonUserId,
       };
     },
     [userId],

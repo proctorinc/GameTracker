@@ -63,7 +63,7 @@ export default async function PublicProfilePage({
                     {data.stats.friendCount} friends
                   </Badge>
                   <Badge variant="secondary" className="rounded-full px-3 py-1">
-                    {data.stats.gamesHosted} games hosted
+                    {data.stats.completedGames} completed games
                   </Badge>
                 </div>
               </div>

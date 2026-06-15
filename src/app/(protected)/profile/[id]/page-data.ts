@@ -1,27 +1,23 @@
 import "server-only";
 
 import { unstable_cache } from "next/cache";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { loadOptionalCurrentUser } from "@/lib/auth/auth-me";
 import { getPublicProfileTag } from "@/lib/cache-tags";
 import {
   db,
-  gamePlayers,
-  gameWinners,
-  games,
   getAcceptedFriendshipsByUserId,
   getFriendshipByUsers,
   getUserById,
   invitations,
+  listGuestsCreatedByUser,
 } from "@/lib/db/store";
-import type { PublicProfileSummaryData } from "../profile-types";
-
-function formatDisplayName(input: {
-  firstName: string | null;
-  lastName: string | null;
-}) {
-  return [input.firstName, input.lastName].filter(Boolean).join(" ").trim() || "Skybo Player";
-}
+import {
+  buildComparisonOptions,
+  buildProfileStats,
+  formatProfileDisplayName,
+} from "@/lib/profile-stats";
+import type { ProfileStatsPageData, PublicProfileSummaryData } from "../profile-types";
 
 export type PublicProfileViewerState =
   | {
@@ -37,15 +33,18 @@ export type PublicProfileViewerState =
 
 export type PublicProfilePageData = {
   profile: PublicProfileSummaryData["profile"];
-  bestFriend: PublicProfileSummaryData["bestFriend"];
+  defaultBestFriend: PublicProfileSummaryData["defaultBestFriend"];
   viewerState: PublicProfileViewerState;
   stats: PublicProfileSummaryData["stats"];
+  comparisonOptions: ProfileStatsPageData["comparisonOptions"];
+  comparisonSummariesByUserId: ProfileStatsPageData["comparisonSummariesByUserId"];
+  defaultComparisonUserId: ProfileStatsPageData["defaultComparisonUserId"];
 };
 
 export async function getPublicProfilePageData(
   profileId: string,
 ): Promise<PublicProfilePageData | null> {
-  const profileData = await getPublicProfileSummaryData(profileId);
+  const profileData = await getPublicProfileStatsPageData(profileId);
 
   if (!profileData) {
     return null;
@@ -63,212 +62,128 @@ export async function getPublicProfilePageData(
 export async function getPublicProfileSummaryData(
   profileId: string,
 ): Promise<PublicProfileSummaryData | null> {
+  const data = await getProfileStatsPageData({
+    profileId,
+    includeGuests: false,
+    cacheKey: "public",
+  });
+
+  if (!data) {
+    return null;
+  }
+
+  return {
+    profile: data.profile,
+    defaultBestFriend: data.defaultBestFriend,
+    stats: data.stats,
+  };
+}
+
+export async function getPublicProfileStatsPageData(
+  profileId: string,
+): Promise<ProfileStatsPageData | null> {
+  return getProfileStatsPageData({
+    profileId,
+    includeGuests: false,
+    cacheKey: "public",
+  });
+}
+
+export async function getOwnProfileStatsPageData(
+  profileId: string,
+): Promise<ProfileStatsPageData | null> {
+  return getProfileStatsPageData({
+    profileId,
+    includeGuests: true,
+    cacheKey: "own",
+  });
+}
+
+async function getProfileStatsPageData(input: {
+  profileId: string;
+  includeGuests: boolean;
+  cacheKey: "public" | "own";
+}): Promise<ProfileStatsPageData | null> {
   return unstable_cache(
     async () => {
-      const profileUser = await getUserById(profileId);
+      const profileUser = await getUserById(input.profileId);
 
       if (!profileUser || profileUser.mergedIntoUserId || profileUser.isGuest) {
         return null;
       }
 
-      const [friendships, participations, wins, createdGames] = await Promise.all([
-        getAcceptedFriendshipsByUserId(profileId),
+      const [friendships, guests, completedParticipations] = await Promise.all([
+        getAcceptedFriendshipsByUserId(input.profileId),
+        input.includeGuests ? listGuestsCreatedByUser(input.profileId) : Promise.resolve([]),
         db.query.gamePlayers.findMany({
-          where: eq(gamePlayers.userId, profileId),
+          where: (gamePlayers, { eq }) => eq(gamePlayers.userId, input.profileId),
           with: {
             game: {
               columns: {
                 id: true,
                 createdAt: true,
                 completedAt: true,
-                gameTitleId: true,
               },
               with: {
                 gameTitle: {
                   columns: {
                     id: true,
                     title: true,
+                    imageUrl: true,
+                  },
+                },
+                players: {
+                  columns: {
+                    userId: true,
+                  },
+                },
+                winners: {
+                  columns: {
+                    userId: true,
                   },
                 },
               },
             },
           },
         }),
-        db.query.gameWinners.findMany({
-          where: eq(gameWinners.userId, profileId),
-          with: {
-            game: {
-              columns: {
-                id: true,
-                createdAt: true,
-                completedAt: true,
-              },
-            },
-          },
-        }),
-        db.query.games.findMany({
-          where: eq(games.creatorId, profileId),
-          columns: {
-            id: true,
-          },
-        }),
       ]);
+      const comparisonOptions = buildComparisonOptions({
+        profileUserId: input.profileId,
+        friends: friendships.map((friendship) =>
+          friendship.user1Id === input.profileId ? friendship.user2 : friendship.user1,
+        ),
+        guests,
+        includeGuests: input.includeGuests,
+      });
 
-      const completedParticipations = participations.filter(
-        ({ game }) => Boolean(game?.completedAt),
-      );
-      const winsInCompletedGames = wins.filter(({ game }) => Boolean(game?.completedAt));
-      const uniqueGameIds = new Set(participations.map(({ gameId }) => gameId));
-      const gameIds = Array.from(uniqueGameIds);
-      const titleCounts = new Map<string, { title: string; count: number }>();
-      let lastPlayedAt: string | null = null;
+      const builtStats = buildProfileStats({
+        profileUserId: input.profileId,
+        friendCount: friendships.length,
+        comparisonOptions,
+        completedGames: completedParticipations.flatMap((participation) => {
+          const game = participation.game;
+          if (!game?.completedAt) {
+            return [];
+          }
 
-      for (const participation of participations) {
-        const playedAt = participation.game?.createdAt ?? null;
-        if (playedAt && (!lastPlayedAt || playedAt > lastPlayedAt)) {
-          lastPlayedAt = playedAt;
-        }
-
-        const title = participation.game?.gameTitle?.title;
-        const titleId = participation.game?.gameTitle?.id;
-
-        if (!title || !titleId) {
-          continue;
-        }
-
-        const existing = titleCounts.get(titleId);
-        titleCounts.set(titleId, {
-          title,
-          count: (existing?.count ?? 0) + 1,
-        });
-      }
-
-      const favoriteTitle = Array.from(titleCounts.values()).sort((entryA, entryB) => {
-        if (entryB.count !== entryA.count) {
-          return entryB.count - entryA.count;
-        }
-
-        return entryA.title.localeCompare(entryB.title);
-      })[0] ?? null;
-
-      let bestFriend: PublicProfilePageData["bestFriend"] = null;
-
-      if (gameIds.length > 0) {
-        const sharedPlayers = await db.query.gamePlayers.findMany({
-          where: inArray(gamePlayers.gameId, gameIds),
-          with: {
-            game: {
-              columns: {
-                createdAt: true,
-              },
+          return [
+            {
+              id: game.id,
+              createdAt: game.createdAt,
+              completedAt: game.completedAt,
+              title: game.gameTitle
+                ? {
+                    id: game.gameTitle.id,
+                    title: game.gameTitle.title,
+                    imageUrl: game.gameTitle.imageUrl,
+                  }
+                : null,
+              participantUserIds: game.players.map((player) => player.userId),
+              winnerUserIds: game.winners.map((winner) => winner.userId),
             },
-            user: {
-              columns: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                color: true,
-                isGuest: true,
-                mergedIntoUserId: true,
-              },
-            },
-          },
-        });
-
-        const sharedCounts = new Map<
-          string,
-          {
-            user: {
-              id: string;
-              firstName: string | null;
-              lastName: string | null;
-              color: string;
-            };
-            gameIds: Set<string>;
-            lastPlayedAt: string | null;
-          }
-        >();
-
-        for (const participant of sharedPlayers) {
-          const candidate = participant.user;
-
-          if (
-            !candidate ||
-            candidate.id === profileId ||
-            candidate.isGuest ||
-            candidate.mergedIntoUserId
-          ) {
-            continue;
-          }
-
-          const existing = sharedCounts.get(candidate.id);
-          const candidatePlayedAt = participant.game?.createdAt ?? null;
-
-          if (!existing) {
-            sharedCounts.set(candidate.id, {
-              user: {
-                id: candidate.id,
-                firstName: candidate.firstName,
-                lastName: candidate.lastName,
-                color: candidate.color,
-              },
-              gameIds: new Set([participant.gameId]),
-              lastPlayedAt: candidatePlayedAt,
-            });
-            continue;
-          }
-
-          existing.gameIds.add(participant.gameId);
-
-          if (
-            candidatePlayedAt &&
-            (!existing.lastPlayedAt || candidatePlayedAt > existing.lastPlayedAt)
-          ) {
-            existing.lastPlayedAt = candidatePlayedAt;
-          }
-        }
-
-        const topSharedPlayer = Array.from(sharedCounts.values())
-          .map((entry) => ({
-            ...entry,
-            gamesPlayedTogether: entry.gameIds.size,
-            displayName: formatDisplayName(entry.user),
-          }))
-          .sort((entryA, entryB) => {
-            if (entryB.gamesPlayedTogether !== entryA.gamesPlayedTogether) {
-              return entryB.gamesPlayedTogether - entryA.gamesPlayedTogether;
-            }
-
-            if (entryA.lastPlayedAt && entryB.lastPlayedAt) {
-              return entryB.lastPlayedAt.localeCompare(entryA.lastPlayedAt);
-            }
-
-            if (entryA.lastPlayedAt) {
-              return -1;
-            }
-
-            if (entryB.lastPlayedAt) {
-              return 1;
-            }
-
-            return entryA.displayName.localeCompare(entryB.displayName);
-          })[0];
-
-        if (topSharedPlayer) {
-          bestFriend = {
-            ...topSharedPlayer.user,
-            displayName: topSharedPlayer.displayName,
-            gamesPlayedTogether: topSharedPlayer.gamesPlayedTogether,
-            lastPlayedAt: topSharedPlayer.lastPlayedAt,
-          };
-        }
-      }
-
-      const gamesPlayed = uniqueGameIds.size;
-      const completedGames = new Set(completedParticipations.map(({ gameId }) => gameId)).size;
-      const gamesWon = new Set(winsInCompletedGames.map(({ gameId }) => gameId)).size;
-      const winRate =
-        completedGames > 0 ? Math.round((gamesWon / completedGames) * 100) : null;
+          ];
+        }),
+      });
 
       return {
         profile: {
@@ -277,25 +192,18 @@ export async function getPublicProfileSummaryData(
           lastName: profileUser.lastName,
           color: profileUser.color,
           createdAt: profileUser.createdAt,
-          displayName: formatDisplayName(profileUser),
+          displayName: formatProfileDisplayName(profileUser),
         },
-        bestFriend,
-        stats: {
-          friendCount: friendships.length,
-          gamesPlayed,
-          gamesWon,
-          winRate,
-          gamesHosted: createdGames.length,
-          titlesPlayed: titleCounts.size,
-          favoriteTitle: favoriteTitle?.title ?? null,
-          favoriteTitleCount: favoriteTitle?.count ?? 0,
-          lastPlayedAt,
-        },
+        defaultBestFriend: builtStats.defaultBestFriend,
+        comparisonOptions: builtStats.comparisonOptions,
+        comparisonSummariesByUserId: builtStats.comparisonSummariesByUserId,
+        defaultComparisonUserId: builtStats.defaultComparisonUserId,
+        stats: builtStats.stats,
       };
     },
-    [profileId],
+    [`${input.profileId}:${input.cacheKey}`],
     {
-      tags: [getPublicProfileTag(profileId)],
+      tags: [getPublicProfileTag(input.profileId)],
     },
   )();
 }
