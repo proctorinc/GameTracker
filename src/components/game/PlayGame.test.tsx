@@ -295,6 +295,12 @@ function renderComponent(input?: {
   );
 }
 
+function tapScoreDigits(value: string) {
+  for (const digit of value) {
+    fireEvent.click(screen.getByRole("button", { name: `Enter ${digit}` }));
+  }
+}
+
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
   let reject!: (reason?: unknown) => void;
@@ -338,9 +344,8 @@ describe("PlayGame", () => {
     renderComponent();
 
     fireEvent.click(screen.getByTestId("player-score-button-user-2"));
-    fireEvent.change(screen.getByRole("spinbutton"), {
-      target: { value: "5" },
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Delete digit" }));
+    tapScoreDigits("5");
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
     expect(screen.getByTestId("player-score-button-user-2")).toHaveTextContent("5");
@@ -375,12 +380,11 @@ describe("PlayGame", () => {
     renderComponent();
 
     fireEvent.click(screen.getByTestId("player-score-button-user-2"));
-    fireEvent.change(screen.getByRole("spinbutton"), {
-      target: { value: "5" },
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Delete digit" }));
+    tapScoreDigits("5");
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
-    expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("score-drawer-entry")).not.toBeInTheDocument();
     expect(screen.getByTestId("player-score-button-user-2")).toHaveTextContent("5");
   });
 
@@ -389,7 +393,7 @@ describe("PlayGame", () => {
 
     fireEvent.click(screen.getByTestId("player-card-content-user-2"));
 
-    expect(screen.getByRole("spinbutton")).toBeInTheDocument();
+    expect(screen.getByTestId("score-drawer-entry")).toBeInTheDocument();
   });
 
   it("keeps avatar clicks on color editing when the profile picture is editable", () => {
@@ -400,7 +404,7 @@ describe("PlayGame", () => {
     expect(
       screen.getByRole("heading", { name: "Edit Mia" }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("score-drawer-entry")).not.toBeInTheDocument();
   });
 
   it("does not wait for reconciliation before finishing a successful mutation", async () => {
@@ -417,9 +421,8 @@ describe("PlayGame", () => {
     renderComponent();
 
     fireEvent.click(screen.getByTestId("player-score-button-user-2"));
-    fireEvent.change(screen.getByRole("spinbutton"), {
-      target: { value: "5" },
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Delete digit" }));
+    tapScoreDigits("5");
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
     await waitFor(() => {
@@ -437,9 +440,8 @@ describe("PlayGame", () => {
     renderComponent();
 
     fireEvent.click(screen.getByTestId("player-score-button-user-2"));
-    fireEvent.change(screen.getByRole("spinbutton"), {
-      target: { value: "5" },
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Delete digit" }));
+    tapScoreDigits("5");
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
     expect(screen.getByTestId("player-score-button-user-2")).toHaveTextContent("5");
@@ -452,22 +454,16 @@ describe("PlayGame", () => {
     expect(toastError).toHaveBeenCalledWith("Score save failed");
   });
 
-  it("replaces a visible zero when typing a new score after clearing the field", () => {
+  it("replaces the default zero when entering a new score on the keypad", () => {
     renderComponent();
 
     fireEvent.click(screen.getByTestId("player-score-button-user-2"));
+    fireEvent.click(screen.getByRole("button", { name: "Enter 0" }));
+    expect(screen.getByTestId("score-drawer-entry")).toHaveTextContent("0");
 
-    const input = screen.getByRole("spinbutton") as HTMLInputElement;
-
-    fireEvent.change(input, {
-      target: { value: "" },
-    });
-    expect(input.value).toBe("");
-
-    fireEvent.change(input, {
-      target: { value: "05" },
-    });
-    expect(input.value).toBe("5");
+    fireEvent.click(screen.getByRole("button", { name: "Delete digit" }));
+    tapScoreDigits("5");
+    expect(screen.getByTestId("score-drawer-entry")).toHaveTextContent("5");
   });
 
   it("reconciles on focus without a full page refresh", async () => {
@@ -816,9 +812,8 @@ describe("PlayGame", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Score" }));
     fireEvent.click(screen.getByRole("button", { name: "+2" }));
-    fireEvent.change(screen.getByRole("spinbutton"), {
-      target: { value: "5" },
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Delete digit" }));
+    tapScoreDigits("5");
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
     await waitFor(() => {

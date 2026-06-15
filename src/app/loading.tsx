@@ -9,7 +9,7 @@ export default function Loading() {
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.65),transparent_45%)] dark:bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_35%)]" />
 
       <section className="w-full flex justify-center max-w-md px-6">
-        <AppLogo className="text-card-foreground animate-pulse" />
+        <AppLogo size="xl" className="text-card-foreground animate-pulse" />
       </section>
     </main>
   );

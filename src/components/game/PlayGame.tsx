@@ -42,7 +42,6 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
-import { Input } from "@/components/ui/input";
 import type { GameForPlayPage } from "@/lib/db/store/game.store";
 import type { UserBase } from "@/lib/db/store/user.store";
 import {
@@ -58,7 +57,8 @@ import {
 } from "@/components/game/play-game-state";
 import {
   ChevronDown,
-  Diff,
+  Check,
+  Delete,
   DoorOpen,
   FastForward,
   ListChecks,
@@ -71,6 +71,7 @@ import {
   Undo2,
   UserPlus,
   Users,
+  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -109,6 +110,9 @@ type PendingMutationEntry = {
   key: string;
   mutation: PlayGameMutation;
 };
+
+const SCORE_DRAWER_KEYBOARD_MAX_HEIGHT_CLASS = "max-h-[360px]";
+const SCORE_DRAWER_KEYBOARD_MAX_HEIGHT = "360px";
 
 function getDisplayName(
   user: Pick<UserBase, "firstName" | "lastName" | "isGuest">,
@@ -302,6 +306,46 @@ function parseScoreAmountInput(value: string) {
 
   const parsedValue = Number(value);
   return Number.isFinite(parsedValue) ? parsedValue : null;
+}
+
+function appendScoreAmountDigit(currentValue: string, digit: number) {
+  const normalizedValue = normalizeScoreAmountInput(currentValue);
+
+  if (normalizedValue === "" || normalizedValue === "0") {
+    return String(digit);
+  }
+
+  if (normalizedValue === "-0") {
+    return `-${digit}`;
+  }
+
+  return `${normalizedValue}${digit}`;
+}
+
+function removeScoreAmountDigit(currentValue: string) {
+  const normalizedValue = normalizeScoreAmountInput(currentValue);
+
+  if (!normalizedValue || normalizedValue === "0") {
+    return "0";
+  }
+
+  const nextValue = normalizedValue.slice(0, -1);
+
+  if (!nextValue || nextValue === "-") {
+    return "0";
+  }
+
+  return nextValue;
+}
+
+function toggleScoreAmountSign(currentValue: string) {
+  const scoreAmount = parseScoreAmountInput(currentValue) ?? 0;
+
+  if (scoreAmount === 0) {
+    return "0";
+  }
+
+  return String(scoreAmount * -1);
 }
 
 export default function PlayGame(props: PlayGameProps) {
@@ -521,36 +565,6 @@ export default function PlayGame(props: PlayGameProps) {
   );
   const scoreDialogRoundNumber =
     scoreDialogState?.roundNumber ?? nextRoundNumber;
-  const scoreDialogRound = useMemo(
-    () =>
-      game.rounds.find(
-        (round) => round.roundNumber === scoreDialogRoundNumber,
-      ) ?? null,
-    [game.rounds, scoreDialogRoundNumber],
-  );
-  const scoreDialogExistingRoundScore = useMemo(() => {
-    if (!scoreDialogPlayer) {
-      return null;
-    }
-
-    return (
-      scoreDialogRound?.scores.find(
-        (score) => score.userId === scoreDialogPlayer.userId,
-      )?.scoreDelta ?? 0
-    );
-  }, [scoreDialogPlayer, scoreDialogRound]);
-  const scoreDialogCommittedTotal = useMemo(() => {
-    if (!scoreDialogPlayer) {
-      return 0;
-    }
-
-    return (
-      getPlayerTotalScore(scoreDialogPlayer) -
-      (scoreDialogExistingRoundScore ?? 0)
-    );
-  }, [scoreDialogExistingRoundScore, scoreDialogPlayer]);
-  const scoreDialogProjectedTotal =
-    scoreDialogCommittedTotal + (parseScoreAmountInput(scoreAmountInput) ?? 0);
   const colorDialogPlayer = useMemo(
     () =>
       game.players.find((player) => player.userId === colorDialogPlayerId) ??
@@ -996,6 +1010,13 @@ export default function PlayGame(props: PlayGameProps) {
         setScoreAmountInput("0");
       },
     });
+  }
+
+  function handleScoreDrawerOpenChange(open: boolean) {
+    if (!open) {
+      setScoreDialogState(null);
+      setScoreAmountInput("0");
+    }
   }
 
   function handleCommitRound(completeGame: boolean) {
@@ -1627,47 +1648,56 @@ export default function PlayGame(props: PlayGameProps) {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        onOpenChange={(open) => {
-          if (!open) {
-            setScoreDialogState(null);
-            setScoreAmountInput("0");
-          }
-        }}
+      <Drawer
+        onOpenChange={handleScoreDrawerOpenChange}
         open={Boolean(scoreDialogPlayer)}
       >
-        <DialogContent
-          className="max-w-[calc(100%-1.5rem)] rounded-[2rem] p-5"
+        <DrawerContent
+          className="left-1/2 right-auto max-h-[92vh] w-[calc(100%-1rem)] max-w-sm -translate-x-1/2 gap-0 overflow-hidden rounded-t-[2rem] p-0"
           style={
             scoreDialogPlayer
               ? getProfileColorSurfaceStyles(scoreDialogPlayer.user.color)
               : undefined
           }
         >
-          <div className="pointer-events-none absolute inset-[1px] rounded-[calc(2rem-1px)] border border-[var(--profile-surface-ring)]" />
-          <div className="pointer-events-none absolute inset-0 rounded-[2rem] bg-[radial-gradient(circle_at_24%_18%,var(--profile-surface-highlight)_0%,transparent_52%)] dark:bg-[radial-gradient(circle_at_24%_18%,rgba(15,23,42,0.18)_0%,transparent_52%)]" />
-          <div className="pointer-events-none absolute inset-0 rounded-[2rem] bg-[linear-gradient(180deg,transparent_42%,var(--profile-surface-shade)_100%)] dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.06)_0%,rgba(15,23,42,0.22)_100%)]" />
-          <DialogHeader>
-            <DialogTitle className="relative z-10 text-2xl font-black">
-              {scoreDialogPlayer ? getDisplayName(scoreDialogPlayer.user) : ""}
-            </DialogTitle>
-          </DialogHeader>
-          <form className="flex flex-col gap-4" onSubmit={handleScoreSubmit}>
-            <div className="relative z-10 space-y-3">
-              <div>
-                <div className="rounded-[1.5rem] border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-4 py-4 text-center shadow-sm">
-                  <p className="text-6xl font-black">
-                    {scoreDialogProjectedTotal}
-                  </p>
-                  <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-[color:var(--profile-surface-muted-text)]">
-                    Total
-                  </p>
+          <div className="pointer-events-none absolute inset-[1px] rounded-t-[calc(2rem-1px)] border border-[var(--profile-surface-ring)]" />
+          <div className="pointer-events-none absolute inset-0 rounded-t-[2rem] bg-[radial-gradient(circle_at_24%_18%,var(--profile-surface-highlight)_0%,transparent_52%)] dark:bg-[radial-gradient(circle_at_24%_18%,rgba(15,23,42,0.18)_0%,transparent_52%)]" />
+          <div className="pointer-events-none absolute inset-0 rounded-t-[2rem] bg-[linear-gradient(180deg,transparent_42%,var(--profile-surface-shade)_100%)] dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.06)_0%,rgba(15,23,42,0.22)_100%)]" />
+          <form
+            className="relative z-10 flex min-h-0 w-full flex-1 flex-col"
+            onSubmit={handleScoreSubmit}
+          >
+            <DrawerHeader className="px-5 pb-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <DrawerTitle className="text-[clamp(1.5rem,6vw,2rem)] font-black">
+                    {scoreDialogPlayer
+                      ? getDisplayName(scoreDialogPlayer.user)
+                      : ""}
+                  </DrawerTitle>
+                  <DrawerDescription className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-[color:var(--profile-surface-muted-text)]">
+                    Round {scoreDialogRoundNumber}
+                  </DrawerDescription>
                 </div>
+                <Button
+                  aria-label="Close score drawer"
+                  className="size-11 rounded-[1.1rem] border-[var(--profile-surface-panel-border)] bg-[color:color-mix(in_srgb,var(--profile-surface-panel)_78%,white_22%)] text-[color:var(--profile-surface-text)] shadow-sm"
+                  onClick={() => handleScoreDrawerOpenChange(false)}
+                  size="icon-lg"
+                  type="button"
+                  variant="outline"
+                >
+                  <X className="size-5" />
+                </Button>
               </div>
-              <div className="flex flex-col w-full items-center gap-1">
-                <div className="flex items-center gap-2">
+            </DrawerHeader>
+
+            <div className="px-5 pb-4">
+              <div className="rounded-[1.75rem] border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
                   <Button
-                    className="h-16 rounded-[1.4rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] shadow-sm"
+                    aria-label="Decrease score by 1"
+                    className="h-14 w-14 shrink-0 rounded-[1.25rem] border-[var(--profile-surface-panel-border)] bg-[color:color-mix(in_srgb,var(--profile-surface-panel)_70%,white_30%)] text-[color:var(--profile-surface-text)] shadow-sm"
                     disabled={isCompleted || scoreMutationPending}
                     onClick={() => {
                       const scoreAmount =
@@ -1677,29 +1707,17 @@ export default function PlayGame(props: PlayGameProps) {
                     type="button"
                     variant="outline"
                   >
-                    <Minus className="size-4" />
+                    <Minus className="size-5" />
                   </Button>
-                  <Input
-                    autoFocus
-                    className="h-18 rounded-[1.5rem] border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-center text-4xl font-black shadow-inner ring-0 placeholder:text-[color:var(--profile-surface-muted-text)]"
-                    inputMode="numeric"
-                    onFocus={(event) => {
-                      if (
-                        (parseScoreAmountInput(scoreAmountInput) ?? 0) === 0
-                      ) {
-                        event.target.select();
-                      }
-                    }}
-                    onChange={(event) =>
-                      setScoreAmountInput(
-                        normalizeScoreAmountInput(event.target.value),
-                      )
-                    }
-                    type="number"
-                    value={scoreAmountInput}
-                  />
+                  <p
+                    className="flex-1 text-center text-[clamp(2.5rem,12vw,3.5rem)] font-black leading-none"
+                    data-testid="score-drawer-entry"
+                  >
+                    {scoreAmountInput}
+                  </p>
                   <Button
-                    className="h-16 rounded-[1.4rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] shadow-sm"
+                    aria-label="Increase score by 1"
+                    className="h-14 w-14 shrink-0 rounded-[1.25rem] border-[var(--profile-surface-panel-border)] bg-[color:color-mix(in_srgb,var(--profile-surface-panel)_70%,white_30%)] text-[color:var(--profile-surface-text)] shadow-sm"
                     disabled={isCompleted || scoreMutationPending}
                     onClick={() => {
                       const scoreAmount =
@@ -1709,44 +1727,103 @@ export default function PlayGame(props: PlayGameProps) {
                     type="button"
                     variant="outline"
                   >
-                    <Plus className="size-4" />
+                    <Plus className="size-5" />
                   </Button>
                 </div>
-                <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-[color:var(--profile-surface-muted-text)]">
-                  Round {scoreDialogRoundNumber}
-                </p>
               </div>
             </div>
 
-            <DialogFooter className="flex-row items-stretch gap-3 bg-transparent pl-2 pt-2 sm:flex-row sm:justify-stretch">
-              <Button
-                className="min-w-0 basis-1/4"
-                disabled={scoreMutationPending}
-                onClick={() => {
-                  const scoreAmount =
-                    parseScoreAmountInput(scoreAmountInput) ?? 0;
-                  setScoreAmountInput(String(scoreAmount * -1));
+            <div className="mt-auto border-t border-[var(--profile-surface-panel-border)] bg-[color:color-mix(in_srgb,var(--profile-surface-panel)_74%,white_26%)] px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-4 backdrop-blur-sm">
+              <div
+                className={cn(
+                  "mx-auto flex w-full flex-col justify-start",
+                  SCORE_DRAWER_KEYBOARD_MAX_HEIGHT_CLASS,
+                )}
+                style={{
+                  ["--key-height" as string]: `min(4.25rem, max(2.5rem, calc((min(50dvh, ${SCORE_DRAWER_KEYBOARD_MAX_HEIGHT}) - 6.5rem) / 5)))`,
                 }}
-                type="button"
-                variant="outline"
               >
-                <Diff className="size-4" />
-              </Button>
-              <Button
-                className="min-w-0 basis-3/4"
-                disabled={scoreMutationPending}
-                variant="outline"
-                type="submit"
-              >
-                {scoreMutationPending ? (
-                  <LoaderCircle className="animate-spin" />
-                ) : null}
-                Confirm
-              </Button>
-            </DialogFooter>
+                <div className="grid grid-cols-3 gap-3">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
+                    <Button
+                      key={digit}
+                      aria-label={`Enter ${digit}`}
+                      className="h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[color:color-mix(in_srgb,var(--profile-surface-panel)_64%,white_36%)] text-[clamp(0.95rem,4vw,1.5rem)] font-black shadow-sm"
+                      disabled={isCompleted || scoreMutationPending}
+                      onClick={() =>
+                        setScoreAmountInput(
+                          appendScoreAmountDigit(scoreAmountInput, digit),
+                        )
+                      }
+                      type="button"
+                      variant="outline"
+                    >
+                      {digit}
+                    </Button>
+                  ))}
+                  <Button
+                    aria-label="Toggle positive or negative"
+                    className="h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[color:color-mix(in_srgb,var(--profile-surface-panel)_64%,white_36%)] text-[clamp(0.85rem,3.6vw,1.25rem)] font-black shadow-sm"
+                    disabled={scoreMutationPending}
+                    onClick={() =>
+                      setScoreAmountInput(
+                        toggleScoreAmountSign(scoreAmountInput),
+                      )
+                    }
+                    type="button"
+                    variant="outline"
+                  >
+                    +/-
+                  </Button>
+                  <Button
+                    aria-label="Enter 0"
+                    className="h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[color:color-mix(in_srgb,var(--profile-surface-panel)_64%,white_36%)] text-[clamp(0.95rem,4vw,1.5rem)] font-black shadow-sm"
+                    disabled={isCompleted || scoreMutationPending}
+                    onClick={() =>
+                      setScoreAmountInput(
+                        appendScoreAmountDigit(scoreAmountInput, 0),
+                      )
+                    }
+                    type="button"
+                    variant="outline"
+                  >
+                    0
+                  </Button>
+                  <Button
+                    aria-label="Delete digit"
+                    className="h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[color:color-mix(in_srgb,var(--profile-surface-panel)_64%,white_36%)] text-[clamp(0.85rem,3.6vw,1.25rem)] font-black shadow-sm"
+                    disabled={isCompleted || scoreMutationPending}
+                    onClick={() =>
+                      setScoreAmountInput(
+                        removeScoreAmountDigit(scoreAmountInput),
+                      )
+                    }
+                    type="button"
+                    variant="outline"
+                  >
+                    <Delete className="size-[clamp(0.95rem,4vw,1.25rem)]" />
+                  </Button>
+                </div>
+                <Button
+                  aria-label="Confirm"
+                  className="mt-3 h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[color:color-mix(in_srgb,var(--profile-surface-panel)_60%,white_40%)] text-[clamp(1rem,4vw,1.25rem)] font-black shadow-sm"
+                  disabled={scoreMutationPending}
+                  type="submit"
+                  variant="outline"
+                >
+                  {scoreMutationPending ? (
+                    <LoaderCircle className="size-[clamp(1rem,4vw,1.25rem)] animate-spin" />
+                  ) : (
+                    <Check className="size-[clamp(1rem,4vw,1.25rem)]" />
+                  )}
+                  Confirm
+                </Button>
+                <div className="min-h-0 flex-1" />
+              </div>
+            </div>
           </form>
-        </DialogContent>
-      </Dialog>
+        </DrawerContent>
+      </Drawer>
 
       <Dialog
         onOpenChange={(open) => {
@@ -2240,7 +2317,8 @@ export default function PlayGame(props: PlayGameProps) {
                     >
                       <span>
                         R{round.roundNumber}
-                        {round.roundNumber === nextRoundNumber && !isCompleted
+                        {round.roundNumber === nextRoundNumber &&
+                        (round.scores?.length ?? 0) > 0
                           ? " (current)"
                           : ""}
                       </span>
