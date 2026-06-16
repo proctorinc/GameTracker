@@ -6,7 +6,9 @@ import {
   commitGameRound,
   deleteCreatedGame,
   getPlayGameSnapshot,
+  reopenCompletedGame,
   removeGamePlayer,
+  setGamePlayerManager,
   updateRecordedRoundScore,
   upsertActiveRoundScore,
 } from "@/app/actions/game";
@@ -20,7 +22,6 @@ import {
   Card,
   CardContent,
   CardEmpty,
-  CardFooter,
   CardHeader,
 } from "@/components/ui/card";
 import { RematchButton } from "@/components/game/rematch-button";
@@ -97,8 +98,10 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 type PlayGameProps = {
+  canManageLiveGame: boolean;
   currentUserId: string;
   isCreator: boolean;
+  isManager: boolean;
   playerOptions: UserBase[];
   game: GameForPlayPage;
 };
@@ -119,7 +122,7 @@ type PendingMutationEntry = {
 
 const SCORE_DRAWER_KEYBOARD_MAX_HEIGHT_CLASS = "max-h-[360px]";
 const SCORE_DRAWER_KEYBOARD_MAX_HEIGHT = "360px";
-const SCORE_DRAWER_CLOSE_DURATION_MS = 180;
+const SCORE_DRAWER_CLOSE_DURATION_MS = 120;
 
 function getDisplayName(
   user: Pick<UserBase, "firstName" | "lastName" | "isGuest">,
@@ -249,8 +252,10 @@ function getPlacementLabel(index: number) {
 
 function buildInitialSnapshot(props: PlayGameProps): PlayGameSnapshot {
   return {
+    canManageLiveGame: props.canManageLiveGame,
     currentUserId: props.currentUserId,
     isCreator: props.isCreator,
+    isManager: props.isManager,
     playerOptions: props.playerOptions,
     game: props.game,
   };
@@ -375,6 +380,7 @@ export default function PlayGame(props: PlayGameProps) {
   const [isExitConfirmOpen, setIsExitConfirmOpen] = useState(false);
   const [isHeaderDrawerOpen, setIsHeaderDrawerOpen] = useState(false);
   const [isDeleteGameDialogOpen, setIsDeleteGameDialogOpen] = useState(false);
+  const [isReopenConfirmOpen, setIsReopenConfirmOpen] = useState(false);
   const [colorDialogPlayerId, setColorDialogPlayerId] = useState<string | null>(
     null,
   );
@@ -382,6 +388,9 @@ export default function PlayGame(props: PlayGameProps) {
     null,
   );
   const [selectedWinnerUserIds, setSelectedWinnerUserIds] = useState<string[]>(
+    [],
+  );
+  const [pendingManagerUserIds, setPendingManagerUserIds] = useState<string[]>(
     [],
   );
   const [playerSearch, setPlayerSearch] = useState("");
@@ -431,9 +440,11 @@ export default function PlayGame(props: PlayGameProps) {
   }, []);
 
   const snapshot = optimisticSnapshot;
+  const canManageLiveGame = snapshot.canManageLiveGame;
   const game = snapshot.game;
   const currentUserId = snapshot.currentUserId;
   const isCreator = snapshot.isCreator;
+  const isManager = snapshot.isManager;
   const isCompleted = Boolean(game.completedAt);
   const pendingKeySet = useMemo(
     () => new Set(pendingMutations.map((entry) => entry.key)),
@@ -744,7 +755,12 @@ export default function PlayGame(props: PlayGameProps) {
   }, [isCompleted]);
 
   useEffect(() => {
-    if (!isRoundScoringReady || isRoundDialogOpen || !activeRound) {
+    if (
+      !canManageLiveGame ||
+      !isRoundScoringReady ||
+      isRoundDialogOpen ||
+      !activeRound
+    ) {
       return;
     }
 
@@ -756,7 +772,13 @@ export default function PlayGame(props: PlayGameProps) {
     setSelectedWinnerUserIds(game.winners.map((winner) => winner.userId));
     setRoundDialogIntent("round");
     setIsRoundDialogOpen(true);
-  }, [activeRound, game.winners, isRoundDialogOpen, isRoundScoringReady]);
+  }, [
+    activeRound,
+    canManageLiveGame,
+    game.winners,
+    isRoundDialogOpen,
+    isRoundScoringReady,
+  ]);
 
   function canEditGuestOrSelfColor(player: GameForPlayPage["players"][number]) {
     return (
@@ -834,7 +856,7 @@ export default function PlayGame(props: PlayGameProps) {
   }
 
   function openScoreDialog(player: GameForPlayPage["players"][number]) {
-    if (!isCreator || isCompleted || isNoScoreMode) {
+    if (!canManageLiveGame || isCompleted || isNoScoreMode) {
       return;
     }
 
@@ -858,7 +880,7 @@ export default function PlayGame(props: PlayGameProps) {
     playerId: string;
     roundNumber: number;
   }) {
-    if (!isCreator || isCompleted || isNoScoreMode) {
+    if (!canManageLiveGame || isCompleted || isNoScoreMode) {
       return;
     }
 
@@ -983,6 +1005,35 @@ export default function PlayGame(props: PlayGameProps) {
       onOptimistic: () => {
         setRemovePlayerUserId(null);
       },
+    });
+  }
+
+  function handleManagerToggle(player: GameForPlayPage["players"][number]) {
+    if (!isCreator || isCompleted || player.userId === game.creatorId) {
+      return;
+    }
+
+    setPendingManagerUserIds((current) => [...current, player.userId]);
+
+    startTransition(async () => {
+      try {
+        await setGamePlayerManager({
+          gameId: game.id,
+          userId: player.userId,
+          isManager: !player.isManager,
+        });
+        await reconcileSnapshotNow();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Could not update manager access",
+        );
+      } finally {
+        setPendingManagerUserIds((current) =>
+          current.filter((entry) => entry !== player.userId),
+        );
+      }
     });
   }
 
@@ -1162,6 +1213,23 @@ export default function PlayGame(props: PlayGameProps) {
     });
   }
 
+  function handleReopenGame() {
+    runMutation({
+      key: "reopen-game",
+      mutation: {
+        type: "reopen-game",
+      },
+      action: () =>
+        reopenCompletedGame({
+          gameId: game.id,
+        }),
+      fallbackError: "Could not reopen game",
+      onOptimistic: () => {
+        setIsReopenConfirmOpen(false);
+      },
+    });
+  }
+
   if (game.version !== "v1") {
     return (
       <div className="min-h-screen overflow-y-auto px-3 pb-40 sm:px-6">
@@ -1197,7 +1265,8 @@ export default function PlayGame(props: PlayGameProps) {
   const removePlayerPending = removePlayerUserId
     ? pendingKeySet.has(`remove-player:${removePlayerUserId}`)
     : false;
-  const canOpenScoreFromCard = isCreator && !isCompleted && !isNoScoreMode;
+  const canOpenScoreFromCard =
+    canManageLiveGame && !isCompleted && !isNoScoreMode;
 
   return (
     <div
@@ -1277,7 +1346,7 @@ export default function PlayGame(props: PlayGameProps) {
                     <p>Started {formatGameMetaDate(game.createdAt)}</p>
                   </div>
                 </div>
-                {isCreator ? (
+                {canManageLiveGame ? (
                   <div className="flex items-center gap-2">
                     <Drawer
                       onOpenChange={setIsHeaderDrawerOpen}
@@ -1305,19 +1374,21 @@ export default function PlayGame(props: PlayGameProps) {
                           </DrawerDescription>
                         </DrawerHeader>
                         <div className="flex flex-col gap-2">
-                          <Link
-                            href={`/game/${game.id}/settings`}
-                            onClick={() => setIsHeaderDrawerOpen(false)}
-                          >
-                            <Button
-                              className="w-full justify-start"
-                              type="button"
-                              variant="outline"
+                          {isCreator ? (
+                            <Link
+                              href={`/game/${game.id}/settings`}
+                              onClick={() => setIsHeaderDrawerOpen(false)}
                             >
-                              <Settings2 className="size-4" />
-                              Change game settings
-                            </Button>
-                          </Link>
+                              <Button
+                                className="w-full justify-start"
+                                type="button"
+                                variant="outline"
+                              >
+                                <Settings2 className="size-4" />
+                                Change game settings
+                              </Button>
+                            </Link>
+                          ) : null}
                           <Button
                             className="w-full justify-start"
                             disabled={isCompleted}
@@ -1332,32 +1403,40 @@ export default function PlayGame(props: PlayGameProps) {
                             <Users className="size-4" />
                             Manage players
                           </Button>
-                          <Button
-                            className="w-full justify-start"
-                            disabled={isCompleted}
-                            onClick={() => {
-                              setIsHeaderDrawerOpen(false);
-                              openRoundDialog("end-game");
-                            }}
-                            type="button"
-                            variant="outline"
-                          >
-                            <Trophy className="size-4" />
-                            End game
-                          </Button>
-                          <Button
-                            className="w-full justify-start"
-                            disabled={isCompleted || isDeleteGamePending}
-                            onClick={() => {
-                              setIsHeaderDrawerOpen(false);
-                              setIsDeleteGameDialogOpen(true);
-                            }}
-                            type="button"
-                            variant="destructive"
-                          >
-                            <Trash2 className="size-4" />
-                            Delete game
-                          </Button>
+                          {!isCompleted || isCreator ? (
+                            <Button
+                              className="w-full justify-start"
+                              onClick={() => {
+                                setIsHeaderDrawerOpen(false);
+                                if (isCompleted) {
+                                  setIsReopenConfirmOpen(true);
+                                  return;
+                                }
+
+                                openRoundDialog("end-game");
+                              }}
+                              type="button"
+                              variant="outline"
+                            >
+                              <Trophy className="size-4" />
+                              {isCompleted ? "Reopen game" : "End game"}
+                            </Button>
+                          ) : null}
+                          {isCreator ? (
+                            <Button
+                              className="w-full justify-start"
+                              disabled={isCompleted || isDeleteGamePending}
+                              onClick={() => {
+                                setIsHeaderDrawerOpen(false);
+                                setIsDeleteGameDialogOpen(true);
+                              }}
+                              type="button"
+                              variant="destructive"
+                            >
+                              <Trash2 className="size-4" />
+                              Delete game
+                            </Button>
+                          ) : null}
                         </div>
                       </DrawerContent>
                     </Drawer>
@@ -1517,7 +1596,7 @@ export default function PlayGame(props: PlayGameProps) {
                         </div>
                       </div>
                     </div>
-                  ) : !isNoScoreMode && isCreator ? (
+                  ) : !isNoScoreMode && canManageLiveGame ? (
                     <Button
                       className="relative z-10 w-[5.5rem] overflow-visible rounded-[1.4rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-0 py-3 text-[color:var(--profile-surface-text)] shadow-sm backdrop-blur-[2px]"
                       data-testid={`player-score-button-${player.userId}`}
@@ -1559,7 +1638,7 @@ export default function PlayGame(props: PlayGameProps) {
               </Card>
             );
           })}
-          {isCreator && !hasAnyRecordedScores ? (
+          {canManageLiveGame && !hasAnyRecordedScores ? (
             <Button
               className="h-16 w-full rounded-[1.7rem] border-dashed"
               onClick={() => {
@@ -1574,10 +1653,10 @@ export default function PlayGame(props: PlayGameProps) {
           ) : null}
         </div>
 
-        {!isCreator ? (
+        {!canManageLiveGame ? (
           <Card className="border-dashed bg-card/70 p-0">
             <CardContent className="px-4 py-4 text-sm text-slate-500">
-              View Mode. Only the creator can update scores and manage the game.
+              View Mode. Only the creator or a manager can update scores and manage the game.
             </CardContent>
           </Card>
         ) : null}
@@ -1608,13 +1687,13 @@ export default function PlayGame(props: PlayGameProps) {
                 </Button>
               </Link>
             )}
-            {isCreator ? (
+            {canManageLiveGame ? (
               <Button
                 className={cn(
                   "h-16 w-fit min-w-20 flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase",
                   isRoundScoringReady && "bg-primary text-primary-foreground",
                 )}
-                disabled={isCompleted}
+                disabled={isCompleted || commitRoundPending}
                 onClick={() => openRoundDialog()}
                 variant={isRoundScoringReady ? "default" : "outline"}
               >
@@ -1703,12 +1782,41 @@ export default function PlayGame(props: PlayGameProps) {
         </DialogContent>
       </Dialog>
 
+      <Dialog onOpenChange={setIsReopenConfirmOpen} open={isReopenConfirmOpen}>
+        <DialogContent className="max-w-[calc(100%-1.5rem)] rounded-[2rem] p-5">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black">
+              Re-open this game?
+            </DialogTitle>
+            <DialogDescription className="text-base">
+              This will mark the game as active again, clear its winner, and let
+              you keep playing from the next round.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="bg-transparent p-0 pt-2">
+            <Button
+              disabled={commitRoundPending}
+              onClick={() => setIsReopenConfirmOpen(false)}
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <Button disabled={commitRoundPending} onClick={handleReopenGame}>
+              {commitRoundPending ? (
+                <LoaderCircle className="animate-spin" />
+              ) : null}
+              Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Drawer
         onOpenChange={handleScoreDrawerOpenChange}
         open={isScoreDrawerOpen}
       >
         <DrawerContent
-          className="left-1/2 right-auto max-h-[92vh] w-full max-w-sm -translate-x-1/2 gap-0 overflow-hidden rounded-t-[2rem] p-0 text-[color:var(--profile-surface-text)]"
+          className="left-1/2 right-auto max-h-[92vh] w-full max-w-sm -translate-x-1/2 gap-0 overflow-hidden rounded-t-[2rem] p-0 text-[color:var(--profile-surface-text)] duration-150 data-open:slide-in-from-bottom-3 data-closed:slide-out-to-bottom-3"
           style={
             scoreDialogPlayer
               ? getProfileColorSurfaceStyles(scoreDialogPlayer.user.color)
@@ -1861,7 +1969,7 @@ export default function PlayGame(props: PlayGameProps) {
                 </div>
                 <Button
                   aria-label="Confirm"
-                  className="mt-3 h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[clamp(1rem,4vw,1.25rem)] font-black text-[color:var(--profile-surface-text)] shadow-sm"
+                  className="mt-3 h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] !bg-[var(--profile-surface-panel)] text-[clamp(1rem,4vw,1.25rem)] font-black !text-[color:var(--profile-surface-text)] shadow-sm hover:!bg-[var(--profile-surface-panel)] active:!bg-[var(--profile-surface-panel)]"
                   disabled={scoreMutationPending}
                   type="submit"
                   variant="outline"
@@ -2035,6 +2143,9 @@ export default function PlayGame(props: PlayGameProps) {
                       const canRemoveSelf = player.userId !== currentUserId;
                       const disableRemoval =
                         game.players.length <= 1 || playerPending;
+                      const managerPending = pendingManagerUserIds.includes(
+                        player.userId,
+                      );
 
                       return (
                         <div
@@ -2052,32 +2163,65 @@ export default function PlayGame(props: PlayGameProps) {
                                 {getDisplayName(player.user)}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                {player.user.isGuest ? "Guest" : "Player"}
+                                {player.userId === game.creatorId
+                                  ? "Owner"
+                                  : player.isManager
+                                    ? "Manager"
+                                    : player.user.isGuest
+                                      ? "Guest"
+                                      : "Player"}
                               </p>
                             </div>
                           </div>
-                          {canRemoveSelf ? (
-                            <Button
-                              className="rounded-xl"
-                              data-testid={`remove-player-button-${player.userId}`}
-                              disabled={disableRemoval}
-                              onClick={() =>
-                                openRemovePlayerDialog(player.userId)
-                              }
-                              size="sm"
-                              type="button"
-                              variant="outline"
-                            >
-                              {playerPending ? (
-                                <LoaderCircle className="animate-spin" />
-                              ) : (
-                                <Trash2 className="size-4" />
-                              )}
-                              Remove
-                            </Button>
-                          ) : (
-                            <Badge variant="outline">You</Badge>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {player.userId === game.creatorId ? (
+                              <Badge variant="outline">Owner</Badge>
+                            ) : (
+                              <Button
+                                aria-pressed={player.isManager}
+                                className="rounded-xl"
+                                data-testid={`toggle-manager-button-${player.userId}`}
+                                disabled={!isCreator || isCompleted || managerPending}
+                                onClick={() => handleManagerToggle(player)}
+                                size="sm"
+                                type="button"
+                                variant={player.isManager ? "default" : "outline"}
+                              >
+                                {managerPending ? (
+                                  <LoaderCircle className="animate-spin" />
+                                ) : player.isManager ? (
+                                  <Check className="size-4" />
+                                ) : null}
+                                Manager
+                              </Button>
+                            )}
+                            {canRemoveSelf ? (
+                              <Button
+                                className="rounded-xl"
+                                data-testid={`remove-player-button-${player.userId}`}
+                                disabled={
+                                  disableRemoval || player.userId === game.creatorId
+                                }
+                                onClick={() =>
+                                  openRemovePlayerDialog(player.userId)
+                                }
+                                size="sm"
+                                type="button"
+                                variant="outline"
+                              >
+                                {playerPending ? (
+                                  <LoaderCircle className="animate-spin" />
+                                ) : (
+                                  <Trash2 className="size-4" />
+                                )}
+                                Remove
+                              </Button>
+                            ) : (
+                              <Badge variant="outline">
+                                {isCreator ? "You" : isManager ? "Manager" : "You"}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -2394,12 +2538,12 @@ export default function PlayGame(props: PlayGameProps) {
                             key={`${round.id}-${player.userId}`}
                             className={cn(
                               "flex min-h-12 items-center justify-center border-r border-b border-border px-2 py-3 text-center text-sm font-medium text-foreground/80",
-                              isCreator &&
+                              canManageLiveGame &&
                                 !isCompleted &&
                                 "cursor-pointer hover:bg-background/70",
                             )}
                             disabled={
-                              !isCreator || isCompleted || isNoScoreMode
+                              !canManageLiveGame || isCompleted || isNoScoreMode
                             }
                             onClick={() =>
                               openRoundScoreDialog({

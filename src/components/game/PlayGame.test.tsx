@@ -18,7 +18,9 @@ const commitGameRound = vi.fn();
 const createRematchGameAndRedirect = vi.fn();
 const deleteCreatedGame = vi.fn();
 const getPlayGameSnapshot = vi.fn();
+const reopenCompletedGame = vi.fn();
 const removeGamePlayer = vi.fn();
+const setGamePlayerManager = vi.fn();
 const updateRecordedRoundScore = vi.fn();
 const upsertActiveRoundScore = vi.fn();
 const updateOwnedGuestColor = vi.fn();
@@ -47,7 +49,9 @@ vi.mock("@/app/actions/game", () => ({
     createRematchGameAndRedirect(...args),
   deleteCreatedGame: (...args: unknown[]) => deleteCreatedGame(...args),
   getPlayGameSnapshot: (...args: unknown[]) => getPlayGameSnapshot(...args),
+  reopenCompletedGame: (...args: unknown[]) => reopenCompletedGame(...args),
   removeGamePlayer: (...args: unknown[]) => removeGamePlayer(...args),
+  setGamePlayerManager: (...args: unknown[]) => setGamePlayerManager(...args),
   updateRecordedRoundScore: (...args: unknown[]) =>
     updateRecordedRoundScore(...args),
   upsertActiveRoundScore: (...args: unknown[]) =>
@@ -134,6 +138,7 @@ function createGameSnapshot(score = 0): GameForPlayPage {
       {
         id: "game-player-1",
         gameId: "game-1",
+        isManager: false,
         userId: creator.id,
         score: 0,
         user: creator,
@@ -141,6 +146,7 @@ function createGameSnapshot(score = 0): GameForPlayPage {
       {
         id: "game-player-2",
         gameId: "game-1",
+        isManager: false,
         userId: opponent.id,
         score,
         user: opponent,
@@ -279,6 +285,21 @@ function createFreePlayWithRoundsSnapshot(): GameForPlayPage {
   };
 }
 
+function createManagedGameSnapshot(): GameForPlayPage {
+  const game = createGameSnapshot();
+
+  return {
+    ...game,
+    players: [
+      game.players[0]!,
+      {
+        ...game.players[1]!,
+        isManager: true,
+      },
+    ],
+  };
+}
+
 function createNoScoreFinalPromptSnapshot(): GameForPlayPage {
   return {
     ...createNoScoreGameSnapshot(),
@@ -287,7 +308,10 @@ function createNoScoreFinalPromptSnapshot(): GameForPlayPage {
 }
 
 function renderComponent(input?: {
+  canManageLiveGame?: boolean;
+  currentUserId?: string;
   isCreator?: boolean;
+  isManager?: boolean;
   game?: GameForPlayPage;
   playerOptions?: UserBase[];
 }) {
@@ -297,9 +321,11 @@ function renderComponent(input?: {
 
   return renderWithProviders(
     <PlayGame
-      currentUserId={creator.id}
+      canManageLiveGame={input?.canManageLiveGame ?? true}
+      currentUserId={input?.currentUserId ?? creator.id}
       game={game}
       isCreator={input?.isCreator ?? true}
+      isManager={input?.isManager ?? false}
       playerOptions={input?.playerOptions ?? [creator, opponent]}
     />,
   );
@@ -340,10 +366,13 @@ describe("PlayGame", () => {
     commitGameRound.mockReset();
     deleteCreatedGame.mockReset();
     getPlayGameSnapshot.mockReset();
+    reopenCompletedGame.mockReset();
     removeGamePlayer.mockReset();
+    setGamePlayerManager.mockReset();
     updateRecordedRoundScore.mockReset();
     upsertActiveRoundScore.mockReset();
     updateOwnedGuestColor.mockReset();
+    reopenCompletedGame.mockResolvedValue(undefined);
     vi.useRealTimers();
   });
 
@@ -363,8 +392,10 @@ describe("PlayGame", () => {
     );
 
     getPlayGameSnapshot.mockResolvedValue({
+      canManageLiveGame: true,
       currentUserId: "user-1",
       isCreator: true,
+      isManager: false,
       playerOptions: [
         createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
         createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
@@ -423,8 +454,10 @@ describe("PlayGame", () => {
 
   it("does not wait for reconciliation before finishing a successful mutation", async () => {
     const reconcileDeferred = createDeferred<{
+      canManageLiveGame: boolean;
       currentUserId: string;
       isCreator: boolean;
+      isManager: boolean;
       playerOptions: UserBase[];
       game: GameForPlayPage;
     }>();
@@ -486,8 +519,10 @@ describe("PlayGame", () => {
 
   it("reconciles on focus without a full page refresh", async () => {
     getPlayGameSnapshot.mockResolvedValue({
+      canManageLiveGame: false,
       currentUserId: "user-1",
       isCreator: false,
+      isManager: false,
       playerOptions: [
         createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
         createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
@@ -496,6 +531,7 @@ describe("PlayGame", () => {
     });
 
     renderComponent({
+      canManageLiveGame: false,
       isCreator: false,
     });
 
@@ -515,6 +551,56 @@ describe("PlayGame", () => {
     });
   });
 
+  it("shows view mode messaging for non-manager participants", () => {
+    renderComponent({
+      canManageLiveGame: false,
+      currentUserId: "user-2",
+      isCreator: false,
+      isManager: false,
+    });
+
+    expect(
+      screen.getByText(
+        "View Mode. Only the creator or a manager can update scores and manage the game.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Game options" })).not.toBeInTheDocument();
+  });
+
+  it("lets managers use live-play controls without creator-only options", async () => {
+    upsertActiveRoundScore.mockResolvedValue(undefined);
+
+    renderComponent({
+      canManageLiveGame: true,
+      currentUserId: "user-2",
+      game: createManagedGameSnapshot(),
+      isCreator: false,
+      isManager: true,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    expect(
+      screen.queryByRole("button", { name: "Change game settings" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Delete game" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Manage players" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("player-score-button-user-1"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete digit" }));
+    tapScoreDigits("4");
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    await waitFor(() => {
+      expect(upsertActiveRoundScore).toHaveBeenCalledWith({
+        gameId: "game-1",
+        userId: "user-1",
+        scoreDelta: 4,
+      });
+    });
+  });
+
   it("shows a finalized leaderboard instead of score actions when the game is complete", () => {
     renderComponent({
       game: createCompletedGameSnapshot(),
@@ -531,6 +617,35 @@ describe("PlayGame", () => {
     expect(
       screen.queryByTestId("player-score-button-user-2"),
     ).not.toBeInTheDocument();
+  });
+
+  it("asks for confirmation before reopening a completed game from the settings drawer", async () => {
+    renderComponent({
+      game: createCompletedGameSnapshot(),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reopen game" }));
+
+    expect(
+      screen.getByRole("heading", { name: "Re-open this game?" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => {
+      expect(reopenCompletedGame).toHaveBeenCalledWith({
+        gameId: "game-1",
+      });
+    });
+  });
+
+  it("keeps the finished footer button disabled for completed games", () => {
+    renderComponent({
+      game: createCompletedGameSnapshot(),
+    });
+
+    expect(screen.getByRole("button", { name: "Finished" })).toBeDisabled();
   });
 
   it("confirms rematches before creating a new game", () => {
@@ -606,6 +721,7 @@ describe("PlayGame", () => {
           {
             id: "game-player-1",
             gameId: "game-1",
+            isManager: false,
             userId: creator.id,
             score: 0,
             user: creator,
@@ -613,6 +729,7 @@ describe("PlayGame", () => {
           {
             id: "game-player-2",
             gameId: "game-1",
+            isManager: false,
             userId: opponent.id,
             score: 0,
             user: opponent,
@@ -639,6 +756,7 @@ describe("PlayGame", () => {
 
   it("lets participants open score breakdown after the game is complete", () => {
     renderComponent({
+      canManageLiveGame: false,
       game: createCompletedGameSnapshot(),
       isCreator: false,
     });
@@ -733,6 +851,7 @@ describe("PlayGame", () => {
 
   it("hides score controls entirely for no-score games", () => {
     renderComponent({
+      canManageLiveGame: false,
       game: createNoScoreGameSnapshot(),
       isCreator: false,
     });
@@ -791,12 +910,62 @@ describe("PlayGame", () => {
       screen.getByTestId("remove-player-button-user-2"),
     ).toBeInTheDocument();
     expect(
+      screen.getByTestId("toggle-manager-button-user-2"),
+    ).toBeInTheDocument();
+    expect(
       screen.queryByTestId("remove-player-button-user-1"),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Player" })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Back to game" }),
     ).toBeInTheDocument();
+  });
+
+  it("lets the creator toggle manager access from manage users", async () => {
+    setGamePlayerManager.mockResolvedValue(undefined);
+    getPlayGameSnapshot.mockResolvedValue({
+      canManageLiveGame: true,
+      currentUserId: "user-1",
+      isCreator: true,
+      isManager: false,
+      playerOptions: [
+        createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
+        createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
+      ],
+      game: createManagedGameSnapshot(),
+    });
+
+    renderComponent();
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
+    fireEvent.click(screen.getByTestId("toggle-manager-button-user-2"));
+
+    await waitFor(() => {
+      expect(setGamePlayerManager).toHaveBeenCalledWith({
+        gameId: "game-1",
+        userId: "user-2",
+        isManager: true,
+      });
+    });
+  });
+
+  it("shows the manager toggle disabled for non-creator managers", () => {
+    renderComponent({
+      canManageLiveGame: true,
+      currentUserId: "user-2",
+      game: createManagedGameSnapshot(),
+      isCreator: false,
+      isManager: true,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
+
+    expect(screen.getByTestId("toggle-manager-button-user-2")).toBeDisabled();
+    expect(
+      screen.queryByTestId("toggle-manager-button-user-1"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows add user UI only after tapping add user", () => {

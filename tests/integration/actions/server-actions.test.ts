@@ -103,8 +103,13 @@ describe("server action integration", () => {
       const opponent = await createUserFixture();
       mockAuthenticatedUser(creator.id);
 
-      const { createConfiguredGame, commitGameRound, addGamePlayer, createRematchGame } =
-        await import("../../../src/app/actions/game");
+      const {
+        createConfiguredGame,
+        commitGameRound,
+        addGamePlayer,
+        createRematchGame,
+        setGamePlayerManager,
+      } = await import("../../../src/app/actions/game");
 
       const originalGame = await createConfiguredGame({
         gameTitleName: "Rematch Fixture",
@@ -116,6 +121,11 @@ describe("server action integration", () => {
       await addGamePlayer({
         gameId: originalGame.id,
         userId: opponent.id,
+      });
+      await setGamePlayerManager({
+        gameId: originalGame.id,
+        userId: opponent.id,
+        isManager: true,
       });
 
       const { upsertActiveRoundScore, getGame } = await import(
@@ -152,8 +162,194 @@ describe("server action integration", () => {
         expect.arrayContaining([creator.id, opponent.id]),
       );
       expect(persistedRematch?.players).toHaveLength(2);
+      expect(
+        persistedRematch?.players.find((player) => player.userId === opponent.id)?.isManager,
+      ).toBe(true);
       expect(persistedRematch?.rounds).toHaveLength(0);
     }, "game-rematch-action");
+  });
+
+  it("lets the creator promote a player to manager", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const teammate = await createUserFixture();
+      mockAuthenticatedUser(creator.id);
+
+      const { createConfiguredGame, addGamePlayer, setGamePlayerManager, getGame } =
+        await import("../../../src/app/actions/game");
+
+      const game = await createConfiguredGame({
+        gameTitleName: "Manager Fixture",
+        scoringMode: "lowest_wins",
+        endingMode: "none",
+      });
+
+      await addGamePlayer({
+        gameId: game.id,
+        userId: teammate.id,
+      });
+      await setGamePlayerManager({
+        gameId: game.id,
+        userId: teammate.id,
+        isManager: true,
+      });
+
+      const persistedGame = await getGame(game.id);
+
+      expect(
+        persistedGame?.players.find((player) => player.userId === teammate.id)?.isManager,
+      ).toBe(true);
+    }, "game-manager-promote-action");
+  });
+
+  it("blocks non-manager players from updating live scores", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const opponent = await createUserFixture();
+
+      mockAuthenticatedUser(creator.id);
+      const { createConfiguredGame, addGamePlayer } = await import(
+        "../../../src/app/actions/game"
+      );
+
+      const game = await createConfiguredGame({
+        gameTitleName: "Manager Permissions",
+        scoringMode: "lowest_wins",
+        endingMode: "none",
+      });
+      await addGamePlayer({
+        gameId: game.id,
+        userId: opponent.id,
+      });
+
+      vi.resetModules();
+      mockAuthenticatedUser(opponent.id);
+
+      const { upsertActiveRoundScore } = await import("../../../src/app/actions/game");
+
+      await expect(
+        upsertActiveRoundScore({
+          gameId: game.id,
+          userId: creator.id,
+          scoreDelta: 5,
+        }),
+      ).rejects.toThrow("Only the game creator or a manager can do that");
+    }, "game-manager-score-block-action");
+  });
+
+  it("lets managers run live play actions", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const manager = await createUserFixture();
+
+      mockAuthenticatedUser(creator.id);
+      const { createConfiguredGame, addGamePlayer, setGamePlayerManager } = await import(
+        "../../../src/app/actions/game"
+      );
+
+      const game = await createConfiguredGame({
+        gameTitleName: "Manager Live Play",
+        scoringMode: "lowest_wins",
+        endingMode: "none",
+      });
+      await addGamePlayer({
+        gameId: game.id,
+        userId: manager.id,
+      });
+      await setGamePlayerManager({
+        gameId: game.id,
+        userId: manager.id,
+        isManager: true,
+      });
+
+      vi.resetModules();
+      mockAuthenticatedUser(manager.id);
+
+      const { addGuestGamePlayer, upsertActiveRoundScore, getGame } = await import(
+        "../../../src/app/actions/game"
+      );
+
+      await upsertActiveRoundScore({
+        gameId: game.id,
+        userId: creator.id,
+        scoreDelta: 7,
+      });
+      await addGuestGamePlayer({
+        gameId: game.id,
+        firstName: "Guest",
+      });
+
+      const persistedGame = await getGame(game.id);
+
+      expect(
+        persistedGame?.players.find((player) => player.userId === creator.id)?.score,
+      ).toBe(7);
+      expect(persistedGame?.players.some((player) => player.user.firstName === "Guest")).toBe(
+        true,
+      );
+    }, "game-manager-live-play-action");
+  });
+
+  it("keeps manager-only ownership actions blocked for managers", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const manager = await createUserFixture();
+
+      mockAuthenticatedUser(creator.id);
+      const { createConfiguredGame, addGamePlayer, setGamePlayerManager } = await import(
+        "../../../src/app/actions/game"
+      );
+
+      const game = await createConfiguredGame({
+        gameTitleName: "Manager Owner Boundary",
+        scoringMode: "lowest_wins",
+        endingMode: "none",
+      });
+      await addGamePlayer({
+        gameId: game.id,
+        userId: manager.id,
+      });
+      await setGamePlayerManager({
+        gameId: game.id,
+        userId: manager.id,
+        isManager: true,
+      });
+
+      vi.resetModules();
+      mockAuthenticatedUser(manager.id);
+
+      const {
+        deleteCreatedGame,
+        setGamePlayerManager: setManagerAsManager,
+        updateGameSettings,
+      } = await import("../../../src/app/actions/game");
+
+      await expect(
+        setManagerAsManager({
+          gameId: game.id,
+          userId: creator.id,
+          isManager: true,
+        }),
+      ).rejects.toThrow("Only the game creator can do that");
+
+      await expect(
+        updateGameSettings({
+          gameId: game.id,
+          scoringMode: "highest_wins",
+          endingMode: "none",
+          trackRounds: false,
+          targetRounds: null,
+          scoreThreshold: null,
+          scoreThresholdDirection: null,
+        }),
+      ).rejects.toThrow("Only the game creator can do that");
+
+      await expect(
+        deleteCreatedGame({
+          gameId: game.id,
+        }),
+      ).rejects.toThrow("Only the game creator can do that");
+    }, "game-manager-owner-boundary-action");
   });
 
   it("marks the profile complete and sets a short-lived bypass cookie", async () => {

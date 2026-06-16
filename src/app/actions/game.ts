@@ -94,13 +94,26 @@ async function requireGameMembership(gameId: string) {
   }
 
   const isCreator = game.creatorId === user.id;
-  const isPlayer = game.players.some((player) => player.userId === user.id);
+  const gamePlayer = game.players.find((player) => player.userId === user.id);
+  const isPlayer = Boolean(gamePlayer);
+  const isManager = gamePlayer?.isManager ?? false;
+  const canManageLiveGame = isCreator || isManager;
 
   if (!isCreator && !isPlayer) {
     throw new Error("Unauthorized");
   }
 
-  return { user, game, isCreator };
+  return { user, game, isCreator, isManager, canManageLiveGame };
+}
+
+async function requireGameLiveManager(gameId: string) {
+  const context = await requireGameMembership(gameId);
+
+  if (!context.canManageLiveGame) {
+    throw new Error("Only the game creator or a manager can do that");
+  }
+
+  return context;
 }
 
 async function requireGameCreator(gameId: string) {
@@ -126,7 +139,8 @@ export async function getPlayGameSnapshot(gameId: string) {
     "play_snapshot.read",
     meta,
     async () => {
-      const { user, game, isCreator } = await requireGameMembership(gameId);
+      const { user, game, isCreator, isManager, canManageLiveGame } =
+        await requireGameMembership(gameId);
       meta.actorUserId = user.id;
       const [friends, guests] = await Promise.all([
         listAcceptedFriendsForUser(user.id),
@@ -136,12 +150,16 @@ export async function getPlayGameSnapshot(gameId: string) {
       return {
         currentUserId: user.id,
         isCreator,
+        isManager,
+        canManageLiveGame,
         playerOptions: [...friends, ...guests],
         game,
       };
     },
     (result) => ({
+      canManageLiveGame: result.canManageLiveGame,
       isCreator: result.isCreator,
+      isManager: result.isManager,
       playerOptionCount: result.playerOptions.length,
       playerCount: result.game.players.length,
     }),
@@ -409,8 +427,10 @@ export async function createRematchGame(sourceGameId: string) {
         new Set(game.players.map((player) => player.userId)),
       );
 
-      for (const playerUserId of playerUserIds) {
-        await addPlayerToGame(rematch.id, playerUserId);
+      for (const player of game.players) {
+        await addPlayerToGame(rematch.id, player.userId, {
+          isManager: player.isManager,
+        });
       }
 
       if (game.gameTitleId) {
@@ -509,7 +529,7 @@ export async function commitGameRound(input: {
     "round.commit",
     meta,
     async () => {
-      const { user, game } = await requireGameCreator(input.gameId);
+      const { user, game } = await requireGameLiveManager(input.gameId);
       meta.actorUserId = user.id;
 
       if (game.completedAt) {
@@ -595,6 +615,44 @@ export async function commitGameRound(input: {
   );
 }
 
+export async function reopenCompletedGame(input: { gameId: string }) {
+  const meta: LogMeta = {
+    gameId: input.gameId,
+    actorUserId: null,
+  };
+
+  return runGameAction(
+    "reopen",
+    meta,
+    async () => {
+      const { user, game } = await requireGameLiveManager(input.gameId);
+      meta.actorUserId = user.id;
+
+      if (!game.completedAt) {
+        throw new Error("Game is already active");
+      }
+
+      const updatedGame = await updateGame(game.id, {
+        completedAt: null,
+      });
+
+      await replaceGameWinners({
+        gameId: game.id,
+        userIds: [],
+      });
+
+      revalidateDashboardPages(getDashboardUserIdsForGame(game));
+      revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
+      revalidateTitlesPages(getDashboardUserIdsForGame(game));
+
+      return updatedGame;
+    },
+    (result) => ({
+      completedAt: result?.completedAt ?? null,
+    }),
+  );
+}
+
 export async function upsertActiveRoundScore(input: {
   gameId: string;
   userId: string;
@@ -611,7 +669,7 @@ export async function upsertActiveRoundScore(input: {
     "round_score.upsert",
     meta,
     async () => {
-      const { user, game } = await requireGameCreator(input.gameId);
+      const { user, game } = await requireGameLiveManager(input.gameId);
       meta.actorUserId = user.id;
 
       if (game.completedAt) {
@@ -710,7 +768,7 @@ export async function updateRecordedRoundScore(input: {
     "round_score.recorded.update",
     meta,
     async () => {
-      const { user, game } = await requireGameCreator(input.gameId);
+      const { user, game } = await requireGameLiveManager(input.gameId);
       meta.actorUserId = user.id;
 
       if (game.completedAt) {
@@ -788,7 +846,7 @@ export async function addGamePlayer(input: { gameId: string; userId: string }) {
     "player.add",
     meta,
     async () => {
-      const { user } = await requireGameCreator(gameId);
+      const { user } = await requireGameLiveManager(gameId);
       meta.actorUserId = user.id;
 
       const existing = await getGamePlayerByGameAndUserId(gameId, userId);
@@ -824,7 +882,7 @@ export async function addGuestGamePlayer(input: {
     "guest_player.add",
     meta,
     async () => {
-      const { user } = await requireGameCreator(gameId);
+      const { user } = await requireGameLiveManager(gameId);
       meta.actorUserId = user.id;
       const trimmedFirstName = firstName.trim();
 
@@ -866,11 +924,15 @@ export async function removeGamePlayer(input: {
     "player.remove",
     meta,
     async () => {
-      const { user, game } = await requireGameCreator(gameId);
+      const { user, game } = await requireGameLiveManager(gameId);
       meta.actorUserId = user.id;
 
       if (game.completedAt) {
         throw new Error("Completed games can't be changed");
+      }
+
+      if (userId === game.creatorId) {
+        throw new Error("The game creator can't be removed");
       }
 
       if (game.players.length <= 1) {
@@ -896,6 +958,55 @@ export async function removeGamePlayer(input: {
     },
     (result) => ({
       gamePlayerId: result?.id ?? null,
+    }),
+  );
+}
+
+export async function setGamePlayerManager(input: {
+  gameId: string;
+  userId: string;
+  isManager: boolean;
+}) {
+  const { gameId, userId, isManager } = input;
+  const meta: LogMeta = {
+    actorUserId: null,
+    gameId,
+    playerUserId: userId,
+    isManager,
+  };
+
+  return runGameAction(
+    "player_manager.update",
+    meta,
+    async () => {
+      const { user, game } = await requireGameCreator(gameId);
+      meta.actorUserId = user.id;
+
+      if (game.completedAt) {
+        throw new Error("Completed games can't be changed");
+      }
+
+      if (userId === game.creatorId) {
+        throw new Error("The game creator always has manager access");
+      }
+
+      const existing = await getGamePlayerByGameAndUserId(gameId, userId);
+
+      if (!existing) {
+        throw new Error("That player is no longer in the game");
+      }
+
+      const result = await updateGamePlayer(existing.id, {
+        isManager,
+      });
+
+      revalidateDashboardPages(getDashboardUserIdsForGame(game));
+      revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
+      return result;
+    },
+    (result) => ({
+      gamePlayerId: result?.id ?? null,
+      isManager: result?.isManager ?? null,
     }),
   );
 }
@@ -1066,7 +1177,7 @@ export async function completeGame(input: {
     "complete",
     meta,
     async () => {
-      const { user, game } = await requireGameCreator(gameId);
+      const { user, game } = await requireGameLiveManager(gameId);
       meta.actorUserId = user.id;
 
       if (game.completedAt) {

@@ -39,8 +39,10 @@ function createSnapshot(): PlayGameSnapshot {
   const opponent = createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" });
 
   return {
+    canManageLiveGame: true,
     currentUserId: creator.id,
     isCreator: true,
+    isManager: false,
     playerOptions: [creator, opponent],
     game: {
       id: "game-1",
@@ -79,6 +81,7 @@ function createSnapshot(): PlayGameSnapshot {
         {
           id: "game-player-1",
           gameId: "game-1",
+          isManager: false,
           userId: creator.id,
           score: 3,
           user: creator,
@@ -86,6 +89,7 @@ function createSnapshot(): PlayGameSnapshot {
         {
           id: "game-player-2",
           gameId: "game-1",
+          isManager: false,
           userId: opponent.id,
           score: 8,
           user: opponent,
@@ -160,6 +164,35 @@ describe("play-game-state", () => {
     expect(nextSnapshot.game.completedRounds).toBe(1);
     expect(nextSnapshot.game.completedAt).toBe("2025-01-01T00:05:00.000Z");
     expect(nextSnapshot.game.winners.map((winner) => winner.userId)).toEqual(["user-2"]);
+  });
+
+  it("reopens a completed game optimistically", () => {
+    const baseSnapshot = createSnapshot();
+    const completedSnapshot: PlayGameSnapshot = {
+      ...baseSnapshot,
+      game: {
+        ...baseSnapshot.game,
+        completedAt: "2025-01-01T00:05:00.000Z",
+        completedRounds: 1,
+        winners: [
+          {
+            id: "winner-1",
+            gameId: baseSnapshot.game.id,
+            userId: "user-1",
+            createdAt: "2025-01-01T00:05:00.000Z",
+            user: baseSnapshot.game.players[0]!.user,
+          },
+        ],
+      },
+    };
+
+    const nextSnapshot = applyPlayGameMutation(completedSnapshot, {
+      type: "reopen-game",
+    });
+
+    expect(nextSnapshot.game.completedAt).toBeNull();
+    expect(nextSnapshot.game.winners).toEqual([]);
+    expect(nextSnapshot.game.completedRounds).toBe(1);
   });
 
   it("reapplies pending optimistic mutations over a newer base snapshot", () => {

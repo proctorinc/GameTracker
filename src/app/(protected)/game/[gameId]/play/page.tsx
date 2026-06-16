@@ -26,7 +26,11 @@ export default async function PlayGamePage({ params }: PageProps) {
   }
 
   const isCreator = game.creatorId === user.id;
-  const isPlayer = game.players.some((player) => player.userId === user.id);
+  const currentGamePlayer =
+    game.players.find((player) => player.userId === user.id) ?? null;
+  const isPlayer = Boolean(currentGamePlayer);
+  const isManager = currentGamePlayer?.isManager ?? false;
+  const canManageLiveGame = isCreator || isManager;
 
   if (!isCreator && !isPlayer) {
     notFound();
@@ -41,7 +45,9 @@ export default async function PlayGamePage({ params }: PageProps) {
   return (
     <PlayGame
       currentUserId={user.id}
+      canManageLiveGame={canManageLiveGame}
       isCreator={isCreator}
+      isManager={isManager}
       playerOptions={playerOptions}
       game={game}
     />

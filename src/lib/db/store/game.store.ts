@@ -1281,11 +1281,15 @@ export async function deleteGame(id: string): Promise<GameBase | null> {
 export async function addPlayerToGame(
   gameId: string,
   userId: string,
+  input?: {
+    isManager?: boolean;
+  },
 ): Promise<typeof gamePlayers.$inferSelect> {
   const [gamePlayer] = await db
     .insert(gamePlayers)
     .values({
       gameId,
+      isManager: input?.isManager ?? false,
       userId,
     })
     .returning();

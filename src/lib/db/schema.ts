@@ -304,6 +304,9 @@ export const gamePlayers = sqliteTable("game_players", {
     .primaryKey()
     .$defaultFn(() => createId()),
   score: integer("score").notNull().default(0),
+  isManager: integer("is_manager", { mode: "boolean" })
+    .notNull()
+    .default(false),
   gameId: text("game_id")
     .notNull()
     .references(() => games.id, { onDelete: "cascade" }),

@@ -7,8 +7,10 @@ import {
 } from "@/lib/game/v1";
 
 export type PlayGameSnapshot = {
+  canManageLiveGame: boolean;
   currentUserId: string;
   isCreator: boolean;
+  isManager: boolean;
   playerOptions: UserBase[];
   game: GameForPlayPage;
 };
@@ -25,6 +27,9 @@ export type PlayGameMutation =
       completeGame: boolean;
       finishedAt: string;
       winnerUserIds?: string[];
+    }
+  | {
+      type: "reopen-game";
     }
   | {
       type: "add-player";
@@ -62,6 +67,8 @@ export function applyPlayGameMutation(
       return applyOptimisticScore(snapshot, mutation);
     case "commit-round":
       return applyOptimisticRoundCommit(snapshot, mutation);
+    case "reopen-game":
+      return applyOptimisticGameReopen(snapshot);
     case "add-player":
     case "add-guest":
       return applyOptimisticPlayer(snapshot, mutation);
@@ -211,6 +218,21 @@ function applyOptimisticRoundCommit(
   };
 }
 
+function applyOptimisticGameReopen(snapshot: PlayGameSnapshot) {
+  if (!snapshot.game.completedAt) {
+    return snapshot;
+  }
+
+  return {
+    ...snapshot,
+    game: {
+      ...snapshot.game,
+      completedAt: null,
+      winners: [],
+    },
+  };
+}
+
 function applyOptimisticPlayer(
   snapshot: PlayGameSnapshot,
   mutation: Extract<
@@ -235,6 +257,7 @@ function applyOptimisticPlayer(
         {
           id: mutation.gamePlayerId,
           gameId: snapshot.game.id,
+          isManager: false,
           userId: mutation.user.id,
           score: 0,
           user: mutation.user,

@@ -98,6 +98,7 @@ function createGame(input?: { started?: boolean }): GameForPlayPage {
       {
         id: "game-player-1",
         gameId: "game-1",
+        isManager: false,
         userId: creator.id,
         score: started ? 14 : 0,
         user: creator,
@@ -105,6 +106,7 @@ function createGame(input?: { started?: boolean }): GameForPlayPage {
       {
         id: "game-player-2",
         gameId: "game-1",
+        isManager: false,
         userId: opponent.id,
         score: started ? 22 : 0,
         user: opponent,
