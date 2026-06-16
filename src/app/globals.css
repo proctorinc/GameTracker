@@ -247,6 +247,95 @@
     }
 }
 
+@keyframes live-update-pulse {
+    0% {
+        box-shadow:
+            0 0 0 0 color-mix(in oklab, var(--winner-border) 42%, transparent),
+            inset 0 0 0 0
+                color-mix(in oklab, var(--winner-surface-soft) 18%, transparent);
+    }
+    35% {
+        box-shadow:
+            0 0 0 8px color-mix(in oklab, var(--winner-border) 14%, transparent),
+            inset 0 0 0 1px
+                color-mix(in oklab, var(--winner-surface-soft) 48%, transparent);
+    }
+    100% {
+        box-shadow:
+            0 0 0 0 transparent,
+            inset 0 0 0 0 transparent;
+    }
+}
+
+@keyframes live-update-flash {
+    0% {
+        background-color: color-mix(
+            in oklab,
+            var(--winner-surface-soft) 6%,
+            transparent
+        );
+        transform: scale(1);
+    }
+    25% {
+        background-color: color-mix(
+            in oklab,
+            var(--winner-surface-soft) 34%,
+            transparent
+        );
+        transform: scale(1.03);
+    }
+    100% {
+        background-color: transparent;
+        transform: scale(1);
+    }
+}
+
+@layer utilities {
+    .live-update-card {
+        position: relative;
+    }
+
+    .live-update-card::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        border: 1px solid
+            color-mix(in oklab, var(--winner-border) 54%, transparent);
+        pointer-events: none;
+        animation: live-update-pulse 1.45s ease-out 1;
+    }
+
+    .live-update-section {
+        box-shadow:
+            0 0 0 1px color-mix(in oklab, var(--winner-border) 28%, transparent),
+            0 14px 38px -28px color-mix(in srgb, var(--winner-border) 42%, transparent);
+        animation: live-update-pulse 1.45s ease-out 1;
+    }
+
+    .live-update-surface {
+        animation: live-update-pulse 1.45s ease-out 1;
+    }
+
+    .animate-live-update-pulse {
+        animation: live-update-pulse 1.45s ease-out 1;
+    }
+
+    .animate-live-update-flash {
+        animation: live-update-flash 1.1s ease-out 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .live-update-card::after,
+    .live-update-section,
+    .live-update-surface,
+    .animate-live-update-pulse,
+    .animate-live-update-flash {
+        animation: none !important;
+    }
+}
+
 @keyframes splash-orbit {
     0% {
         transform: rotate(0deg) translateX(120px) rotate(0deg);

@@ -63,6 +63,12 @@ import {
   type PlayGameSnapshot,
 } from "@/components/game/play-game-state";
 import {
+  deriveRemotePlayGameEvents,
+  filterLocalRemotePlayGameEvents,
+  getRemoteHighlightTarget,
+  summarizeRemotePlayGameEvents,
+} from "@/components/game/play-game-live-updates";
+import {
   ChevronDown,
   Check,
   Delete,
@@ -120,9 +126,24 @@ type PendingMutationEntry = {
   mutation: PlayGameMutation;
 };
 
+type RecentLocalMutationKey = {
+  expiresAt: number;
+  key: string;
+};
+
+type LiveHighlightState = {
+  gameStatus: boolean;
+  playerIds: string[];
+  roster: boolean;
+  scoreUserIds: string[];
+};
+
 const SCORE_DRAWER_KEYBOARD_MAX_HEIGHT_CLASS = "max-h-[360px]";
 const SCORE_DRAWER_KEYBOARD_MAX_HEIGHT = "360px";
 const SCORE_DRAWER_CLOSE_DURATION_MS = 120;
+const ACTIVE_RECONCILE_INTERVAL_MS = 2000;
+const REMOTE_HIGHLIGHT_DURATION_MS = 1600;
+const RECENT_LOCAL_MUTATION_MS = 5000;
 
 function getDisplayName(
   user: Pick<UserBase, "firstName" | "lastName" | "isGuest">,
@@ -393,6 +414,12 @@ export default function PlayGame(props: PlayGameProps) {
   const [pendingManagerUserIds, setPendingManagerUserIds] = useState<string[]>(
     [],
   );
+  const [liveHighlights, setLiveHighlights] = useState<LiveHighlightState>({
+    gameStatus: false,
+    playerIds: [],
+    roster: false,
+    scoreUserIds: [],
+  });
   const [playerSearch, setPlayerSearch] = useState("");
   const [baseSnapshot, setBaseSnapshot] = useState<PlayGameSnapshot>(() =>
     buildInitialSnapshot(props),
@@ -422,6 +449,10 @@ export default function PlayGame(props: PlayGameProps) {
   const reconcileInFlightRef = useRef(false);
   const autoOpenedRoundRef = useRef<number | null>(null);
   const mutationIdRef = useRef(0);
+  const recentLocalMutationKeysRef = useRef<RecentLocalMutationKey[]>([]);
+  const clearLiveHighlightsTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
 
   useEffect(() => {
     baseSnapshotRef.current = baseSnapshot;
@@ -435,6 +466,10 @@ export default function PlayGame(props: PlayGameProps) {
     return () => {
       if (scoreDrawerCloseTimeoutRef.current) {
         clearTimeout(scoreDrawerCloseTimeoutRef.current);
+      }
+
+      if (clearLiveHighlightsTimeoutRef.current) {
+        clearTimeout(clearLiveHighlightsTimeoutRef.current);
       }
     };
   }, []);
@@ -710,6 +745,7 @@ export default function PlayGame(props: PlayGameProps) {
       );
       const currentPendingMutations = pendingMutationsRef.current;
 
+      showRemoteEvents(freshSnapshot);
       setLocalState(freshSnapshot, currentPendingMutations);
     } catch {
       // Keep local optimistic state if background reconciliation fails.
@@ -747,7 +783,7 @@ export default function PlayGame(props: PlayGameProps) {
       if (document.visibilityState === "visible") {
         void reconcileSnapshot();
       }
-    }, 5000);
+    }, ACTIVE_RECONCILE_INTERVAL_MS);
 
     return () => {
       window.clearInterval(intervalId);
@@ -792,10 +828,74 @@ export default function PlayGame(props: PlayGameProps) {
     return `mutation-${mutationIdRef.current}`;
   }
 
+  function pruneRecentLocalMutationKeys(now = Date.now()) {
+    recentLocalMutationKeysRef.current = recentLocalMutationKeysRef.current.filter(
+      (entry) => entry.expiresAt > now,
+    );
+  }
+
+  function rememberLocalMutationKey(key: string) {
+    const now = Date.now();
+    pruneRecentLocalMutationKeys(now);
+    recentLocalMutationKeysRef.current = [
+      ...recentLocalMutationKeysRef.current.filter((entry) => entry.key !== key),
+      {
+        key,
+        expiresAt: now + RECENT_LOCAL_MUTATION_MS,
+      },
+    ];
+  }
+
+  function buildLocalMutationKeySet() {
+    pruneRecentLocalMutationKeys();
+
+    return new Set([
+      ...pendingMutationsRef.current.map((entry) => entry.key),
+      ...recentLocalMutationKeysRef.current.map((entry) => entry.key),
+    ]);
+  }
+
+  function showRemoteEvents(nextBaseSnapshot: PlayGameSnapshot) {
+    const remoteEvents = filterLocalRemotePlayGameEvents({
+      events: deriveRemotePlayGameEvents({
+        previousSnapshot: baseSnapshotRef.current,
+        nextSnapshot: nextBaseSnapshot,
+      }),
+      localKeys: buildLocalMutationKeySet(),
+    });
+
+    if (remoteEvents.length === 0) {
+      return;
+    }
+
+    const nextHighlightState = getRemoteHighlightTarget(remoteEvents);
+    const summaries = summarizeRemotePlayGameEvents(remoteEvents);
+
+    if (clearLiveHighlightsTimeoutRef.current) {
+      clearTimeout(clearLiveHighlightsTimeoutRef.current);
+    }
+
+    setLiveHighlights(nextHighlightState);
+    clearLiveHighlightsTimeoutRef.current = setTimeout(() => {
+      setLiveHighlights({
+        gameStatus: false,
+        playerIds: [],
+        roster: false,
+        scoreUserIds: [],
+      });
+      clearLiveHighlightsTimeoutRef.current = null;
+    }, REMOTE_HIGHLIGHT_DURATION_MS);
+
+    for (const summary of summaries) {
+      toast.message(summary);
+    }
+  }
+
   async function finalizeSuccessfulMutation(entry: PendingMutationEntry) {
     const remainingMutations = pendingMutationsRef.current.filter(
       (pendingEntry) => pendingEntry.id !== entry.id,
     );
+    rememberLocalMutationKey(entry.key);
     const nextBaseSnapshot = applyPlayGameMutation(
       baseSnapshotRef.current,
       entry.mutation,
@@ -1022,6 +1122,7 @@ export default function PlayGame(props: PlayGameProps) {
           userId: player.userId,
           isManager: !player.isManager,
         });
+        rememberLocalMutationKey(`manager:${player.userId}`);
         await reconcileSnapshotNow();
       } catch (error) {
         toast.error(
@@ -1267,6 +1368,14 @@ export default function PlayGame(props: PlayGameProps) {
     : false;
   const canOpenScoreFromCard =
     canManageLiveGame && !isCompleted && !isNoScoreMode;
+  const highlightedPlayerIdSet = useMemo(
+    () => new Set(liveHighlights.playerIds),
+    [liveHighlights.playerIds],
+  );
+  const highlightedScoreUserIdSet = useMemo(
+    () => new Set(liveHighlights.scoreUserIds),
+    [liveHighlights.scoreUserIds],
+  );
 
   return (
     <div
@@ -1450,7 +1559,11 @@ export default function PlayGame(props: PlayGameProps) {
         {isCompleted ? (
           <div className="flex flex-col gap-3">
             <Card
-              className="winner-surface overflow-hidden rounded-3xl border"
+              className={cn(
+                "winner-surface overflow-hidden rounded-3xl border",
+                liveHighlights.gameStatus && "live-update-surface",
+              )}
+              data-live-highlighted={liveHighlights.gameStatus || undefined}
               size="sm"
             >
               <CardContent className="flex items-center gap-3 py-3 text-[color:var(--winner-text)]">
@@ -1479,7 +1592,13 @@ export default function PlayGame(props: PlayGameProps) {
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-3">
+        <div
+          className={cn(
+            "flex flex-col gap-3",
+            liveHighlights.roster && "live-update-section",
+          )}
+          data-live-highlighted={liveHighlights.roster || undefined}
+        >
           {sortedPlayers.map((player, index) => {
             const isWinner = winnerIds.has(player.userId);
             const canEditColor = canEditGuestOrSelfColor(player);
@@ -1489,17 +1608,28 @@ export default function PlayGame(props: PlayGameProps) {
             const activeRoundDelta = activeRoundScoreByUserId.get(
               player.userId,
             );
+            const playerCardHighlighted = highlightedPlayerIdSet.has(
+              player.userId,
+            );
+            const playerScoreHighlighted = highlightedScoreUserIdSet.has(
+              player.userId,
+            );
 
             return (
               <Card
                 key={player.id}
-                className="overflow-hidden rounded-3xl border-none bg-transparent p-0 shadow-none"
+                className={cn(
+                  "overflow-hidden rounded-3xl border-none bg-transparent p-0 shadow-none",
+                  playerCardHighlighted && "live-update-card",
+                )}
+                data-live-highlighted={playerCardHighlighted || undefined}
                 data-testid={`player-card-${player.userId}`}
               >
                 <CardContent
                   className={cn(
                     "relative flex items-center gap-3 overflow-hidden px-3 py-1",
                     canOpenScoreFromCard && "cursor-pointer",
+                    playerCardHighlighted && "animate-live-update-pulse",
                   )}
                   data-testid={`player-card-content-${player.userId}`}
                   onClick={() => {
@@ -1598,7 +1728,11 @@ export default function PlayGame(props: PlayGameProps) {
                     </div>
                   ) : !isNoScoreMode && canManageLiveGame ? (
                     <Button
-                      className="relative z-10 w-[5.5rem] overflow-visible rounded-[1.4rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-0 py-3 text-[color:var(--profile-surface-text)] shadow-sm backdrop-blur-[2px]"
+                      className={cn(
+                        "relative z-10 w-[5.5rem] overflow-visible rounded-[1.4rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-0 py-3 text-[color:var(--profile-surface-text)] shadow-sm backdrop-blur-[2px]",
+                        playerScoreHighlighted && "animate-live-update-flash",
+                      )}
+                      data-live-highlighted={playerScoreHighlighted || undefined}
                       data-testid={`player-score-button-${player.userId}`}
                       disabled={isCompleted}
                       onClick={() => openScoreDialog(player)}
@@ -1618,7 +1752,11 @@ export default function PlayGame(props: PlayGameProps) {
                     </Button>
                   ) : !isNoScoreMode ? (
                     <div
-                      className="relative z-10 w-[5.5rem] overflow-visible rounded-[1.4rem] border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-0 py-3 text-[color:var(--profile-surface-text)] shadow-sm backdrop-blur-[2px]"
+                      className={cn(
+                        "relative z-10 w-[5.5rem] overflow-visible rounded-[1.4rem] border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-0 py-3 text-[color:var(--profile-surface-text)] shadow-sm backdrop-blur-[2px]",
+                        playerScoreHighlighted && "animate-live-update-flash",
+                      )}
+                      data-live-highlighted={playerScoreHighlighted || undefined}
                       data-testid={`player-score-display-${player.userId}`}
                     >
                       {showsRounds && activeRoundDelta !== undefined ? (
@@ -1663,7 +1801,13 @@ export default function PlayGame(props: PlayGameProps) {
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-30 px-3 pb-3 sm:px-6">
-        <div className="mx-auto w-full max-w-md rounded-[2rem] border border-border/80 bg-card/20 p-3 text-card-foreground shadow-[0_-14px_45px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:shadow-[0_-18px_50px_rgba(2,6,23,0.45)]">
+        <div
+          className={cn(
+            "mx-auto w-full max-w-md rounded-[2rem] border border-border/80 bg-card/20 p-3 text-card-foreground shadow-[0_-14px_45px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:shadow-[0_-18px_50px_rgba(2,6,23,0.45)]",
+            liveHighlights.gameStatus && "live-update-section",
+          )}
+          data-live-highlighted={liveHighlights.gameStatus || undefined}
+        >
           <div className="flex justify-between gap-2">
             {!isCompleted && (
               <Button
@@ -2129,7 +2273,13 @@ export default function PlayGame(props: PlayGameProps) {
           ) : (
             <>
               <div className="px-5 pb-4">
-                <div className="rounded-3xl border border-border bg-muted/40 p-4">
+                <div
+                  className={cn(
+                    "rounded-3xl border border-border bg-muted/40 p-4",
+                    liveHighlights.roster && "live-update-section",
+                  )}
+                  data-live-highlighted={liveHighlights.roster || undefined}
+                >
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-bold uppercase tracking-[0.16em] text-muted-foreground">
                       Players
@@ -2146,11 +2296,18 @@ export default function PlayGame(props: PlayGameProps) {
                       const managerPending = pendingManagerUserIds.includes(
                         player.userId,
                       );
+                      const playerRowHighlighted = highlightedPlayerIdSet.has(
+                        player.userId,
+                      );
 
                       return (
                         <div
                           key={player.id}
-                          className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-background px-3 py-3"
+                          className={cn(
+                            "flex items-center justify-between gap-3 rounded-2xl border border-border bg-background px-3 py-3",
+                            playerRowHighlighted && "live-update-card",
+                          )}
+                          data-live-highlighted={playerRowHighlighted || undefined}
                         >
                           <div className="flex min-w-0 items-center gap-3">
                             <ProfilePicture
@@ -2179,7 +2336,10 @@ export default function PlayGame(props: PlayGameProps) {
                             ) : (
                               <Button
                                 aria-pressed={player.isManager}
-                                className="rounded-xl"
+                                className={cn(
+                                  "rounded-xl",
+                                  playerRowHighlighted && "animate-live-update-flash",
+                                )}
                                 data-testid={`toggle-manager-button-${player.userId}`}
                                 disabled={!isCreator || isCompleted || managerPending}
                                 onClick={() => handleManagerToggle(player)}

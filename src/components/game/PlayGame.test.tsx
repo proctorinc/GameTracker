@@ -7,6 +7,7 @@ import PlayGame from "./PlayGame";
 
 const routerPush = vi.fn();
 const routerRefresh = vi.fn();
+const toastMessage = vi.fn();
 const toastLoading = vi.fn(() => "toast-loading");
 const toastDismiss = vi.fn();
 const toastSuccess = vi.fn();
@@ -34,6 +35,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("sonner", () => ({
   toast: {
+    message: (...args: unknown[]) => toastMessage(...args),
     loading: (...args: unknown[]) => toastLoading(...args),
     dismiss: (...args: unknown[]) => toastDismiss(...args),
     success: (...args: unknown[]) => toastSuccess(...args),
@@ -357,6 +359,7 @@ describe("PlayGame", () => {
   beforeEach(() => {
     routerPush.mockReset();
     routerRefresh.mockReset();
+    toastMessage.mockReset();
     toastLoading.mockReset();
     toastDismiss.mockReset();
     toastSuccess.mockReset();
@@ -549,6 +552,111 @@ describe("PlayGame", () => {
         screen.getByTestId("player-score-display-user-2"),
       ).toHaveTextContent("7");
     });
+  });
+
+  it("polls active games every two seconds", async () => {
+    vi.useFakeTimers();
+    getPlayGameSnapshot.mockResolvedValue({
+      canManageLiveGame: false,
+      currentUserId: "user-1",
+      isCreator: false,
+      isManager: false,
+      playerOptions: [
+        createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
+        createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
+      ],
+      game: createGameSnapshot(2),
+    });
+
+    renderComponent({
+      canManageLiveGame: false,
+      isCreator: false,
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(1999);
+    });
+    expect(getPlayGameSnapshot).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+      await Promise.resolve();
+    });
+
+    expect(getPlayGameSnapshot).toHaveBeenCalledWith("game-1");
+  });
+
+  it("shows subtle feedback for remote score updates", async () => {
+    getPlayGameSnapshot.mockResolvedValue({
+      canManageLiveGame: false,
+      currentUserId: "user-1",
+      isCreator: false,
+      isManager: false,
+      playerOptions: [
+        createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
+        createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
+      ],
+      game: createGameSnapshot(7),
+    });
+
+    renderComponent({
+      canManageLiveGame: false,
+      isCreator: false,
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("player-score-display-user-2"),
+      ).toHaveTextContent("7");
+    });
+    expect(toastMessage).toHaveBeenCalledWith("Score updated");
+    expect(screen.getByTestId("player-card-user-2")).toHaveAttribute(
+      "data-live-highlighted",
+      "true",
+    );
+    expect(screen.getByTestId("player-score-display-user-2")).toHaveAttribute(
+      "data-live-highlighted",
+      "true",
+    );
+  });
+
+  it("does not show remote feedback for this device's own score update", async () => {
+    const deferred = createDeferred<void>();
+    upsertActiveRoundScore.mockReturnValue(deferred.promise);
+    getPlayGameSnapshot.mockResolvedValue({
+      canManageLiveGame: true,
+      currentUserId: "user-1",
+      isCreator: true,
+      isManager: false,
+      playerOptions: [
+        createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
+        createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
+      ],
+      game: createGameSnapshot(5),
+    });
+
+    renderComponent();
+
+    fireEvent.click(screen.getByTestId("player-score-button-user-2"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete digit" }));
+    tapScoreDigits("5");
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    deferred.resolve();
+
+    await waitFor(() => {
+      expect(upsertActiveRoundScore).toHaveBeenCalled();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(toastMessage).not.toHaveBeenCalled();
   });
 
   it("shows view mode messaging for non-manager participants", () => {
@@ -948,6 +1056,37 @@ describe("PlayGame", () => {
         isManager: true,
       });
     });
+  });
+
+  it("shows remote feedback for manager changes inside manage users", async () => {
+    getPlayGameSnapshot.mockResolvedValue({
+      canManageLiveGame: true,
+      currentUserId: "user-1",
+      isCreator: true,
+      isManager: false,
+      playerOptions: [
+        createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
+        createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
+      ],
+      game: createManagedGameSnapshot(),
+    });
+
+    renderComponent();
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(toastMessage).toHaveBeenCalledWith("Manager access updated");
+    });
+    expect(screen.getByTestId("toggle-manager-button-user-2")).toHaveClass(
+      "animate-live-update-flash",
+    );
   });
 
   it("shows the manager toggle disabled for non-creator managers", () => {

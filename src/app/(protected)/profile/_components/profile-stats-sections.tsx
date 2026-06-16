@@ -227,9 +227,7 @@ export function ProfileStatsSections({ data }: { data: ProfileStatsPageData }) {
   }, [data.comparisonSummariesByUserId, selectedComparisonUserId]);
   const selectedComparisonStyles = useMemo(
     () =>
-      buildAccentStyles(
-        selectedComparison?.user.color ?? data.profile.color,
-      ),
+      buildAccentStyles(selectedComparison?.user.color ?? data.profile.color),
     [data.profile.color, selectedComparison?.user.color],
   );
 
