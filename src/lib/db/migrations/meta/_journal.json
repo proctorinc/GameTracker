@@ -43,13 +43,6 @@
       "when": 1782150000000,
       "tag": "0005_player_rank",
       "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1781800744328,
-      "tag": "0006_peaceful_wolfsbane",
-      "breakpoints": true
     }
   ]
 }

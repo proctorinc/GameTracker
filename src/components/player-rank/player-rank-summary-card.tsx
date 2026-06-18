@@ -38,7 +38,7 @@ export function PlayerRankSummaryCard({
           <div className="min-w-0 flex-1">
             <div className="flex">
               <p className="text-3xl font-black tracking-tight text-foreground">
-                {rankTotal ?? "0"}
+                {Number(rankTotal).toFixed(0) ?? "0"}
               </p>
               <div className="flex size-9 shrink-0 items-center justify-center text-muted-foreground transition-colors">
                 <Info className="size-4" />
