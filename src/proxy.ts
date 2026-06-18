@@ -58,6 +58,17 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
     const backendUser = await (await clerkClient()).users.getUser(authState.userId);
     const localUser = await upsertLocalUserFromClerkUser(backendUser);
 
+    if (pathname === ONBOARDING_ROUTE && localUser.isProfileComplete) {
+      logInfo("proxy.redirected", {
+        ...requestContext,
+        reason: "profile_already_complete",
+        redirectDestination: "/dashboard",
+        userId: localUser.id,
+        clerkUserId: authState.userId,
+      });
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+
     if (isAuthRoute(pathname)) {
       const destination = localUser.isProfileComplete
         ? "/dashboard"
