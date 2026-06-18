@@ -165,7 +165,7 @@ function MatchupSelector(props: {
         open={open}
         onOpenChange={setOpen}
         title="Choose a matchup"
-        description="Search friends and guests to compare competition stats."
+        description="Search recent players, friends, and guests to compare competition stats."
         showCloseButton
       >
         <Command className="bg-popover">

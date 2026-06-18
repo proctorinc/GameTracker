@@ -101,6 +101,7 @@ export function buildComparisonOptions(input: {
   profileUserId: string;
   friends: ProfileStatsUser[];
   guests?: ProfileStatsUser[];
+  recentlyPlayedWith?: ProfileStatsUser[];
   includeGuests: boolean;
 }): ProfileStatsComparisonOption[] {
   const byId = new Map<string, ProfileStatsComparisonOption>();
@@ -125,6 +126,14 @@ export function buildComparisonOptions(input: {
 
       byId.set(guest.id, toComparisonOption(guest));
     }
+  }
+
+  for (const recentPlayer of input.recentlyPlayedWith ?? []) {
+    if (recentPlayer.id === input.profileUserId || recentPlayer.mergedIntoUserId) {
+      continue;
+    }
+
+    byId.set(recentPlayer.id, toComparisonOption(recentPlayer));
   }
 
   return Array.from(byId.values()).sort((left, right) =>
@@ -178,7 +187,7 @@ export function buildProfileStats(input: {
   let completedWins = 0;
   let bestWinStreak = 0;
   let currentWinStreak = 0;
-  let lastPlayedAt: string | null = sortedGames[0]?.completedAt ?? null;
+  const lastPlayedAt: string | null = sortedGames[0]?.completedAt ?? null;
 
   for (const game of sortedGames) {
     const profileWon = didUserWin(game.winnerUserIds, input.profileUserId);

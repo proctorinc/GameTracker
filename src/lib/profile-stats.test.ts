@@ -59,6 +59,26 @@ describe("buildComparisonOptions", () => {
     expect(options.map((option) => option.id)).toEqual(["user-2"]);
   });
 
+  it("includes recently played users and guests in addition to friends", () => {
+    const options = buildComparisonOptions({
+      profileUserId: "user-1",
+      friends: [createUser({ id: "user-2", firstName: "Ben" })],
+      guests: [createUser({ id: "guest-1", firstName: "Taylor", isGuest: true })],
+      recentlyPlayedWith: [
+        createUser({ id: "user-3", firstName: "Casey" }),
+        createUser({ id: "guest-2", firstName: "Jordan", isGuest: true }),
+      ],
+      includeGuests: false,
+    });
+
+    expect(options.map((option) => option.id)).toEqual([
+      "user-2",
+      "user-3",
+      "guest-2",
+    ]);
+    expect(options.find((option) => option.id === "guest-2")?.isGuest).toBe(true);
+  });
+
   it("filters merged guests out of the owner selector", () => {
     const options = buildComparisonOptions({
       profileUserId: "user-1",

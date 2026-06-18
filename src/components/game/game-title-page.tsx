@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import GameTitleDefaultsEditor from "@/components/game/game-title-defaults-editor";
+import GameTitleImageEditor from "@/components/game/game-title-image-editor";
 import GameHistoryList from "@/components/game/game-history-list";
 import type { GameTitleStatsPageData } from "@/lib/db/store/game.store";
 import { ArrowRight, Clock3 } from "lucide-react";
@@ -140,7 +141,10 @@ export default function GameTitlePage({
 
           <div className="flex flex-col gap-6">
             {canManageDefaults ? (
-              <GameTitleDefaultsEditor title={title} />
+              <>
+                <GameTitleImageEditor title={title} />
+                <GameTitleDefaultsEditor title={title} />
+              </>
             ) : null}
             <Card>
               <CardHeader>

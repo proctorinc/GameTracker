@@ -1206,6 +1206,58 @@ export async function updateGameTitleDefaults(
   return updatedTitle ?? null;
 }
 
+export async function updateGameTitleImageAndColor(
+  gameTitleId: string,
+  input: {
+    imageUrl: string;
+    color: string;
+  },
+) {
+  const [updatedTitle] = await db
+    .update(gameTitle)
+    .set({
+      imageUrl: input.imageUrl,
+      color: input.color,
+    })
+    .where(eq(gameTitle.id, gameTitleId))
+    .returning();
+
+  return updatedTitle ?? null;
+}
+
+export async function listAffectedUserIdsForGameTitle(gameTitleId: string) {
+  const [owners, titledGames, players] = await Promise.all([
+    db.query.userGameTitle.findMany({
+      where: eq(userGameTitle.gameTitleId, gameTitleId),
+      columns: {
+        userId: true,
+      },
+    }),
+    db.query.games.findMany({
+      where: eq(games.gameTitleId, gameTitleId),
+      columns: {
+        id: true,
+        creatorId: true,
+      },
+    }),
+    db
+      .select({
+        userId: gamePlayers.userId,
+      })
+      .from(gamePlayers)
+      .innerJoin(games, eq(gamePlayers.gameId, games.id))
+      .where(eq(games.gameTitleId, gameTitleId)),
+  ]);
+
+  return Array.from(
+    new Set([
+      ...owners.map((owner) => owner.userId),
+      ...titledGames.map((game) => game.creatorId),
+      ...players.map((player) => player.userId),
+    ]),
+  );
+}
+
 export async function mergeGameTitles(input: {
   sourceGameTitleId: string;
   targetGameTitleId: string;

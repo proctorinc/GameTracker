@@ -4,12 +4,14 @@ import { unstable_cache } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { loadOptionalCurrentUser } from "@/lib/auth/auth-me";
 import { getPublicProfileTag } from "@/lib/cache-tags";
+import { buildRecentlyPlayedWithList } from "@/lib/recently-played-with";
 import {
   db,
   getAcceptedFriendshipsByUserId,
   getFriendshipByUsers,
   getUserById,
   invitations,
+  listRecentlyPlayedWithForUser,
   listGuestsCreatedByUser,
 } from "@/lib/db/store";
 import {
@@ -147,12 +149,24 @@ async function getProfileStatsPageData(input: {
           },
         }),
       ]);
+      const recentlyPlayedWith = buildRecentlyPlayedWithList({
+        createdGuests: input.includeGuests ? guests : [],
+        recentlyPlayedWithRows: await listRecentlyPlayedWithForUser({
+          userId: input.profileId,
+          friendUserIds: friendships.map((friendship) =>
+            friendship.user1Id === input.profileId
+              ? friendship.user2Id
+              : friendship.user1Id,
+          ),
+        }),
+      }).map((entry) => entry.user);
       const comparisonOptions = buildComparisonOptions({
         profileUserId: input.profileId,
         friends: friendships.map((friendship) =>
           friendship.user1Id === input.profileId ? friendship.user2 : friendship.user1,
         ),
         guests,
+        recentlyPlayedWith,
         includeGuests: input.includeGuests,
       });
 

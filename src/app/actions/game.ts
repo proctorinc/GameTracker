@@ -5,6 +5,8 @@ import {
   revalidateDashboardPages,
   revalidateGameHistoryPage,
   revalidateGameHistoryPages,
+  revalidateProfileOverviewPage,
+  revalidatePublicProfilePage,
   revalidateTitlesGlobal,
   revalidateTitlesPage,
   revalidateTitlesPages,
@@ -26,12 +28,14 @@ import {
   getGameTitleLibraryEntryById,
   getGameTitleById,
   grantGameTitleToGameParticipants,
+  listAffectedUserIdsForGameTitle,
   listSuggestedGameTitles,
   mergeGameTitles,
   promoteGameTitleToUniversal,
   replaceGameWinners,
   removePlayerFromGame,
   shareGameTitleWithUser,
+  updateGameTitleImageAndColor,
   updateGameTitleDefaults,
   updateGame,
   updateGameRound,
@@ -43,6 +47,11 @@ import {
   gameSettingsToTitleDefaults,
   normalizeGameTitleDefaults,
 } from "@/lib/game/title-defaults";
+import { pickRandomProfileColor } from "@/lib/profile-colors";
+import {
+  deriveTitleColorFromImageUrl,
+  normalizeTitleImageUrl,
+} from "@/lib/title-image-color";
 import {
   getGamePlayerFullById,
   getGamePlayerByGameAndUserId,
@@ -214,6 +223,23 @@ async function requireAdminUser() {
   }
 
   return user;
+}
+
+function assertCanManageGameTitle(input: {
+  user: Awaited<ReturnType<typeof requireCurrentUser>>;
+  gameTitle: NonNullable<Awaited<ReturnType<typeof getGameTitleById>>>;
+}) {
+  if (input.gameTitle.isUniversal) {
+    if (input.user.role !== "admin") {
+      throw new Error("Admin access required");
+    }
+
+    return;
+  }
+
+  if (input.gameTitle.createdByUserId !== input.user.id) {
+    throw new Error("Only the title owner can update this title");
+  }
 }
 
 export async function getGame(gameId: string) {
@@ -1310,13 +1336,7 @@ export async function saveGameTitleDefaults(input: {
         throw new Error("Title not found");
       }
 
-      if (gameTitle.isUniversal) {
-        if (user.role !== "admin") {
-          throw new Error("Admin access required");
-        }
-      } else if (gameTitle.createdByUserId !== user.id) {
-        throw new Error("Only the title owner can update defaults");
-      }
+      assertCanManageGameTitle({ user, gameTitle });
 
       meta.isUniversalTitle = gameTitle.isUniversal;
       const result = await updateGameTitleDefaults(
@@ -1330,6 +1350,58 @@ export async function saveGameTitleDefaults(input: {
           defaultScoreThresholdDirection: input.defaultScoreThresholdDirection,
         }),
       );
+      revalidateTitlesPage(user.id);
+      return result;
+    },
+  );
+}
+
+export async function saveGameTitleImage(input: {
+  gameTitleId: string;
+  imageUrl: string | null;
+}) {
+  const meta: LogMeta = { actorUserId: null, gameTitleId: input.gameTitleId };
+  return runGameAction(
+    "title_image.update",
+    meta,
+    async () => {
+      const user = await requireCurrentUser();
+      meta.actorUserId = user.id;
+      const gameTitle = await getGameTitleById(input.gameTitleId);
+
+      if (!gameTitle) {
+        throw new Error("Title not found");
+      }
+
+      assertCanManageGameTitle({ user, gameTitle });
+
+      const normalizedImageUrl = normalizeTitleImageUrl(input.imageUrl);
+      const nextColor = normalizedImageUrl
+        ? await deriveTitleColorFromImageUrl(normalizedImageUrl)
+        : pickRandomProfileColor();
+
+      meta.isUniversalTitle = gameTitle.isUniversal;
+      meta.clearedImage = normalizedImageUrl.length === 0;
+      meta.hasImageUrl = normalizedImageUrl.length > 0;
+      meta.previousColor = gameTitle.color;
+      meta.nextColor = nextColor;
+
+      const result = await updateGameTitleImageAndColor(gameTitle.id, {
+        imageUrl: normalizedImageUrl,
+        color: nextColor,
+      });
+      const affectedUserIds = await listAffectedUserIdsForGameTitle(gameTitle.id);
+
+      revalidateTitlesGlobal();
+      revalidateDashboardPages(affectedUserIds);
+      revalidateGameHistoryPages(affectedUserIds);
+      revalidateTitlesPages(affectedUserIds);
+
+      for (const affectedUserId of affectedUserIds) {
+        revalidateProfileOverviewPage(affectedUserId);
+        revalidatePublicProfilePage(affectedUserId);
+      }
+
       revalidateTitlesPage(user.id);
       return result;
     },

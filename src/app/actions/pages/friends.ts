@@ -1,4 +1,5 @@
 import { loadCurrentUser } from "@/lib/auth/auth-me";
+import { buildRecentlyPlayedWithList } from "@/lib/recently-played-with";
 import {
   InvitationFull,
   listFriendActivityGames,
@@ -48,79 +49,11 @@ export async function getFriendsPageCollections(input: {
     friendUserIds: friends.map((friend) => friend.id),
     since,
   });
-
-  const recentlyPlayedWithByUserId = new Map<
-    string,
-    {
-      user: (typeof recentlyPlayedWithRows)[number]["user"];
-      lastPlayedAt: string | null;
-      pendingInvitation: InvitationFull | null;
-    }
-  >();
-
-  for (const guest of createdGuests) {
-    recentlyPlayedWithByUserId.set(guest.id, {
-      user: guest,
-      lastPlayedAt: null,
-      pendingInvitation:
-        outgoingInvitations.find(
-          (invitation) =>
-            invitation.guestUserId === guest.id ||
-            invitation.inviteeUserId === guest.id,
-        ) ?? null,
-    });
-  }
-
-  for (const entry of recentlyPlayedWithRows) {
-    const existing = recentlyPlayedWithByUserId.get(entry.user.id);
-    const pendingInvitation =
-      outgoingInvitations.find(
-        (invitation) =>
-          invitation.inviteeUserId === entry.user.id ||
-          invitation.guestUserId === entry.user.id,
-      ) ?? null;
-
-    if (!existing) {
-      recentlyPlayedWithByUserId.set(entry.user.id, {
-        user: entry.user,
-        lastPlayedAt: entry.lastPlayedAt,
-        pendingInvitation,
-      });
-      continue;
-    }
-
-    if (entry.lastPlayedAt && (!existing.lastPlayedAt || entry.lastPlayedAt > existing.lastPlayedAt)) {
-      recentlyPlayedWithByUserId.set(entry.user.id, {
-        user: existing.user,
-        lastPlayedAt: entry.lastPlayedAt,
-        pendingInvitation: existing.pendingInvitation ?? pendingInvitation,
-      });
-    }
-  }
-
-  const recentlyPlayedWith = Array.from(recentlyPlayedWithByUserId.values()).sort(
-    (entryA, entryB) => {
-      if (entryA.lastPlayedAt && entryB.lastPlayedAt) {
-        return entryB.lastPlayedAt.localeCompare(entryA.lastPlayedAt);
-      }
-
-      if (entryA.lastPlayedAt) {
-        return -1;
-      }
-
-      if (entryB.lastPlayedAt) {
-        return 1;
-      }
-
-      const nameA = [entryA.user.firstName, entryA.user.lastName]
-        .filter(Boolean)
-        .join(" ");
-      const nameB = [entryB.user.firstName, entryB.user.lastName]
-        .filter(Boolean)
-        .join(" ");
-      return nameA.localeCompare(nameB);
-    },
-  );
+  const recentlyPlayedWith = buildRecentlyPlayedWithList({
+    createdGuests,
+    recentlyPlayedWithRows,
+    outgoingInvitations,
+  });
 
   return {
     friends,

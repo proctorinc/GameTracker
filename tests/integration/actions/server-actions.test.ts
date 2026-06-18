@@ -689,4 +689,72 @@ describe("server action integration", () => {
       expect(refreshedGuest).toBeFalsy();
     }, "guest-merge");
   });
+
+  it("allows a non-creator to merge a guest into another user", async () => {
+    await withTestDatabase(async () => {
+      const guestCreator = await createUserFixture();
+      const mergeActor = await createUserFixture();
+      const recipient = await createUserFixture();
+      const guest = await createUserFixture({
+        isGuest: true,
+        created_by_user_id: guestCreator.id,
+      });
+
+      const { db, gamePlayers, games, gameTitle } = await import(
+        "../../../src/lib/db"
+      );
+      const { mergeGuestUserIntoUser, getUserById } = await import(
+        "../../../src/lib/db/store/user.store"
+      );
+
+      const [title] = await db
+        .insert(gameTitle)
+        .values({
+          title: "Non Creator Merge Fixture",
+          normalizedTitle: `non-creator-merge-${guest.id}`,
+          createdByUserId: guestCreator.id,
+        })
+        .returning();
+
+      const [game] = await db
+        .insert(games)
+        .values({
+          gameTitleId: title.id,
+          creatorId: guest.id,
+          scoringMode: "highest_wins",
+          endingMode: "none",
+        })
+        .returning();
+
+      await db.insert(gamePlayers).values({
+        gameId: game.id,
+        userId: guest.id,
+        score: 18,
+      });
+
+      const mergeResult = await mergeGuestUserIntoUser({
+        guestUserId: guest.id,
+        recipientUserId: recipient.id,
+        inviterUserId: mergeActor.id,
+      });
+
+      expect(mergeResult).toEqual({
+        mergedGamePlayerCount: 1,
+        deletedDuplicateGamePlayerCount: 0,
+      });
+
+      const [mergedGuest, playerRows] = await Promise.all([
+        getUserById(guest.id),
+        db.query.gamePlayers.findMany(),
+      ]);
+
+      expect(mergedGuest).toBeNull();
+      expect(playerRows).toHaveLength(1);
+      expect(playerRows[0]).toMatchObject({
+        gameId: game.id,
+        userId: recipient.id,
+        score: 18,
+      });
+    }, "guest-merge-non-creator");
+  });
 });

@@ -472,10 +472,6 @@ export async function mergeGuestUserIntoUser(input: {
     throw new Error("This guest has already been merged");
   }
 
-  if (guest.created_by_user_id !== input.inviterUserId) {
-    throw new Error("Only the guest creator can link this guest");
-  }
-
   if (guest.id === input.recipientUserId) {
     throw new Error("Guest and recipient cannot be the same user");
   }
