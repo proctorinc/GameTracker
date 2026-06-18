@@ -11,6 +11,7 @@ import {
   revalidateTitlesPage,
   revalidateTitlesPages,
 } from "@/lib/cache-invalidation";
+import { loadOptionalCurrentUser } from "@/lib/auth/auth-me";
 import { loadUser } from "@/lib/auth/protected-session";
 import { getWinningUserIds } from "@/lib/game/v1";
 import { listAcceptedFriendsForUser } from "@/lib/db/store/friendship.store";
@@ -148,16 +149,31 @@ export async function getPlayGameSnapshot(gameId: string) {
     "play_snapshot.read",
     meta,
     async () => {
-      const { user, game, isCreator, isManager, canManageLiveGame } =
-        await requireGameMembership(gameId);
-      meta.actorUserId = user.id;
-      const [friends, guests] = await Promise.all([
-        listAcceptedFriendsForUser(user.id),
-        listGuestsCreatedByUser(user.id),
+      const [viewer, game] = await Promise.all([
+        loadOptionalCurrentUser(),
+        getGameForPlayPage(gameId),
       ]);
 
+      if (!game) {
+        throw new Error("Game not found");
+      }
+
+      meta.actorUserId = viewer?.id ?? null;
+      const isCreator = viewer ? game.creatorId === viewer.id : false;
+      const currentGamePlayer = viewer
+        ? game.players.find((player) => player.userId === viewer.id) ?? null
+        : null;
+      const isManager = currentGamePlayer?.isManager ?? false;
+      const canManageLiveGame = isCreator || isManager;
+      const [friends, guests] = viewer
+        ? await Promise.all([
+            listAcceptedFriendsForUser(viewer.id),
+            listGuestsCreatedByUser(viewer.id),
+          ])
+        : [[], []];
+
       return {
-        currentUserId: user.id,
+        currentUserId: viewer?.id ?? "",
         isCreator,
         isManager,
         canManageLiveGame,

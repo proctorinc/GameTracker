@@ -1,5 +1,5 @@
 import PlayGame from "@/components/game/PlayGame";
-import { loadUser } from "@/lib/auth/protected-session";
+import { loadOptionalCurrentUser } from "@/lib/auth/auth-me";
 import { listAcceptedFriendsForUser } from "@/lib/db/store/friendship.store";
 import { getGameForPlayPage } from "@/lib/db/store/game.store";
 import { listGuestsCreatedByUser } from "@/lib/db/store/user.store";
@@ -12,12 +12,8 @@ type PageProps = {
 };
 
 export default async function PlayGamePage({ params }: PageProps) {
-  const { user } = await loadUser();
+  const viewer = await loadOptionalCurrentUser();
   const { gameId } = await params;
-
-  if (!user) {
-    notFound();
-  }
 
   const game = await getGameForPlayPage(gameId);
 
@@ -25,30 +21,27 @@ export default async function PlayGamePage({ params }: PageProps) {
     notFound();
   }
 
-  const isCreator = game.creatorId === user.id;
-  const currentGamePlayer =
-    game.players.find((player) => player.userId === user.id) ?? null;
-  const isPlayer = Boolean(currentGamePlayer);
+  const isCreator = viewer ? game.creatorId === viewer.id : false;
+  const currentGamePlayer = viewer
+    ? game.players.find((player) => player.userId === viewer.id) ?? null
+    : null;
   const isManager = currentGamePlayer?.isManager ?? false;
   const canManageLiveGame = isCreator || isManager;
 
-  if (!isCreator && !isPlayer) {
-    notFound();
-  }
-
-  const [friends, guests] = await Promise.all([
-    listAcceptedFriendsForUser(user.id),
-    listGuestsCreatedByUser(user.id),
-  ]);
-  const playerOptions = [...friends, ...guests];
+  const [friends, guests] = viewer
+    ? await Promise.all([
+        listAcceptedFriendsForUser(viewer.id),
+        listGuestsCreatedByUser(viewer.id),
+      ])
+    : [[], []];
 
   return (
     <PlayGame
-      currentUserId={user.id}
+      currentUserId={viewer?.id ?? ""}
       canManageLiveGame={canManageLiveGame}
       isCreator={isCreator}
       isManager={isManager}
-      playerOptions={playerOptions}
+      playerOptions={[...friends, ...guests]}
       game={game}
     />
   );
