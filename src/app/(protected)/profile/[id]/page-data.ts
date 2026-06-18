@@ -21,6 +21,8 @@ import {
 } from "@/lib/profile-stats";
 import type { ProfileStatsPageData, PublicProfileSummaryData } from "../profile-types";
 
+const PUBLIC_PROFILE_REVALIDATE_SECONDS = 15;
+
 export type PublicProfileViewerState =
   | {
       kind:
@@ -218,6 +220,7 @@ async function getProfileStatsPageData(input: {
     [`${input.profileId}:${input.cacheKey}`],
     {
       tags: [getPublicProfileTag(input.profileId)],
+      revalidate: PUBLIC_PROFILE_REVALIDATE_SECONDS,
     },
   )();
 }

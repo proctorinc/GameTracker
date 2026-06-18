@@ -6,6 +6,7 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
+import { usePageAutoRefresh } from "@/lib/use-page-auto-refresh";
 import type { ProfileOverviewPageData, ProfileOverviewUser } from "./types";
 
 type ProfileOverviewTab = "stats" | "settings";
@@ -32,6 +33,8 @@ export function ProfileOverviewProvider({
   initialData,
   children,
 }: PropsWithChildren<{ initialData: ProfileOverviewPageData }>) {
+  usePageAutoRefresh();
+
   const [data, setData] = useState(initialData);
   const [activeTab, setActiveTab] = useState<ProfileOverviewTab>("stats");
 

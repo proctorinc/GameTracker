@@ -2,6 +2,7 @@
 
 import { createContext, useContext, type PropsWithChildren } from "react";
 import type { DashboardPageData } from "@/app/actions/pages/dashboard";
+import { usePageAutoRefresh } from "@/lib/use-page-auto-refresh";
 
 type DashboardPageContextValue = {
   data: DashboardPageData;
@@ -18,6 +19,8 @@ export function DashboardPageProvider({
   data,
   children,
 }: PropsWithChildren<{ data: DashboardPageData }>) {
+  usePageAutoRefresh();
+
   const value: DashboardPageContextValue = {
     data,
     user: data.user,

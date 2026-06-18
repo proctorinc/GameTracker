@@ -19,6 +19,7 @@ import {
   removeFriend,
   revokeInvitation,
 } from "@/app/actions/friends";
+import { usePageAutoRefresh } from "@/lib/use-page-auto-refresh";
 import type { RecentlyPlayedItem, TabKey } from "./utils";
 import { APP_NAME } from "@/lib/app-config";
 
@@ -77,6 +78,8 @@ export function FriendsPageProvider({
   showInviteNotice,
   children,
 }: FriendsPageProviderProps) {
+  usePageAutoRefresh();
+
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const hasPendingInvitations = data.incomingInvitations.length > 0;

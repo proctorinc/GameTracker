@@ -7,6 +7,8 @@ import { getFriendsPageCollections } from "@/app/actions/pages/friends";
 import { logError, logInfo } from "@/lib/server-log";
 import { getServerRequestContext } from "@/lib/server-request-context";
 
+const FRIENDS_PAGE_REVALIDATE_SECONDS = 15;
+
 export async function getFriendsOverviewPageData() {
   const requestContext = await getServerRequestContext();
 
@@ -50,6 +52,7 @@ async function getFriendsOverviewPageDataCached(
     [userId, phoneNumber ?? ""],
     {
       tags: [getFriendsTag(userId)],
+      revalidate: FRIENDS_PAGE_REVALIDATE_SECONDS,
     },
   )();
 }

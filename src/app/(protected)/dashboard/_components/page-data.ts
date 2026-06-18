@@ -7,6 +7,8 @@ import { getDashboardTag } from "@/lib/cache-tags";
 import { logError, logInfo } from "@/lib/server-log";
 import { getServerRequestContext } from "@/lib/server-request-context";
 
+const DASHBOARD_PAGE_REVALIDATE_SECONDS = 15;
+
 export async function getDashboardOverviewPageData() {
   const requestContext = await getServerRequestContext();
 
@@ -43,6 +45,7 @@ async function getDashboardOverviewPageDataCached(userId: string) {
     [userId],
     {
       tags: [getDashboardTag(userId)],
+      revalidate: DASHBOARD_PAGE_REVALIDATE_SECONDS,
     },
   )();
 }

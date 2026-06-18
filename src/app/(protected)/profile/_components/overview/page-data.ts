@@ -7,6 +7,8 @@ import { getUserById } from "@/lib/db/store";
 import { getOwnProfileStatsPageData } from "../../[id]/page-data";
 import type { ProfileOverviewPageData } from "./types";
 
+const PROFILE_OVERVIEW_REVALIDATE_SECONDS = 15;
+
 export async function getProfileOverviewPageData(): Promise<ProfileOverviewPageData> {
   const sessionUser = await loadCurrentUser();
 
@@ -48,6 +50,7 @@ async function getProfileOverviewPageDataCached(
     [userId],
     {
       tags: [getProfileOverviewTag(userId), getPublicProfileTag(userId)],
+      revalidate: PROFILE_OVERVIEW_REVALIDATE_SECONDS,
     },
   )();
 }
