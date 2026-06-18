@@ -55,7 +55,7 @@ export function getPlayerRankWindowStart(windowMonths: number, now = new Date())
 
 export function formatPlayerRankTotal(pointsAwardedMinor: number) {
   const value = pointsAwardedMinor / 100;
-  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+  return value.toFixed(0);
 }
 
 export function formatSignedPlayerRankDelta(pointsAwardedMinor: number) {

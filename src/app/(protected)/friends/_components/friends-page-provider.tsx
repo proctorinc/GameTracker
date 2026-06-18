@@ -20,8 +20,12 @@ import {
   revokeInvitation,
 } from "@/app/actions/friends";
 import { usePageAutoRefresh } from "@/lib/use-page-auto-refresh";
+import { useRememberedPageTabState } from "@/lib/use-remembered-page-tab-state";
 import type { RecentlyPlayedItem, TabKey } from "./utils";
 import { APP_NAME } from "@/lib/app-config";
+
+const FRIENDS_TAB_STORAGE_KEY = "page-tab:/friends";
+const FRIENDS_TABS = ["activity", "friends"] as const;
 
 type FriendsPageProviderProps = {
   data: FriendsPageData;
@@ -83,9 +87,11 @@ export function FriendsPageProvider({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const hasPendingInvitations = data.incomingInvitations.length > 0;
-  const [activeTab, setActiveTab] = useState<TabKey>(
-    showInviteNotice || hasPendingInvitations ? "friends" : "activity",
-  );
+  const [activeTab, setActiveTab] = useRememberedPageTabState<TabKey>({
+    storageKey: FRIENDS_TAB_STORAGE_KEY,
+    initialValue: showInviteNotice || hasPendingInvitations ? "friends" : "activity",
+    validTabs: FRIENDS_TABS,
+  });
   const [invitePhone, setInvitePhone] = useState("");
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [activeRecentPlayer, setActiveRecentPlayer] =

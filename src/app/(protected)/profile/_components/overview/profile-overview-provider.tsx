@@ -7,11 +7,15 @@ import {
   type PropsWithChildren,
 } from "react";
 import { usePageAutoRefresh } from "@/lib/use-page-auto-refresh";
+import { useRememberedPageTabState } from "@/lib/use-remembered-page-tab-state";
 import type {
   ProfileOverviewPageData,
   ProfileOverviewTab,
   ProfileOverviewUser,
 } from "./types";
+
+const PROFILE_TAB_STORAGE_KEY = "page-tab:/profile";
+const PROFILE_TABS = ["stats", "friends", "settings"] as const;
 
 type ProfileOverviewContextValue = {
   data: ProfileOverviewPageData;
@@ -38,9 +42,15 @@ export function ProfileOverviewProvider({
   usePageAutoRefresh();
 
   const [data, setData] = useState(initialData);
-  const [activeTab, setActiveTab] = useState<ProfileOverviewTab>(
-    initialData.initialTab,
-  );
+  const [activeTab, setActiveTab] =
+    useRememberedPageTabState<ProfileOverviewTab>({
+      storageKey: PROFILE_TAB_STORAGE_KEY,
+      initialValue: initialData.initialTab,
+      validTabs: PROFILE_TABS,
+      preferInitialValue:
+        typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).has("tab"),
+    });
 
   const value: ProfileOverviewContextValue = {
     data,

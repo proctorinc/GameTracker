@@ -198,6 +198,62 @@ function createCompletedAfterTwoRoundsSnapshot(): GameForPlayPage {
   };
 }
 
+function createCompletedTieGameSnapshot(): GameForPlayPage {
+  const game = createGameSnapshot();
+  const thirdPlayer = createUser({
+    id: "user-3",
+    firstName: "Noa",
+    color: "#cccccc",
+  });
+  const fourthPlayer = createUser({
+    id: "user-4",
+    firstName: "Zoe",
+    color: "#dddddd",
+  });
+
+  return {
+    ...game,
+    endingMode: "round_count",
+    targetRounds: 4,
+    completedRounds: 4,
+    completedAt: "2025-01-05T00:00:00.000Z",
+    winners: [
+      {
+        id: "winner-1",
+        gameId: game.id,
+        userId: "user-1",
+        user: game.players[0]!.user,
+      },
+    ],
+    players: [
+      {
+        ...game.players[0]!,
+        score: 12,
+      },
+      {
+        ...game.players[1]!,
+        score: 18,
+      },
+      {
+        id: "game-player-3",
+        gameId: game.id,
+        isManager: false,
+        userId: thirdPlayer.id,
+        score: 18,
+        user: thirdPlayer,
+      },
+      {
+        id: "game-player-4",
+        gameId: game.id,
+        isManager: false,
+        userId: fourthPlayer.id,
+        score: 24,
+        user: fourthPlayer,
+      },
+    ],
+  };
+}
+
 function createRoundTrackedGameSnapshot(): GameForPlayPage {
   return {
     ...createGameSnapshot(),
@@ -735,6 +791,16 @@ describe("PlayGame", () => {
     expect(
       screen.queryByTestId("player-score-button-user-2"),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows the same placement for tied players on the completed leaderboard", () => {
+    renderComponent({
+      game: createCompletedTieGameSnapshot(),
+    });
+
+    expect(screen.getByText("1st place")).toBeInTheDocument();
+    expect(screen.getAllByText("2nd place")).toHaveLength(2);
+    expect(screen.getByText("3rd place")).toBeInTheDocument();
   });
 
   it("shows player rank deltas in the completed leaderboard when rank results exist", () => {

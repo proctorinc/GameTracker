@@ -257,9 +257,7 @@ function getCommittedPlayerScore(input: {
   );
 }
 
-function getPlacementLabel(index: number) {
-  const place = index + 1;
-
+function getPlacementLabel(place: number) {
   if (place === 1) {
     return "1st";
   }
@@ -273,6 +271,27 @@ function getPlacementLabel(index: number) {
   }
 
   return `${place}th`;
+}
+
+function getCompletedPlacements(input: {
+  players: Array<{ userId: string; score: number | null | undefined }>;
+}) {
+  const placementByUserId = new Map<string, number>();
+  let currentPlace = 0;
+  let previousScore: number | null = null;
+
+  input.players.forEach((player) => {
+    const score = getPlayerTotalScore(player);
+
+    if (previousScore === null || score !== previousScore) {
+      currentPlace += 1;
+      previousScore = score;
+    }
+
+    placementByUserId.set(player.userId, currentPlace);
+  });
+
+  return placementByUserId;
 }
 
 function buildInitialSnapshot(props: PlayGameProps): PlayGameSnapshot {
@@ -656,6 +675,13 @@ export default function PlayGame(props: PlayGameProps) {
     [game.players, removePlayerUserId],
   );
   const scorecardPlayers = useMemo(() => [...sortedPlayers], [sortedPlayers]);
+  const completedPlacementByUserId = useMemo(() => {
+    if (game.completedAt === null || game.scoringMode === "no_score") {
+      return new Map<string, number>();
+    }
+
+    return getCompletedPlacements({ players: sortedPlayers });
+  }, [game.completedAt, game.scoringMode, sortedPlayers]);
   const shouldOfferRoundPrompt = useMemo(
     () => willGameOfferRoundPrompt(game),
     [game],
@@ -1696,7 +1722,10 @@ export default function PlayGame(props: PlayGameProps) {
                             ? isWinner
                               ? "Winner"
                               : "Player"
-                            : `${getPlacementLabel(index)} place`}
+                            : `${getPlacementLabel(
+                                completedPlacementByUserId.get(player.userId) ??
+                                  index + 1,
+                              )} place`}
                         </p>
                       ) : null}
                       <p className="truncate text-xl font-black text-[color:var(--profile-surface-text)]">

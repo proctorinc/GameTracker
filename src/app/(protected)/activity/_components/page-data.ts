@@ -24,7 +24,7 @@ const ACTIVITY_PAGE_REVALIDATE_SECONDS = 15;
 export type ActivityPageData = {
   user: Pick<
     Awaited<ReturnType<typeof loadCurrentUser>>,
-    "id" | "firstName" | "lastName"
+    "id" | "firstName" | "lastName" | "color" | "playerRankLeaderboardDisabled"
   >;
   friends: Awaited<ReturnType<typeof getFriendsPageCollections>>["friends"];
   friendActivity: Array<
@@ -40,7 +40,17 @@ export async function getActivityPageData(): Promise<ActivityPageData> {
 
   try {
     const user = await loadCurrentUser();
-    const data = await getActivityPageDataCached(user.id, user.phoneNumber ?? null);
+    const data = await getActivityPageDataCached(
+      user.id,
+      user.phoneNumber ?? null,
+      {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        color: user.color,
+        playerRankLeaderboardDisabled: user.playerRankLeaderboardDisabled,
+      },
+    );
 
     logInfo("activity.page_data.read.succeeded", {
       ...requestContext,
@@ -55,6 +65,8 @@ export async function getActivityPageData(): Promise<ActivityPageData> {
         id: user.id,
         firstName: user.firstName,
         lastName: user.lastName,
+        color: user.color,
+        playerRankLeaderboardDisabled: user.playerRankLeaderboardDisabled,
       },
       ...data,
     };
@@ -67,6 +79,10 @@ export async function getActivityPageData(): Promise<ActivityPageData> {
 async function getActivityPageDataCached(
   userId: string,
   phoneNumber: string | null,
+  currentUser: Pick<
+    Awaited<ReturnType<typeof loadCurrentUser>>,
+    "id" | "firstName" | "lastName" | "color" | "playerRankLeaderboardDisabled"
+  >,
 ) {
   return unstable_cache(
     async () => {
@@ -90,6 +106,7 @@ async function getActivityPageDataCached(
             null,
         })),
         leaderboardFriends: buildActivityLeaderboard({
+          currentUser,
           friends: collections.friends,
           friendActivity: collections.friendActivity,
           playerRankDeltasByGameId,

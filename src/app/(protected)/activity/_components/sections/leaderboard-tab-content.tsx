@@ -49,6 +49,9 @@ export function LeaderboardTabContent() {
               [friend.user.firstName, friend.user.lastName]
                 .filter(Boolean)
                 .join(" ") || "Unnamed player";
+            const nameLabel = friend.isCurrentUser
+              ? `${displayName} (You)`
+              : displayName;
             const isExpanded = expandedFriendId === friend.user.id;
             const hasNoActivity =
               friend.playerRankTotalMinor === 0 &&
@@ -119,7 +122,7 @@ export function LeaderboardTabContent() {
                     <div className="flex min-w-0 flex-1 items-center gap-3">
                       <div className="flex min-w-0 flex-1 flex-col justify-center">
                         <p className="truncate text-lg font-black text-[color:var(--profile-surface-text)]">
-                          {displayName}
+                          {nameLabel}
                         </p>
                         {!hasNoActivity && (
                           <div className="mt-1 text-xs">
@@ -164,7 +167,7 @@ export function LeaderboardTabContent() {
                               event.stopPropagation();
                             }}
                           >
-                            View Profile
+                            {friend.isCurrentUser ? "View Your Profile" : "View Profile"}
                           </Link>
                         </div>
                         <div className="grid gap-3 grid-cols-3">

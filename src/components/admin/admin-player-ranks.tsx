@@ -79,11 +79,11 @@ function toPublishInput(config: EditablePlayerRankConfig) {
 
 function formatDelta(minor: number) {
   const sign = minor > 0 ? "+" : "";
-  return `${sign}${minor / 100}`;
+  return `${sign}${(minor / 100).toFixed(0)}`;
 }
 
 function formatPoints(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+  return value.toFixed(0);
 }
 
 function formatPosition(value: number | null) {

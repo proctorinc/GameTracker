@@ -2,9 +2,13 @@
 
 import { createContext, useContext, useState, type PropsWithChildren } from "react";
 import { usePageAutoRefresh } from "@/lib/use-page-auto-refresh";
+import { useRememberedPageTabState } from "@/lib/use-remembered-page-tab-state";
 import type { ActivityPageData } from "./page-data";
 
 type ActivityTabKey = "activity" | "leaderboard";
+
+const ACTIVITY_TAB_STORAGE_KEY = "page-tab:/activity";
+const ACTIVITY_TABS = ["activity", "leaderboard"] as const;
 
 type ActivityPageContextValue = {
   data: ActivityPageData;
@@ -22,7 +26,11 @@ export function ActivityPageProvider({
 }: PropsWithChildren<{ data: ActivityPageData }>) {
   usePageAutoRefresh();
 
-  const [activeTab, setActiveTab] = useState<ActivityTabKey>("activity");
+  const [activeTab, setActiveTab] = useRememberedPageTabState<ActivityTabKey>({
+    storageKey: ACTIVITY_TAB_STORAGE_KEY,
+    initialValue: "activity",
+    validTabs: ACTIVITY_TABS,
+  });
   const [expandedFriendId, setExpandedFriendId] = useState<string | null>(null);
 
   return (

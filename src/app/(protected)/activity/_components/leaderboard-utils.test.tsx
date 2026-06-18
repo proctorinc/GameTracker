@@ -33,6 +33,45 @@ function createGame(input: {
 }
 
 describe("buildActivityLeaderboard", () => {
+  it("includes the current user alongside friends", () => {
+    const rows = buildActivityLeaderboard({
+      currentUser: createFriend("me", "Casey"),
+      friends: [createFriend("u1", "Amy")],
+      friendActivity: [],
+      standings: [
+        {
+          userId: "me",
+          firstName: "Casey",
+          lastName: "Player",
+          displayName: "Casey Player",
+          playerRankTotal: "250",
+          playerRankTotalMinor: 25_000,
+          playerRankPosition: 2,
+          playerRankWindowLabel: "6-month rolling rank",
+          playerRankGamesCount: 6,
+          topThreeFinishes: 4,
+        },
+        {
+          userId: "u1",
+          firstName: "Amy",
+          lastName: "Player",
+          displayName: "Amy Player",
+          playerRankTotal: "220",
+          playerRankTotalMinor: 22_000,
+          playerRankPosition: 4,
+          playerRankWindowLabel: "6-month rolling rank",
+          playerRankGamesCount: 5,
+          topThreeFinishes: 3,
+        },
+      ],
+      now: new Date("2026-06-18T12:00:00.000Z"),
+    });
+
+    expect(rows.map((row) => row.user.id)).toEqual(["me", "u1"]);
+    expect(rows[0]?.isCurrentUser).toBe(true);
+    expect(rows[1]?.isCurrentUser).toBe(false);
+  });
+
   it("orders ranked friends ahead of unranked friends and assigns friend positions", () => {
     const rows = buildActivityLeaderboard({
       friends: [createFriend("u1", "Amy"), createFriend("u2", "Ben")],

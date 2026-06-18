@@ -3,10 +3,17 @@ import type {
   PlayerRankGameDelta,
   PlayerRankStandingRow,
 } from "@/lib/db/store/player-rank.store";
+import type { UserBase } from "@/lib/db/store/user.store";
 import { formatPlayerRankTotal } from "@/lib/player-rank";
 
+type ActivityLeaderboardUser = Pick<
+  UserBase,
+  "id" | "firstName" | "lastName" | "color" | "playerRankLeaderboardDisabled"
+>;
+
 export type ActivityLeaderboardFriend = {
-  user: FriendConnectionsCollections["friends"][number];
+  user: ActivityLeaderboardUser;
+  isCurrentUser: boolean;
   friendPosition: number;
   playerRankTotal: string;
   playerRankTotalMinor: number;
@@ -147,6 +154,7 @@ function buildRecentStats(input: {
 }
 
 export function buildActivityLeaderboard(input: {
+  currentUser?: ActivityLeaderboardUser | null;
   friends: FriendConnectionsCollections["friends"];
   friendActivity: Array<{
     id: string;
@@ -160,8 +168,17 @@ export function buildActivityLeaderboard(input: {
   now?: Date;
 }) {
   const now = input.now ?? new Date();
-  const eligibleFriends = input.friends.filter(
-    (friend) => !friend.playerRankLeaderboardDisabled,
+  const participants = [
+    ...(input.currentUser ? [input.currentUser] : []),
+    ...input.friends,
+  ].filter(
+    (participant, index, collection) =>
+      collection.findIndex((entry) => entry.id === participant.id) === index,
+  );
+  const eligibleParticipants = participants.filter(
+    (participant) =>
+      participant.id === input.currentUser?.id ||
+      !participant.playerRankLeaderboardDisabled,
   );
   const standingsByUserId = new Map(
     input.standings.map((row) => [row.userId, row] as const),
@@ -181,8 +198,8 @@ export function buildActivityLeaderboard(input: {
     }
   >();
 
-  for (const friend of eligibleFriends) {
-    activitySummaryByUserId.set(friend.id, {
+  for (const participant of eligibleParticipants) {
+    activitySummaryByUserId.set(participant.id, {
       count: 0,
       recentRankedGameAt: null,
       gamesLast3Days: 0,
@@ -247,9 +264,9 @@ export function buildActivityLeaderboard(input: {
     }
   }
 
-  const rows = eligibleFriends.map((friend) => {
-    const standing = standingsByUserId.get(friend.id);
-    const activitySummary = activitySummaryByUserId.get(friend.id) ?? {
+  const rows = eligibleParticipants.map((participant) => {
+    const standing = standingsByUserId.get(participant.id);
+    const activitySummary = activitySummaryByUserId.get(participant.id) ?? {
       count: 0,
       recentRankedGameAt: null,
       gamesLast3Days: 0,
@@ -274,8 +291,9 @@ export function buildActivityLeaderboard(input: {
     });
 
     return {
-      user: friend,
-      displayName: getDisplayName(friend),
+      user: participant,
+      isCurrentUser: participant.id === input.currentUser?.id,
+      displayName: getDisplayName(participant),
       playerRankTotal: standing?.playerRankTotal ?? "0",
       playerRankTotalMinor: standing?.playerRankTotalMinor ?? 0,
       globalPosition: standing?.playerRankPosition ?? null,
@@ -320,6 +338,7 @@ export function buildActivityLeaderboard(input: {
 
   return sortedRows.map((row, index) => ({
     user: row.user,
+    isCurrentUser: row.isCurrentUser,
     friendPosition: index + 1,
     playerRankTotal: row.playerRankTotal,
     playerRankTotalMinor: row.playerRankTotalMinor,

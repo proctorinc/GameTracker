@@ -1,5 +1,5 @@
 import { screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../../../tests/helpers/render";
 import { ProfileOverviewPage } from "./profile-overview-page";
 
@@ -12,7 +12,15 @@ vi.mock("next/navigation", () => ({
 vi.mock("server-only", () => ({}));
 
 describe("ProfileOverviewPage", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.history.replaceState({}, "", "/profile");
+  });
+
   it("opens the friends tab from deep links and highlights pending invitations", () => {
+    window.localStorage.setItem("page-tab:/profile", "settings");
+    window.history.replaceState({}, "", "/profile?tab=friends");
+
     const { container } = renderWithProviders(
       <ProfileOverviewPage
         initialData={{
@@ -102,7 +110,10 @@ describe("ProfileOverviewPage", () => {
 
     expect(screen.getByText("Pending invitations need your review.")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /friends/i }).length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: /invite by phone/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /share with friends/i }),
+    ).toBeInTheDocument();
     expect(container.querySelectorAll(".bg-red-500")).toHaveLength(1);
+    expect(window.localStorage.getItem("page-tab:/profile")).toBe("friends");
   });
 });
