@@ -5,6 +5,8 @@ import {
   revalidateDashboardPages,
   revalidateGameHistoryPage,
   revalidateGameHistoryPages,
+  revalidatePlayerRankPages,
+  revalidatePlayerRankStandings,
   revalidateProfileOverviewPage,
   revalidatePublicProfilePage,
   revalidateTitlesGlobal,
@@ -23,6 +25,7 @@ import {
   createGame,
   getAccessibleGameTitleById,
   getGameForPlayPage,
+  type GameForPlayPage,
   getGameById,
   getGameRoundByGameAndNumber,
   getGameRoundScoreByRoundAndUser,
@@ -43,6 +46,10 @@ import {
   updateGameRoundScore,
   deleteGame,
 } from "@/lib/db/store/game.store";
+import {
+  deleteGamePlayerRankResults,
+  writePlayerRankResultsForCompletedGame,
+} from "@/lib/db/store/player-rank.store";
 import { listGuestsCreatedByUser } from "@/lib/db/store/user.store";
 import {
   gameSettingsToTitleDefaults,
@@ -141,6 +148,34 @@ function getDashboardUserIdsForGame(game: Awaited<ReturnType<typeof getGameForPl
     game?.creatorId ?? null,
     ...(game?.players.map((player) => player.userId) ?? []),
   ];
+}
+
+function revalidateRankRelatedPages(userIds: Array<string | null | undefined>) {
+  revalidatePlayerRankPages(userIds);
+  revalidatePlayerRankStandings();
+
+  for (const userId of new Set(userIds.filter((value): value is string => Boolean(value)))) {
+    revalidateProfileOverviewPage(userId);
+    revalidatePublicProfilePage(userId);
+  }
+}
+
+async function syncPlayerRankForCompletedGame(input: {
+  gameId: string;
+  completedAt: string;
+  scoringMode: GameForPlayPage["scoringMode"];
+  players: Array<{ userId: string; score: number }>;
+  winnerUserIds: string[];
+}) {
+  await writePlayerRankResultsForCompletedGame({
+    gameId: input.gameId,
+    game: {
+      completedAt: input.completedAt,
+      scoringMode: input.scoringMode,
+      players: input.players,
+      winnerUserIds: input.winnerUserIds,
+    },
+  });
 }
 
 export async function getPlayGameSnapshot(gameId: string) {
@@ -618,7 +653,7 @@ export async function commitGameRound(input: {
 
       const updatedGame = await updateGame(game.id, {
         completedRounds: game.completedRounds + 1,
-        completedAt: input.completeGame ? nowIso() : game.completedAt,
+        completedAt: input.completeGame ? finishedAt : game.completedAt,
       });
 
       await updateGameRound(round.id, {
@@ -629,6 +664,17 @@ export async function commitGameRound(input: {
         await replaceGameWinners({
           gameId: game.id,
           userIds: nextWinningUserIds,
+        });
+
+        await syncPlayerRankForCompletedGame({
+          gameId: game.id,
+          completedAt: finishedAt,
+          scoringMode: game.scoringMode,
+          players: game.players.map((player) => ({
+            userId: player.userId,
+            score: player.score,
+          })),
+          winnerUserIds: nextWinningUserIds,
         });
 
         if (game.gameTitleId) {
@@ -646,6 +692,7 @@ export async function commitGameRound(input: {
 
       if (input.completeGame) {
         revalidateTitlesPages(getDashboardUserIdsForGame(game));
+        revalidateRankRelatedPages(getDashboardUserIdsForGame(game));
       }
 
       return updatedGame;
@@ -682,10 +729,12 @@ export async function reopenCompletedGame(input: { gameId: string }) {
         gameId: game.id,
         userIds: [],
       });
+      await deleteGamePlayerRankResults(game.id);
 
       revalidateDashboardPages(getDashboardUserIdsForGame(game));
       revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
       revalidateTitlesPages(getDashboardUserIdsForGame(game));
+      revalidateRankRelatedPages(getDashboardUserIdsForGame(game));
 
       return updatedGame;
     },
@@ -1242,13 +1291,25 @@ export async function completeGame(input: {
         throw new Error("Choose at least one winner");
       }
 
+      const finishedAt = nowIso();
       const updatedGame = await updateGame(gameId, {
-        completedAt: nowIso(),
+        completedAt: finishedAt,
       });
 
       await replaceGameWinners({
         gameId,
         userIds: winningUserIds,
+      });
+
+      await syncPlayerRankForCompletedGame({
+        gameId,
+        completedAt: finishedAt,
+        scoringMode: game.scoringMode,
+        players: game.players.map((player) => ({
+          userId: player.userId,
+          score: player.score,
+        })),
+        winnerUserIds: winningUserIds,
       });
 
       if (game.gameTitleId) {
@@ -1263,6 +1324,7 @@ export async function completeGame(input: {
       revalidateDashboardPages(getDashboardUserIdsForGame(game));
       revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
       revalidateTitlesPages(getDashboardUserIdsForGame(game));
+      revalidateRankRelatedPages(getDashboardUserIdsForGame(game));
 
       return updatedGame;
     },

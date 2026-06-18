@@ -202,6 +202,74 @@ describe("server action integration", () => {
     }, "game-manager-promote-action");
   });
 
+  it("writes and clears player rank history when a game is completed and reopened", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const opponent = await createUserFixture();
+
+      mockAuthenticatedUser(creator.id);
+      vi.doMock("next/cache", () => ({
+        revalidateTag: vi.fn(),
+      }));
+
+      const {
+        addGamePlayer,
+        completeGame,
+        createConfiguredGame,
+        reopenCompletedGame,
+        upsertActiveRoundScore,
+      } = await import("../../../src/app/actions/game");
+
+      const game = await createConfiguredGame({
+        gameTitleName: "Player Rank Fixture",
+        scoringMode: "lowest_wins",
+        endingMode: "none",
+      });
+
+      await addGamePlayer({
+        gameId: game.id,
+        userId: opponent.id,
+      });
+
+      await upsertActiveRoundScore({
+        gameId: game.id,
+        userId: creator.id,
+        scoreDelta: 12,
+      });
+      await upsertActiveRoundScore({
+        gameId: game.id,
+        userId: opponent.id,
+        scoreDelta: 24,
+      });
+      await completeGame({
+        gameId: game.id,
+      });
+
+      const { db, gamePlayerRankResults } = await import("../../../src/lib/db");
+      const rankRows = await db.query.gamePlayerRankResults.findMany({
+        where: eq(gamePlayerRankResults.gameId, game.id),
+      });
+
+      expect(rankRows).toHaveLength(2);
+      expect(
+        rankRows.find((row) => row.userId === creator.id)?.pointsAwardedMinor,
+      ).toBe(5000);
+      expect(
+        rankRows.find((row) => row.userId === opponent.id)?.pointsAwardedMinor,
+      ).toBe(0);
+
+      await reopenCompletedGame({
+        gameId: game.id,
+      });
+
+      const clearedRows = await db.query.gamePlayerRankResults.findMany({
+        where: eq(gamePlayerRankResults.gameId, game.id),
+      });
+
+      expect(clearedRows).toHaveLength(0);
+    }, "player-rank-complete-action");
+  });
+
   it("blocks non-manager players from updating live scores", async () => {
     await withTestDatabase(async () => {
       const creator = await createUserFixture();

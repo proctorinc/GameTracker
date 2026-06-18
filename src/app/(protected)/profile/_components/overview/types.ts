@@ -13,6 +13,15 @@ export type ProfileOverviewUser = {
 export type ProfileOverviewPageData = {
   user: ProfileOverviewUser;
   profile: ProfileStatsPageData["profile"];
+  canViewPlayerRank: boolean;
+  playerRankTotal: string | null;
+  playerRankPosition: number | null;
+  playerRankWindowLabel: string | null;
+  playerRankGamesCount: number | null;
+  topThreeFinishes: number | null;
+  twoPlayerPrizePool: string | null;
+  threePlayerPrizePool: string | null;
+  sixPlusPlayerPrizePool: string | null;
   defaultBestFriend: ProfileStatsPageData["defaultBestFriend"];
   stats: ProfileStatsPageData["stats"];
   comparisonOptions: ProfileStatsPageData["comparisonOptions"];

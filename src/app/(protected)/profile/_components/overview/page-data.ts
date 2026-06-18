@@ -2,8 +2,17 @@ import "server-only";
 
 import { unstable_cache } from "next/cache";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
-import { getProfileOverviewTag, getPublicProfileTag } from "@/lib/cache-tags";
+import {
+  getPlayerRankTag,
+  getProfileOverviewTag,
+  getPublicProfileTag,
+} from "@/lib/cache-tags";
 import { getUserById } from "@/lib/db/store";
+import {
+  getActivePlayerRankConfig,
+  getUserPlayerRankSummary,
+} from "@/lib/db/store/player-rank.store";
+import { formatPlayerRankTotal } from "@/lib/player-rank";
 import { getOwnProfileStatsPageData } from "../../[id]/page-data";
 import type { ProfileOverviewPageData } from "./types";
 
@@ -29,6 +38,14 @@ async function getProfileOverviewPageDataCached(
         throw new Error("Authenticated user not found");
       }
 
+      const [playerRankSummary, playerRankConfig] =
+        user.role === "admin"
+          ? await Promise.all([
+              getUserPlayerRankSummary(userId),
+              getActivePlayerRankConfig(),
+            ])
+          : [null, null];
+
       return {
         user: {
           id: user.id,
@@ -40,6 +57,24 @@ async function getProfileOverviewPageDataCached(
           createdAt: user.createdAt,
         },
         profile: publicProfile.profile,
+        canViewPlayerRank: user.role === "admin",
+        playerRankTotal: playerRankSummary?.playerRankTotal ?? null,
+        playerRankPosition: playerRankSummary?.playerRankPosition ?? null,
+        playerRankWindowLabel: playerRankSummary?.playerRankWindowLabel ?? null,
+        playerRankGamesCount: playerRankSummary?.playerRankGamesCount ?? null,
+        topThreeFinishes: playerRankSummary?.topThreeFinishes ?? null,
+        twoPlayerPrizePool: playerRankConfig
+          ? formatPlayerRankTotal(playerRankConfig.prizePoolByPlayerCount[2] ?? 0)
+          : null,
+        threePlayerPrizePool: playerRankConfig
+          ? formatPlayerRankTotal(playerRankConfig.prizePoolByPlayerCount[3] ?? 0)
+          : null,
+        sixPlusPlayerPrizePool: playerRankConfig
+          ? formatPlayerRankTotal(
+              playerRankConfig.prizePoolByPlayerCount[6] ??
+                playerRankConfig.defaultMaxPrizePool,
+            )
+          : null,
         defaultBestFriend: publicProfile.defaultBestFriend,
         stats: publicProfile.stats,
         comparisonOptions: publicProfile.comparisonOptions,
@@ -49,7 +84,11 @@ async function getProfileOverviewPageDataCached(
     },
     [userId],
     {
-      tags: [getProfileOverviewTag(userId), getPublicProfileTag(userId)],
+      tags: [
+        getProfileOverviewTag(userId),
+        getPublicProfileTag(userId),
+        getPlayerRankTag(userId),
+      ],
       revalidate: PROFILE_OVERVIEW_REVALIDATE_SECONDS,
     },
   )();

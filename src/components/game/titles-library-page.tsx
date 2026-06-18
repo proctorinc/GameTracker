@@ -1,6 +1,7 @@
 "use client";
 
 import type { TitlesPageData } from "@/app/actions/pages/titles";
+import GameTitleImage from "@/components/game/game-title-image";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -123,19 +124,13 @@ export default function TitlesLibraryPage({ data }: { data: TitlesPageData }) {
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {visibleTitles.map((title) => (
-              <div
+              <GameTitleImage
                 key={title.id}
-                className="relative flex min-h-40 flex-col justify-between overflow-hidden rounded-3xl p-4 text-left shadow-sm"
-                style={{ backgroundColor: title.color }}
+                className="flex min-h-40 flex-col justify-between rounded-3xl p-4 text-left shadow-sm"
+                color={title.color}
+                imageUrl={title.imageUrl}
               >
-                {title.imageUrl ? (
-                  <div
-                    className="absolute inset-0 bg-cover bg-center opacity-45"
-                    style={{ backgroundImage: `url("${title.imageUrl}")` }}
-                  />
-                ) : null}
-                <div className="absolute inset-0 bg-linear-to-t from-white/45 via-white/25 dark:from-black/80 dark:via-black/35 to-transparent" />
-                <div className="relative z-10 flex h-full flex-col justify-between gap-4">
+                <div className="flex h-full flex-col justify-between gap-4">
                   <div className="flex flex-wrap gap-2">
                     <Badge
                       className={cn(
@@ -171,7 +166,7 @@ export default function TitlesLibraryPage({ data }: { data: TitlesPageData }) {
                     </div>
                   </div>
                 </div>
-              </div>
+              </GameTitleImage>
             ))}
 
             {visibleTitles.length === 0 ? (

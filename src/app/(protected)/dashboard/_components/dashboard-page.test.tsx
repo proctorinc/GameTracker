@@ -6,6 +6,9 @@ import { DashboardPageView } from "./dashboard-page";
 vi.mock("@/components/game/rematch-button", () => ({
   RematchButton: () => <button type="button">Rematch</button>,
 }));
+vi.mock("@/lib/use-page-auto-refresh", () => ({
+  usePageAutoRefresh: () => undefined,
+}));
 
 function createDashboardPageData(): DashboardPageData {
   return {
@@ -14,6 +17,7 @@ function createDashboardPageData(): DashboardPageData {
       clerkUserId: null,
       profileCardId: null,
       color: "#ffffff",
+      role: "admin",
       phoneNumber: "15555551111",
       email: null,
       avatarUrl: null,
@@ -35,6 +39,15 @@ function createDashboardPageData(): DashboardPageData {
       friendshipsAsUser1: [],
       friendshipsAsUser2: [],
     },
+    canViewPlayerRank: true,
+    playerRankTotal: "270",
+    playerRankPosition: 2,
+    playerRankWindowLabel: "6-month rolling rank",
+    playerRankGamesCount: 4,
+    topThreeFinishes: 3,
+    twoPlayerPrizePool: "50",
+    threePlayerPrizePool: "100",
+    sixPlusPlayerPrizePool: "400",
     recentGameTitles: [
       {
         id: "title-1",
@@ -164,14 +177,16 @@ describe("DashboardPageView", () => {
     );
 
     expect(markup).toContain("Hi, Alex!");
+    expect(markup).toContain("Player Rank");
+    expect(markup).toContain("#2");
     expect(markup).toContain("History");
     expect(markup).toContain("Continue Playing");
     expect(markup).toContain("Play");
     expect(markup).toContain("12");
     expect(markup).toContain("28");
     expect(markup).toContain("Recent games");
-    expect(markup).toContain("Finished 1st");
+    expect(markup).toContain("1st");
     expect(markup).toContain("Rematch");
-    expect(markup).toContain("Finished 2nd");
+    expect(markup).toContain("2nd");
   });
 });

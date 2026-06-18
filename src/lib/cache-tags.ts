@@ -25,3 +25,11 @@ export function getProfileOverviewTag(userId: string) {
 export function getPublicProfileTag(userId: string) {
   return `public-profile:${userId}`;
 }
+
+export function getPlayerRankTag(userId: string) {
+  return `player-rank:${userId}`;
+}
+
+export function getPlayerRankStandingsTag() {
+  return "player-rank:standings";
+}

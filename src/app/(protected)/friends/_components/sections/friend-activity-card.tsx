@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Trophy, Users } from "lucide-react";
+import GameTitleImage from "@/components/game/game-title-image";
 import ProfilePicture from "@/components/profile/profile-picture";
 import {
   Card,
@@ -150,7 +151,7 @@ export function FriendActivityCard() {
                       >
                         <p
                           className={cn(
-                            "max-w-[85%] px-1 text-xs leading-relaxed text-muted-foreground",
+                            "max-w-[85%] px-1 text-xs leading-relaxed text-foreground/84",
                             includesCurrentUser ? "text-right" : "text-left",
                           )}
                         >
@@ -168,48 +169,41 @@ export function FriendActivityCard() {
                         </p>
                         <Link
                           href={`/game/${game.id}/play`}
-                          className={cn(
-                            "relative w-full max-w-[85%] overflow-hidden rounded-2xl border border-border/70 px-3 py-3 transition-colors hover:bg-muted/80",
-                          )}
-                          style={{
-                            backgroundColor: game.gameTitle?.color ?? undefined,
-                          }}
+                          className="block w-full max-w-[85%]"
                         >
-                          {game.gameTitle?.imageUrl ? (
-                            <>
-                              <div
-                                className="absolute inset-0 scale-105 bg-cover bg-center opacity-45 blur-[3px]"
-                                style={{
-                                  backgroundImage: `url("${game.gameTitle.imageUrl}")`,
-                                }}
-                              />
-                              <div className="absolute inset-0 bg-background/80" />
-                            </>
-                          ) : null}
-                          <div className="relative z-10 flex items-center justify-between gap-3">
-                            <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-                              <Trophy className="size-3.5 shrink-0" />
-                              <span className="truncate">
-                                {getWinnerSummary(game, data.user.id)}
-                              </span>
-                            </div>
-                            <div className="flex shrink-0 items-center gap-2">
-                              <div className="flex -space-x-2">
-                                {orderedPlayers.slice(0, 4).map((player) => (
-                                  <ProfilePicture
-                                    key={player.id}
-                                    user={player.user}
-                                    size="xs"
-                                    className="ring-2 ring-background"
-                                  />
-                                ))}
+                          <GameTitleImage
+                            className={cn(
+                              "rounded-2xl border border-border/70 px-3 py-3 transition-colors hover:bg-muted/80",
+                            )}
+                            color={game.gameTitle?.color}
+                            imageUrl={game.gameTitle?.imageUrl}
+                            variant="card"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex min-w-0 items-center gap-2 text-xs text-white">
+                                <Trophy className="size-3.5 shrink-0" />
+                                <span className="truncate font-bold">
+                                  {getWinnerSummary(game, data.user.id)}
+                                </span>
                               </div>
-                              <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                <Users className="size-3.5" />
-                                <span>{game.players.length}</span>
+                              <div className="flex shrink-0 items-center gap-2">
+                                <div className="flex -space-x-2">
+                                  {orderedPlayers.slice(0, 4).map((player) => (
+                                    <ProfilePicture
+                                      key={player.id}
+                                      user={player.user}
+                                      size="xs"
+                                      className="ring-2 ring-background"
+                                    />
+                                  ))}
+                                </div>
+                                <div className="flex items-center gap-1 font-bold text-[11px] text-white/88">
+                                  <Users className="size-3.5" />
+                                  <span>{game.players.length}</span>
+                                </div>
                               </div>
                             </div>
-                          </div>
+                          </GameTitleImage>
                         </Link>
                       </div>
                     );

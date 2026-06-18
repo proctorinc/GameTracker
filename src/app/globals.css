@@ -235,6 +235,46 @@
         color: var(--placement-text, var(--winner-text));
         box-shadow: var(--placement-shadow, var(--winner-shadow));
     }
+
+    .dark .placement-badge {
+        background: linear-gradient(
+            135deg,
+            color-mix(
+                in oklab,
+                var(
+                        --placement-surface-soft-dark,
+                        var(--placement-surface-soft, var(--winner-surface-soft))
+                    )
+                    82%,
+                transparent
+            )
+                0%,
+            color-mix(
+                in oklab,
+                var(
+                        --placement-surface-strong-dark,
+                        var(
+                            --placement-surface-strong,
+                            var(--winner-surface-strong)
+                        )
+                    )
+                    82%,
+                transparent
+            )
+                100%
+        );
+        border-color: color-mix(
+            in oklab,
+            var(--placement-border-dark, var(--placement-border, var(--winner-border)))
+                78%,
+            transparent
+        );
+        color: var(--placement-text-dark, var(--placement-text, var(--winner-text)));
+        box-shadow: var(
+            --placement-shadow-dark,
+            var(--placement-shadow, var(--winner-shadow))
+        );
+    }
 }
 
 @keyframes splash-float {

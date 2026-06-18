@@ -85,6 +85,26 @@ describe("CreateGameSettingsStep", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("makes the full suggested game card clickable", () => {
+    renderWithProviders(
+      <CreateGameSettingsStep
+        allGameTitles={[skyjoTitle]}
+        initialNewTitle={null}
+        initialSelectedTitle={null}
+        suggestedGameTitles={[skyjoTitle]}
+      />,
+    );
+
+    const suggestedCard = screen.getByRole("button", { name: /Skyjo/i });
+    const imageLayer = suggestedCard.querySelector("[style*='background-image']");
+
+    expect(imageLayer).not.toBeNull();
+
+    fireEvent.click(imageLayer!);
+
+    expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
+  });
+
   it("shows selected game art while keeping the selected card clickable", () => {
     renderWithProviders(
       <CreateGameSettingsStep
@@ -101,12 +121,14 @@ describe("CreateGameSettingsStep", () => {
       name: /Skyjo[\s\S]*Tap to change/i,
     });
 
-    expect(selectedCard).toHaveStyle({ backgroundColor: "#123456" });
+    const styledShell = selectedCard.firstElementChild;
+
+    expect(styledShell).toHaveStyle({ backgroundColor: "#123456" });
     expect(selectedCard.querySelector("[style*='background-image']")).toHaveStyle({
       backgroundImage: 'url("/images/skyjo.png")',
     });
 
-    fireEvent.click(selectedCard);
+    fireEvent.click(selectedCard.querySelector("[style*='background-image']")!);
 
     expect(
       screen.getByPlaceholderText("Search or create a game"),

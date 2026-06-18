@@ -15,6 +15,11 @@ import {
   listGuestsCreatedByUser,
 } from "@/lib/db/store";
 import {
+  getActivePlayerRankConfig,
+  getUserPlayerRankSummary,
+} from "@/lib/db/store/player-rank.store";
+import { formatPlayerRankTotal } from "@/lib/player-rank";
+import {
   buildComparisonOptions,
   buildProfileStats,
   formatProfileDisplayName,
@@ -37,6 +42,15 @@ export type PublicProfileViewerState =
 
 export type PublicProfilePageData = {
   profile: PublicProfileSummaryData["profile"];
+  canViewPlayerRank: boolean;
+  playerRankTotal: string | null;
+  playerRankPosition: number | null;
+  playerRankWindowLabel: string | null;
+  playerRankGamesCount: number | null;
+  topThreeFinishes: number | null;
+  twoPlayerPrizePool: string | null;
+  threePlayerPrizePool: string | null;
+  sixPlusPlayerPrizePool: string | null;
   defaultBestFriend: PublicProfileSummaryData["defaultBestFriend"];
   viewerState: PublicProfileViewerState;
   stats: PublicProfileSummaryData["stats"];
@@ -56,9 +70,34 @@ export async function getPublicProfilePageData(
 
   const viewer = await loadOptionalCurrentUser();
   const viewerState = await getPublicProfileViewerState(profileId, viewer?.id ?? null);
+  const viewerCanViewPlayerRank = viewer?.role === "admin";
+  const [playerRankSummary, playerRankConfig] = viewerCanViewPlayerRank
+    ? await Promise.all([
+        getUserPlayerRankSummary(profileId),
+        getActivePlayerRankConfig(),
+      ])
+    : [null, null];
 
   return {
     ...profileData,
+    canViewPlayerRank: viewerCanViewPlayerRank,
+    playerRankTotal: playerRankSummary?.playerRankTotal ?? null,
+    playerRankPosition: playerRankSummary?.playerRankPosition ?? null,
+    playerRankWindowLabel: playerRankSummary?.playerRankWindowLabel ?? null,
+    playerRankGamesCount: playerRankSummary?.playerRankGamesCount ?? null,
+    topThreeFinishes: playerRankSummary?.topThreeFinishes ?? null,
+    twoPlayerPrizePool: playerRankConfig
+      ? formatPlayerRankTotal(playerRankConfig.prizePoolByPlayerCount[2] ?? 0)
+      : null,
+    threePlayerPrizePool: playerRankConfig
+      ? formatPlayerRankTotal(playerRankConfig.prizePoolByPlayerCount[3] ?? 0)
+      : null,
+    sixPlusPlayerPrizePool: playerRankConfig
+      ? formatPlayerRankTotal(
+          playerRankConfig.prizePoolByPlayerCount[6] ??
+            playerRankConfig.defaultMaxPrizePool,
+        )
+      : null,
     viewerState,
   };
 }
@@ -78,6 +117,15 @@ export async function getPublicProfileSummaryData(
 
   return {
     profile: data.profile,
+    canViewPlayerRank: false,
+    playerRankTotal: null,
+    playerRankPosition: null,
+    playerRankWindowLabel: null,
+    playerRankGamesCount: null,
+    topThreeFinishes: null,
+    twoPlayerPrizePool: null,
+    threePlayerPrizePool: null,
+    sixPlusPlayerPrizePool: null,
     defaultBestFriend: data.defaultBestFriend,
     stats: data.stats,
   };
@@ -133,6 +181,7 @@ async function getProfileStatsPageData(input: {
                   columns: {
                     id: true,
                     title: true,
+                    color: true,
                     imageUrl: true,
                   },
                 },
@@ -191,6 +240,7 @@ async function getProfileStatsPageData(input: {
                 ? {
                     id: game.gameTitle.id,
                     title: game.gameTitle.title,
+                    color: game.gameTitle.color,
                     imageUrl: game.gameTitle.imageUrl,
                   }
                 : null,
@@ -210,6 +260,15 @@ async function getProfileStatsPageData(input: {
           createdAt: profileUser.createdAt,
           displayName: formatProfileDisplayName(profileUser),
         },
+        canViewPlayerRank: false,
+        playerRankTotal: null,
+        playerRankPosition: null,
+        playerRankWindowLabel: null,
+        playerRankGamesCount: null,
+        topThreeFinishes: null,
+        twoPlayerPrizePool: null,
+        threePlayerPrizePool: null,
+        sixPlusPlayerPrizePool: null,
         defaultBestFriend: builtStats.defaultBestFriend,
         comparisonOptions: builtStats.comparisonOptions,
         comparisonSummariesByUserId: builtStats.comparisonSummariesByUserId,

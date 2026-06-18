@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
+import { PlayerRankSummaryCard } from "@/components/player-rank/player-rank-summary-card";
 import ProfilePicture from "@/components/profile/profile-picture";
-import { Badge } from "@/components/ui/badge";
+
 import { Card, CardContent } from "@/components/ui/card";
 import { ProfileStatsSections } from "../_components/profile-stats-sections";
 import { PublicProfileActions } from "./public-profile-actions";
@@ -66,6 +67,18 @@ export default async function PublicProfilePage({
             </div>
           </CardContent>
         </Card>
+        {data.canViewPlayerRank ? (
+          <PlayerRankSummaryCard
+            rankGamesCount={data.playerRankGamesCount}
+          rankPosition={data.playerRankPosition}
+          rankTotal={data.playerRankTotal}
+          topThreeFinishes={data.topThreeFinishes}
+          windowLabel={data.playerRankWindowLabel}
+          twoPlayerPrizePool={data.twoPlayerPrizePool}
+          threePlayerPrizePool={data.threePlayerPrizePool}
+          sixPlusPlayerPrizePool={data.sixPlusPlayerPrizePool}
+        />
+      ) : null}
         <ProfileStatsSections data={data} />
       </div>
     </main>

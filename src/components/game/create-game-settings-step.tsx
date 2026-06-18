@@ -4,6 +4,7 @@ import { createConfiguredGame } from "@/app/actions/game";
 import GameSettingsFields, {
   type EditableGameSettings,
 } from "@/components/game/game-settings-fields";
+import GameTitleImage from "@/components/game/game-title-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardEmpty, CardHeader } from "@/components/ui/card";
@@ -271,42 +272,35 @@ export default function CreateGameSettingsStep({
                             <button
                               key={title.id}
                               className={cn(
-                                "relative overflow-hidden rounded-2xl p-4 text-left transition hover:scale-[1.01] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                                "flex items-end",
+                                "rounded-2xl text-left transition hover:scale-[1.01] focus-visible:ring-2 focus-visible:ring-ring",
                                 isFeatured && "col-span-2",
                               )}
                               onClick={() => selectLibraryTitle(title)}
                               type="button"
-                              style={{
-                                backgroundColor: title.color,
-                              }}
                             >
-                              {title.imageUrl ? (
-                                <div
-                                  className="absolute inset-0 bg-cover bg-center opacity-55"
-                                  style={{
-                                    backgroundImage: `url("${title.imageUrl}")`,
-                                  }}
-                                />
-                              ) : null}
-                              <div className="absolute inset-0 bg-linear-to-r from-black/60 via-black/35 to-black/10 dark:from-black/70 dark:via-black/45 dark:to-black/20" />
-                              <div className="relative z-10 flex w-full flex-col items-start justify-end gap-1">
-                                <p
-                                  className={cn(
-                                    "line-clamp-2 font-black text-white",
-                                    isFeatured ? "text-lg" : "text-base",
-                                  )}
-                                >
-                                  {title.title}
-                                </p>
-                                <Badge className="border-white/15 bg-white/12 text-white hover:bg-white/12">
-                                  {title.isOwned
-                                    ? "My game"
-                                    : title.accessSource === "universal"
-                                      ? "Community Game"
-                                      : "Shared with you"}
-                                </Badge>
-                              </div>
+                              <GameTitleImage
+                                className="flex h-full min-h-full items-end rounded-2xl p-4"
+                                color={title.color}
+                                imageUrl={title.imageUrl}
+                              >
+                                <div className="flex w-full flex-col items-start justify-end gap-1">
+                                  <p
+                                    className={cn(
+                                      "line-clamp-2 font-black text-white",
+                                      isFeatured ? "text-lg" : "text-base",
+                                    )}
+                                  >
+                                    {title.title}
+                                  </p>
+                                  <Badge className="border-white/15 bg-white/12 text-white hover:bg-white/12">
+                                    {title.isOwned
+                                      ? "My game"
+                                      : title.accessSource === "universal"
+                                        ? "Community Game"
+                                        : "Shared with you"}
+                                  </Badge>
+                                </div>
+                              </GameTitleImage>
                             </button>
                           );
                         })}
@@ -317,27 +311,20 @@ export default function CreateGameSettingsStep({
                           <button
                             key={title.id}
                             className={cn(
-                              "relative flex items-end overflow-hidden rounded-2xl border border-transparent p-4 text-left transition hover:scale-[1.01]",
-                              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                              "rounded-2xl text-left transition hover:scale-[1.01] focus-visible:ring-2 focus-visible:ring-ring",
                             )}
                             onClick={() => selectLibraryTitle(title)}
                             type="button"
-                            style={{
-                              backgroundColor: title.color,
-                            }}
                           >
-                            {title.imageUrl ? (
-                              <div
-                                className="absolute inset-0 bg-cover bg-center opacity-55"
-                                style={{
-                                  backgroundImage: `url("${title.imageUrl}")`,
-                                }}
-                              />
-                            ) : null}
-                            <div className="absolute inset-0 bg-linear-to-r from-black/60 via-black/35 to-black/10 dark:from-black/70 dark:via-black/45 dark:to-black/20" />
-                            <div className="relative z-10 flex w-full items-end justify-between gap-3">
+                            <GameTitleImage
+                              className="rounded-2xl border border-transparent p-4"
+                              color={title.color}
+                              imageUrl={title.imageUrl}
+                            >
                               <div className="min-w-0">
-                                <p className="truncate text-base font-black text-white">
+                                <p
+                                  className="truncate text-base font-black text-white"
+                                >
                                   {title.title}
                                 </p>
                                 <Badge className="border-white/15 bg-white/12 text-white hover:bg-white/12">
@@ -345,10 +332,10 @@ export default function CreateGameSettingsStep({
                                     ? "My game"
                                     : title.accessSource === "universal"
                                       ? "Community Game"
-                                      : "Shared with you"}
+                                    : "Shared with you"}
                                 </Badge>
                               </div>
-                            </div>
+                            </GameTitleImage>
                           </button>
                         ))}
 
@@ -377,57 +364,52 @@ export default function CreateGameSettingsStep({
             ) : draftTitle ? (
               <button
                 className={cn(
-                  "relative flex w-full items-center justify-between overflow-hidden rounded-2xl border border-border px-4 py-4 text-left transition",
+                  "w-full rounded-2xl text-left transition",
                   selectedTitle
-                    ? "hover:scale-[1.01] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    : "bg-muted/60 transition-colors hover:bg-muted",
+                    ? "hover:scale-[1.01] focus-visible:ring-2 focus-visible:ring-ring"
+                    : "transition-colors hover:bg-muted",
                 )}
                 onClick={resetSelection}
                 type="button"
-                style={
-                  selectedTitle
-                    ? {
-                        backgroundColor: selectedTitle.color,
-                      }
-                    : undefined
-                }
               >
-                {selectedTitle?.imageUrl ? (
-                  <div
-                    className="absolute inset-0 bg-cover bg-center opacity-55"
-                    style={{
-                      backgroundImage: `url("${selectedTitle.imageUrl}")`,
-                    }}
-                  />
-                ) : null}
-                {selectedTitle ? (
-                  <div className="absolute inset-0 bg-linear-to-r from-black/65 via-black/40 to-black/15 dark:from-black/75 dark:via-black/50 dark:to-black/20" />
-                ) : null}
-                <div className="relative z-10 min-w-0">
-                  <p
-                    className={cn(
-                      "truncate text-sm font-medium",
-                      selectedTitle ? "text-white" : "text-foreground",
-                    )}
-                  >
-                    {draftTitle.label}
-                  </p>
-                  <p
-                    className={cn(
-                      "text-xs",
-                      selectedTitle ? "text-white/85" : "text-muted-foreground",
-                    )}
-                  >
-                    {draftTitle.titleId ? "Selected" : "New title"} · Tap to
-                    change
-                  </p>
-                </div>
-                <Redo2
+                <GameTitleImage
                   className={cn(
-                    "relative z-10 size-4 shrink-0",
-                    selectedTitle ? "text-white/85" : "text-muted-foreground",
+                    "w-full rounded-2xl border border-border px-4 py-4",
+                    !selectedTitle && "bg-muted/60",
                   )}
-                />
+                  color={selectedTitle?.color}
+                  imageUrl={selectedTitle?.imageUrl}
+                >
+                  <div className="flex w-full items-center justify-between text-left">
+                    <div className="min-w-0">
+                      <p
+                        className={cn(
+                          "truncate text-sm font-medium",
+                          selectedTitle ? "text-white" : "text-foreground",
+                        )}
+                      >
+                        {draftTitle.label}
+                      </p>
+                      <p
+                        className={cn(
+                          "text-xs",
+                          selectedTitle
+                            ? "text-white/85"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {draftTitle.titleId ? "Selected" : "New title"} · Tap
+                        to change
+                      </p>
+                    </div>
+                    <Redo2
+                      className={cn(
+                        "size-4 shrink-0",
+                        selectedTitle ? "text-white/85" : "text-muted-foreground",
+                      )}
+                    />
+                  </div>
+                </GameTitleImage>
               </button>
             ) : null}
           </CardContent>

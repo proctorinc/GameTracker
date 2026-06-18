@@ -121,10 +121,12 @@ export function getPlayerPlacementDisplay(
     return null;
   }
 
+  const label = [prefix, getOrdinalLabel(place)].filter(Boolean).join(" ");
+
   if (place === 1) {
     return {
       place,
-      label: `${prefix} ${getOrdinalLabel(place)}`,
+      label,
       className: "placement-badge",
       style: {} satisfies CSSProperties,
       trophyClassName: "",
@@ -135,7 +137,7 @@ export function getPlayerPlacementDisplay(
   if (place === 2) {
     return {
       place,
-      label: `${prefix} ${getOrdinalLabel(place)}`,
+      label,
       className: "placement-badge",
       style: {
         ["--placement-surface-soft" as string]: "oklch(0.985 0.006 255)",
@@ -144,6 +146,12 @@ export function getPlayerPlacementDisplay(
         ["--placement-text" as string]: "oklch(0.39 0.02 255)",
         ["--placement-shadow" as string]:
           "0 18px 38px -24px rgba(100, 116, 139, 0.45)",
+        ["--placement-surface-soft-dark" as string]: "oklch(0.34 0.015 255)",
+        ["--placement-surface-strong-dark" as string]: "oklch(0.49 0.02 255)",
+        ["--placement-border-dark" as string]: "oklch(0.62 0.018 255)",
+        ["--placement-text-dark" as string]: "oklch(0.96 0.006 255)",
+        ["--placement-shadow-dark" as string]:
+          "0 18px 38px -24px rgba(15, 23, 42, 0.65)",
       } satisfies CSSProperties,
       trophyClassName: "",
       showTrophy: true,
@@ -153,7 +161,7 @@ export function getPlayerPlacementDisplay(
   if (place === 3) {
     return {
       place,
-      label: `${prefix} ${getOrdinalLabel(place)}`,
+      label,
       className: "placement-badge",
       style: {
         ["--placement-surface-soft" as string]: "oklch(0.985 0.018 60)",
@@ -162,6 +170,12 @@ export function getPlayerPlacementDisplay(
         ["--placement-text" as string]: "oklch(0.41 0.06 48)",
         ["--placement-shadow" as string]:
           "0 18px 38px -24px rgba(180, 103, 47, 0.48)",
+        ["--placement-surface-soft-dark" as string]: "oklch(0.34 0.03 55)",
+        ["--placement-surface-strong-dark" as string]: "oklch(0.48 0.06 52)",
+        ["--placement-border-dark" as string]: "oklch(0.63 0.07 52)",
+        ["--placement-text-dark" as string]: "oklch(0.95 0.02 70)",
+        ["--placement-shadow-dark" as string]:
+          "0 18px 38px -24px rgba(67, 20, 7, 0.62)",
       } satisfies CSSProperties,
       trophyClassName: "",
       showTrophy: true,
@@ -170,7 +184,7 @@ export function getPlayerPlacementDisplay(
 
   return {
     place,
-    label: `${prefix} ${getOrdinalLabel(place)}`,
+    label,
     className:
       "bg-background/60 text-foreground ring-1 ring-black/8 dark:ring-white/10",
     style: {} satisfies CSSProperties,

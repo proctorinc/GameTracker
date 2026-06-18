@@ -3,6 +3,8 @@ import {
   getDashboardTag,
   getFriendsTag,
   getGameHistoryTag,
+  getPlayerRankStandingsTag,
+  getPlayerRankTag,
   getProfileOverviewTag,
   getPublicProfileTag,
   getTitlesGlobalTag,
@@ -71,4 +73,24 @@ export function revalidatePublicProfilePage(userId?: string | null) {
   }
 
   revalidateTag(getPublicProfileTag(userId), "max");
+}
+
+export function revalidatePlayerRankPage(userId?: string | null) {
+  if (!userId) {
+    return;
+  }
+
+  revalidateTag(getPlayerRankTag(userId), "max");
+}
+
+export function revalidatePlayerRankPages(
+  userIds: Array<string | null | undefined>,
+) {
+  for (const userId of new Set(userIds.filter(isPresentUserId))) {
+    revalidatePlayerRankPage(userId);
+  }
+}
+
+export function revalidatePlayerRankStandings() {
+  revalidateTag(getPlayerRankStandingsTag(), "max");
 }

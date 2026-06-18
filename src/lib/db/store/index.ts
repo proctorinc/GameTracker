@@ -6,4 +6,5 @@ export * from "./friendship.store";
 export * from "./game-players.store";
 export * from "./game.store";
 export * from "./invitation.store";
+export * from "./player-rank.store";
 export * from "./user.store";

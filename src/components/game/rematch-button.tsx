@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { LoaderCircle, Redo2 } from "lucide-react";
+import { History, LoaderCircle, Redo2 } from "lucide-react";
 
 type RematchButtonProps = {
   gameId: string;
@@ -20,6 +20,7 @@ type RematchButtonProps = {
   playerCount: number;
   className?: string;
   confirmButtonClassName?: string;
+  iconOnly?: boolean;
   variant?: "default" | "outline" | "secondary" | "ghost";
   size?: "default" | "xs" | "sm" | "lg";
 };
@@ -34,6 +35,7 @@ export function RematchButton({
   playerCount,
   className,
   confirmButtonClassName,
+  iconOnly = false,
   variant = "outline",
   size = "default",
 }: RematchButtonProps) {
@@ -62,6 +64,7 @@ export function RematchButton({
   return (
     <>
       <Button
+        aria-label={isSubmitting ? "Starting rematch..." : "Rematch"}
         className={className}
         disabled={isSubmitting}
         onClick={() => setIsOpen(true)}
@@ -72,9 +75,9 @@ export function RematchButton({
         {isSubmitting ? (
           <LoaderCircle className="size-4 animate-spin" />
         ) : (
-          <Redo2 className="size-4" />
+          <History className="size-4" />
         )}
-        {isSubmitting ? "Starting rematch..." : "Rematch"}
+        {iconOnly ? null : isSubmitting ? "Starting rematch..." : "Rematch"}
       </Button>
 
       <Dialog onOpenChange={setIsOpen} open={isOpen}>

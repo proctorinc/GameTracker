@@ -1,6 +1,7 @@
 "use client";
 
 import { updateGameSettings } from "@/app/actions/game";
+import GameTitleImage from "@/components/game/game-title-image";
 import GameSettingsFields, {
   type EditableGameSettings,
 } from "@/components/game/game-settings-fields";
@@ -130,18 +131,13 @@ export default function GameSettingsPage({ game }: { game: GameForPlayPage }) {
   return (
     <div className="min-h-screen px-4 pb-32">
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
-        <div
-          className="relative overflow-hidden rounded-[2rem] border border-black/5 p-6 text-white shadow-xl"
-          style={{ backgroundColor: game.gameTitle?.color ?? "#475569" }}
+        <GameTitleImage
+          className="rounded-[2rem] border border-black/5 p-6 text-white shadow-xl"
+          color={game.gameTitle?.color}
+          imageUrl={game.gameTitle?.imageUrl}
+          variant="hero"
         >
-          {game.gameTitle?.imageUrl ? (
-            <div
-              className="absolute inset-0 bg-cover bg-center opacity-35"
-              style={{ backgroundImage: `url("${game.gameTitle.imageUrl}")` }}
-            />
-          ) : null}
-          <div className="absolute inset-0 bg-gradient-to-tr from-black/80 via-black/30 to-transparent" />
-          <div className="relative z-10 flex flex-col gap-4">
+          <div className="flex flex-col gap-4">
             <Link
               className="inline-flex w-fit items-center gap-2 rounded-full bg-white/15 px-3 py-2 text-sm font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/20"
               href={`/game/${game.id}/play`}
@@ -166,7 +162,7 @@ export default function GameSettingsPage({ game }: { game: GameForPlayPage }) {
               </Badge>
             </div>
           </div>
-        </div>
+        </GameTitleImage>
 
         <Card>
           <CardHeader className="gap-3">

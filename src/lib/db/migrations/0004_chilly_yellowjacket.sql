@@ -1,1 +1,1 @@
-ALTER TABLE `game_players` ADD `is_manager` integer DEFAULT false NOT NULL;
+-- No-op: `is_manager` was introduced in `0003_game_player_managers.sql`.

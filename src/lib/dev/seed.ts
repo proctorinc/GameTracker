@@ -3,6 +3,7 @@ import { faker } from "@faker-js/faker";
 import * as schema from "../db/schema"; // Adjust this path to your actual schema file location
 import { db } from "../db";
 import { addPlayerToGame, createGame } from "../db/store/game.store";
+import { backfillMissingPlayerRankResults } from "../db/store/player-rank.store";
 
 const DEMO_ADMIN_EMAIL = "admin@demo.com";
 const DEMO_ADMIN_PHONE = "+15550009999";
@@ -268,6 +269,11 @@ export async function runDevSeed() {
       });
     }
   }
+
+  const playerRankBackfill = await backfillMissingPlayerRankResults();
+  console.log(
+    `✅ Backfilled Player Rank results for ${playerRankBackfill.processedGameCount} completed seeded games.`,
+  );
 
   // --- 5. Create Standard Deck Cards for All Users ---
   // const createStandardCards = async (userId: string) => {

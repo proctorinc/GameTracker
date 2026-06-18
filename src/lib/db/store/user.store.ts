@@ -4,6 +4,7 @@ import {
   cardDrops,
   cards,
   friendships,
+  gamePlayerRankResults,
   gamePlayers,
   gameRoundScores,
   gameTitle,
@@ -63,6 +64,7 @@ export type UserReferenceSummary = {
   gamePlayersUser: number;
   gameWinnersUser: number;
   gameRoundScoresUser: number;
+  gamePlayerRankResultsUser: number;
   gamesCreator: number;
   gameTitlesCreatedBy: number;
   userGameTitlesOwned: number;
@@ -322,6 +324,7 @@ async function getUserReferenceSummary(userId: string): Promise<UserReferenceSum
     gamePlayersUserRows,
     gameWinnersUserRows,
     gameRoundScoresUserRows,
+    gamePlayerRankResultsUserRows,
     gamesCreatorRows,
     gameTitlesCreatedByRows,
     userGameTitlesOwnedRows,
@@ -353,6 +356,10 @@ async function getUserReferenceSummary(userId: string): Promise<UserReferenceSum
     db.query.gameRoundScores.findMany({
       where: eq(gameRoundScores.userId, userId),
       columns: { id: true },
+    }),
+    db.query.gamePlayerRankResults.findMany({
+      where: eq(gamePlayerRankResults.userId, userId),
+      columns: { gameId: true },
     }),
     db.query.games.findMany({
       where: eq(games.creatorId, userId),
@@ -406,6 +413,7 @@ async function getUserReferenceSummary(userId: string): Promise<UserReferenceSum
     gamePlayersUser: gamePlayersUserRows.length,
     gameWinnersUser: gameWinnersUserRows.length,
     gameRoundScoresUser: gameRoundScoresUserRows.length,
+    gamePlayerRankResultsUser: gamePlayerRankResultsUserRows.length,
     gamesCreator: gamesCreatorRows.length,
     gameTitlesCreatedBy: gameTitlesCreatedByRows.length,
     userGameTitlesOwned: userGameTitlesOwnedRows.length,
@@ -541,6 +549,45 @@ export async function mergeGuestUserIntoUser(input: {
           and(
             eq(gameWinners.gameId, guestWinner.gameId),
             eq(gameWinners.userId, guest.id),
+          ),
+        );
+    }
+
+    const [guestRankRows, recipientRankRows] = await Promise.all([
+      tx.query.gamePlayerRankResults.findMany({
+        where: eq(gamePlayerRankResults.userId, guest.id),
+      }),
+      tx.query.gamePlayerRankResults.findMany({
+        where: eq(gamePlayerRankResults.userId, input.recipientUserId),
+      }),
+    ]);
+
+    const recipientRankGameIds = new Set(
+      recipientRankRows.map((result) => result.gameId),
+    );
+
+    for (const guestRankRow of guestRankRows) {
+      if (recipientRankGameIds.has(guestRankRow.gameId)) {
+        await tx
+          .delete(gamePlayerRankResults)
+          .where(
+            and(
+              eq(gamePlayerRankResults.gameId, guestRankRow.gameId),
+              eq(gamePlayerRankResults.userId, guest.id),
+            ),
+          );
+        continue;
+      }
+
+      await tx
+        .update(gamePlayerRankResults)
+        .set({
+          userId: input.recipientUserId,
+        })
+        .where(
+          and(
+            eq(gamePlayerRankResults.gameId, guestRankRow.gameId),
+            eq(gamePlayerRankResults.userId, guest.id),
           ),
         );
     }

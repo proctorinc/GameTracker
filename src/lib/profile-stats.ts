@@ -19,6 +19,7 @@ export type ProfileStatsComparisonOption = {
 export type ProfileStatsTitle = {
   id: string;
   title: string;
+  color: string;
   imageUrl: string;
 };
 
@@ -45,6 +46,7 @@ export type ProfileStatsStoryline = {
 export type ProfileStatsSignatureTitle = {
   id: string;
   title: string;
+  color: string;
   imageUrl: string;
   completedCount: number;
   winRate: number;
@@ -201,6 +203,7 @@ export function buildProfileStats(input: {
       titleStats.set(game.title.id, {
         id: game.title.id,
         title: game.title.title,
+        color: game.title.color,
         imageUrl: game.title.imageUrl,
         completedCount: (existing?.completedCount ?? 0) + 1,
         wins: (existing?.wins ?? 0) + (profileWon ? 1 : 0),

@@ -3,7 +3,12 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { getDashboardPageCollections } from "@/app/actions/pages/dashboard";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
-import { getDashboardTag } from "@/lib/cache-tags";
+import { getDashboardTag, getPlayerRankTag } from "@/lib/cache-tags";
+import {
+  getActivePlayerRankConfig,
+  getUserPlayerRankSummary,
+} from "@/lib/db/store/player-rank.store";
+import { formatPlayerRankTotal } from "@/lib/player-rank";
 import { logError, logInfo } from "@/lib/server-log";
 import { getServerRequestContext } from "@/lib/server-request-context";
 
@@ -15,6 +20,13 @@ export async function getDashboardOverviewPageData() {
   try {
     const user = await loadCurrentUser();
     const data = await getDashboardOverviewPageDataCached(user.id);
+    const [playerRankSummary, playerRankConfig] =
+      user.role === "admin"
+        ? await Promise.all([
+            getUserPlayerRankSummary(user.id),
+            getActivePlayerRankConfig(),
+          ])
+        : [null, null];
 
     logInfo("dashboard.page_data.read.succeeded", {
       ...requestContext,
@@ -27,6 +39,24 @@ export async function getDashboardOverviewPageData() {
     return {
       user,
       ...data,
+      canViewPlayerRank: user.role === "admin",
+      playerRankTotal: playerRankSummary?.playerRankTotal ?? null,
+      playerRankPosition: playerRankSummary?.playerRankPosition ?? null,
+      playerRankWindowLabel: playerRankSummary?.playerRankWindowLabel ?? null,
+      playerRankGamesCount: playerRankSummary?.playerRankGamesCount ?? null,
+      topThreeFinishes: playerRankSummary?.topThreeFinishes ?? null,
+      twoPlayerPrizePool: playerRankConfig
+        ? formatPlayerRankTotal(playerRankConfig.prizePoolByPlayerCount[2] ?? 0)
+        : null,
+      threePlayerPrizePool: playerRankConfig
+        ? formatPlayerRankTotal(playerRankConfig.prizePoolByPlayerCount[3] ?? 0)
+        : null,
+      sixPlusPlayerPrizePool: playerRankConfig
+        ? formatPlayerRankTotal(
+            playerRankConfig.prizePoolByPlayerCount[6] ??
+              playerRankConfig.defaultMaxPrizePool,
+          )
+        : null,
     };
   } catch (error) {
     logError("dashboard.page_data.read.failed", error, {
@@ -44,7 +74,7 @@ async function getDashboardOverviewPageDataCached(userId: string) {
       }),
     [userId],
     {
-      tags: [getDashboardTag(userId)],
+      tags: [getDashboardTag(userId), getPlayerRankTag(userId)],
       revalidate: DASHBOARD_PAGE_REVALIDATE_SECONDS,
     },
   )();

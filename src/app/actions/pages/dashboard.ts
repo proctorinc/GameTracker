@@ -12,10 +12,22 @@ export type DashboardPageData = {
   recentActiveGames: GameFull[];
   recentCompletedGames: GameFull[];
   recentGameTitles: GameTitleBase[];
+  canViewPlayerRank: boolean;
+  playerRankTotal: string | null;
+  playerRankPosition: number | null;
+  playerRankWindowLabel: string | null;
+  playerRankGamesCount: number | null;
+  topThreeFinishes: number | null;
+  twoPlayerPrizePool: string | null;
+  threePlayerPrizePool: string | null;
+  sixPlusPlayerPrizePool: string | null;
   // cardDrops: CardDropFull[];
 };
 
-export type DashboardPageCollections = Omit<DashboardPageData, "user">;
+export type DashboardPageCollections = Pick<
+  DashboardPageData,
+  "recentActiveGames" | "recentCompletedGames" | "recentGameTitles"
+>;
 
 export async function getDashboardPageCollections(input: {
   userId: string;

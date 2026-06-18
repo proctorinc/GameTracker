@@ -1,7 +1,8 @@
 "use client";
 
+import { PlayerRankSummaryCard } from "@/components/player-rank/player-rank-summary-card";
 import ProfilePicture from "@/components/profile/profile-picture";
-import { Card, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useProfileOverview } from "../profile-overview-provider";
 
 function formatMemberSince(createdAt: string | null) {
@@ -26,7 +27,7 @@ function formatDisplayName(input: {
 }
 
 export function ProfileHeroCard() {
-  const { user } = useProfileOverview();
+  const { user, data } = useProfileOverview();
 
   return (
     <Card className="relative">
@@ -42,6 +43,21 @@ export function ProfileHeroCard() {
           </div>
         </div>
       </CardHeader>
+      {data.canViewPlayerRank ? (
+        <CardContent className="pt-0">
+          <PlayerRankSummaryCard
+            title="Your Player Rank"
+            rankGamesCount={data.playerRankGamesCount}
+            rankPosition={data.playerRankPosition}
+            rankTotal={data.playerRankTotal}
+            topThreeFinishes={data.topThreeFinishes}
+            windowLabel={data.playerRankWindowLabel}
+            twoPlayerPrizePool={data.twoPlayerPrizePool}
+            threePlayerPrizePool={data.threePlayerPrizePool}
+            sixPlusPlayerPrizePool={data.sixPlusPlayerPrizePool}
+          />
+        </CardContent>
+      ) : null}
     </Card>
   );
 }

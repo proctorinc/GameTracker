@@ -4,19 +4,18 @@ import {
   mergeTitleIntoAnother,
   promoteTitleToUniversal,
 } from "@/app/actions/game";
+import GameTitleImage from "@/components/game/game-title-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import {
-  AdminGameTitleEntry,
-} from "@/lib/db/store/game.store";
+import type { AdminGameTitleEntry } from "@/lib/db/store/game.store";
 import { GitMerge, Search, Sparkles } from "lucide-react";
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useMemo, useState, useTransition } from "react";
+import { toast } from "sonner";
 
 function asSelectValue(value: string | null) {
   return value ?? "";
@@ -135,18 +134,17 @@ export default function AdminGameTitles({
 
           <div className="flex flex-col gap-3">
             {filteredTitles.map((title) => (
-              <Card key={title.id} className="rounded-[1.5rem] border border-border/80 bg-card/95">
+              <Card
+                key={title.id}
+                className="rounded-[1.5rem] border border-border/80 bg-card/95"
+              >
                 <CardContent className="flex flex-col gap-4 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-3">
-                      <div
-                        className="h-14 w-14 shrink-0 rounded-2xl bg-cover bg-center shadow-sm"
-                        style={{
-                          backgroundColor: title.color,
-                          backgroundImage: title.imageUrl
-                            ? `url("${title.imageUrl}")`
-                            : undefined,
-                        }}
+                      <GameTitleImage
+                        className="h-14 w-14 shrink-0 rounded-2xl shadow-sm"
+                        color={title.color}
+                        imageUrl={title.imageUrl}
                       />
                       <div className="min-w-0">
                         <Link
@@ -155,10 +153,10 @@ export default function AdminGameTitles({
                         >
                           {title.title}
                         </Link>
-                      <p className="text-sm text-muted-foreground">
-                        normalized: {title.normalizedTitle}
-                      </p>
-                    </div>
+                        <p className="text-sm text-muted-foreground">
+                          normalized: {title.normalizedTitle}
+                        </p>
+                      </div>
                     </div>
                     <Badge variant={title.isUniversal ? "default" : "outline"}>
                       {title.isUniversal ? "Universal" : "Personal"}

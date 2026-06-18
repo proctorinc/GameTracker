@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, CalendarDays, Trophy } from "lucide-react";
+import GameTitleImage from "@/components/game/game-title-image";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Badge } from "@/components/ui/badge";
 import { CardEmpty } from "@/components/ui/card";
@@ -107,27 +108,22 @@ export default function GameHistoryList({
                 {titleHref ? (
                   <Link
                     href={titleHref}
-                    className="relative block h-24 w-20 shrink-0 overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm transition-transform hover:scale-[1.02]"
+                    className="block shrink-0 transition-transform hover:scale-[1.02]"
                     aria-label={`View ${title?.title ?? "game"} history`}
                     title={`View ${title?.title ?? "game"} history`}
                   >
-                    {title?.imageUrl ? (
-                      <div
-                        className="absolute inset-0 bg-cover bg-center"
-                        style={{ backgroundImage: `url("${title.imageUrl}")` }}
-                      />
-                    ) : (
-                      <div
-                        className="absolute inset-0"
-                        style={{ backgroundColor: title?.color ?? "var(--muted)" }}
-                      />
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-                    <div className="absolute inset-x-0 bottom-0 p-2">
-                      <span className="line-clamp-2 text-[11px] font-black leading-tight text-white">
-                        {title?.title ?? "New Game"}
-                      </span>
-                    </div>
+                    <GameTitleImage
+                      className="h-24 w-20 rounded-2xl border border-border/70 bg-card shadow-sm"
+                      color={title?.color}
+                      imageUrl={title?.imageUrl}
+                      variant="thumbnail"
+                    >
+                      <div className="absolute inset-x-0 bottom-0 p-2">
+                        <span className="line-clamp-2 text-[11px] font-black leading-tight text-white">
+                          {title?.title ?? "New Game"}
+                        </span>
+                      </div>
+                    </GameTitleImage>
                   </Link>
                 ) : null}
 

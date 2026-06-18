@@ -49,6 +49,9 @@ export type GameScoreThresholdDirection =
   (typeof gameScoreThresholdDirections)[number];
 export const userRoles = ["user", "admin"] as const;
 export type UserRole = (typeof userRoles)[number];
+export const playerRankConfigVersions = ["v1"] as const;
+export type PlayerRankConfigVersion =
+  (typeof playerRankConfigVersions)[number];
 
 export const users = sqliteTable("users", {
   id: text("id")
@@ -355,6 +358,85 @@ export const gameRoundScores = sqliteTable(
   ],
 );
 
+export const playerRankConfigs = sqliteTable(
+  "player_rank_configs",
+  {
+    id: text("id")
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    version: text("version")
+      .$type<PlayerRankConfigVersion>()
+      .notNull()
+      .default("v1"),
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(false),
+    windowMonths: integer("window_months").notNull().default(6),
+    defaultMaxPrizePool: integer("default_max_prize_pool").notNull(),
+    prizePoolByPlayerCountJson: text("prize_pool_by_player_count_json").notNull(),
+    smallGameDistributionJson: text("small_game_distribution_json").notNull(),
+    largeGameDistributionJson: text("large_game_distribution_json").notNull(),
+    createdByUserId: text("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    check(
+      "player_rank_configs_window_months_positive",
+      sql`${table.windowMonths} > 0`,
+    ),
+    check(
+      "player_rank_configs_default_max_prize_pool_non_negative",
+      sql`${table.defaultMaxPrizePool} >= 0`,
+    ),
+  ],
+);
+
+export const gamePlayerRankResults = sqliteTable(
+  "game_player_rank_results",
+  {
+    gameId: text("game_id")
+      .notNull()
+      .references(() => games.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    gameCompletedAt: text("game_completed_at").notNull(),
+    playerCount: integer("player_count").notNull(),
+    placement: integer("placement").notNull(),
+    tieSize: integer("tie_size").notNull(),
+    rankConfigId: text("rank_config_id")
+      .notNull()
+      .references(() => playerRankConfigs.id, { onDelete: "restrict" }),
+    prizePoolMinor: integer("prize_pool_minor").notNull(),
+    payoutPercentBps: integer("payout_percent_bps").notNull(),
+    pointsAwardedMinor: integer("points_awarded_minor").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    primaryKey({ columns: [table.gameId, table.userId] }),
+    check("game_player_rank_results_player_count_positive", sql`${table.playerCount} > 0`),
+    check("game_player_rank_results_placement_positive", sql`${table.placement} > 0`),
+    check("game_player_rank_results_tie_size_positive", sql`${table.tieSize} > 0`),
+    check(
+      "game_player_rank_results_prize_pool_minor_non_negative",
+      sql`${table.prizePoolMinor} >= 0`,
+    ),
+    check(
+      "game_player_rank_results_payout_percent_bps_non_negative",
+      sql`${table.payoutPercentBps} >= 0`,
+    ),
+    check(
+      "game_player_rank_results_points_awarded_minor_non_negative",
+      sql`${table.pointsAwardedMinor} >= 0`,
+    ),
+  ],
+);
+
 export const cardsRelations = relations(cards, ({ one }) => ({
   owner: one(users, {
     fields: [cards.ownerId],
@@ -431,6 +513,7 @@ export const gamesRelations = relations(games, ({ one, many }) => ({
   players: many(gamePlayers),
   rounds: many(gameRounds),
   winners: many(gameWinners),
+  playerRankResults: many(gamePlayerRankResults),
   cardDrops: many(cardDrops),
 }));
 
@@ -512,3 +595,32 @@ export const gameWinnersRelations = relations(gameWinners, ({ one }) => ({
     relationName: "gameWinner",
   }),
 }));
+
+export const playerRankConfigsRelations = relations(
+  playerRankConfigs,
+  ({ many, one }) => ({
+    createdBy: one(users, {
+      fields: [playerRankConfigs.createdByUserId],
+      references: [users.id],
+    }),
+    gameRankResults: many(gamePlayerRankResults),
+  }),
+);
+
+export const gamePlayerRankResultsRelations = relations(
+  gamePlayerRankResults,
+  ({ one }) => ({
+    game: one(games, {
+      fields: [gamePlayerRankResults.gameId],
+      references: [games.id],
+    }),
+    user: one(users, {
+      fields: [gamePlayerRankResults.userId],
+      references: [users.id],
+    }),
+    rankConfig: one(playerRankConfigs, {
+      fields: [gamePlayerRankResults.rankConfigId],
+      references: [playerRankConfigs.id],
+    }),
+  }),
+);

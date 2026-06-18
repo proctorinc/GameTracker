@@ -9,6 +9,19 @@ async function main() {
   const dataDir = path.join(process.cwd(), "data");
   fs.mkdirSync(dataDir, { recursive: true });
 
+  const isLocalDatabase = env.DATABASE_URL.startsWith("file:");
+  const databasePath = isLocalDatabase
+    ? path.resolve(process.cwd(), env.DATABASE_URL.slice("file:".length))
+    : null;
+  const databaseExistedAtStartup = databasePath ? fs.existsSync(databasePath) : false;
+  const shouldResetSeed = env.APP_ENV === "development" && process.env.DEV_SEED_RESET === "1";
+  const shouldForceSeed = env.APP_ENV === "development" && process.env.DEV_SEED_FORCE === "1";
+
+  if (shouldResetSeed && databasePath && fs.existsSync(databasePath)) {
+    fs.rmSync(databasePath);
+    console.log(`[dev] Reset local database at ${databasePath}`);
+  }
+
   console.log(`[dev] APP_ENV=${env.APP_ENV}`);
   console.log(`[dev] DATABASE_URL=${env.DATABASE_URL}`);
 
@@ -18,8 +31,17 @@ async function main() {
   console.log("[dev] Applying migrations…");
   execSync("npm run db:migrate", { stdio: "inherit", env: process.env });
 
-  const { runDevSeed } = await import("../src/lib/dev/seed");
-  await runDevSeed();
+  const shouldSeed =
+    shouldForceSeed ||
+    shouldResetSeed ||
+    !databaseExistedAtStartup;
+
+  if (shouldSeed) {
+    const { runDevSeed } = await import("../src/lib/dev/seed");
+    await runDevSeed();
+  } else {
+    console.log("[dev] Reusing existing local database. Set DEV_SEED_FORCE=1 to reseed.");
+  }
 
   console.log("[dev] Starting Next.js…");
   const child = spawn("npx", ["next", "dev"], {

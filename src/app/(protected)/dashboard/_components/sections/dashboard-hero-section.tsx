@@ -1,13 +1,38 @@
 "use client";
 
+import { PlayerRankSummaryCard } from "@/components/player-rank/player-rank-summary-card";
 import { useDashboardPage } from "../dashboard-page-provider";
 
 export function DashboardHeroSection() {
-  const { user } = useDashboardPage();
+  const {
+    user,
+    canViewPlayerRank,
+    playerRankGamesCount,
+    playerRankPosition,
+    playerRankTotal,
+    playerRankWindowLabel,
+    topThreeFinishes,
+    twoPlayerPrizePool,
+    threePlayerPrizePool,
+    sixPlusPlayerPrizePool,
+  } = useDashboardPage();
 
   return (
-    <div className="space-y-1 pl-5 pr-4">
-      <h1 className="text-4xl font-black">Hi, {user.firstName}!</h1>
+    <div className="space-y-4 px-3">
+      <h1 className="text-4xl font-black pl-2">Hi, {user.firstName}!</h1>
+      {canViewPlayerRank ? (
+        <PlayerRankSummaryCard
+          rankGamesCount={playerRankGamesCount}
+          rankPosition={playerRankPosition}
+          rankTotal={playerRankTotal}
+          topThreeFinishes={topThreeFinishes}
+          windowLabel={playerRankWindowLabel}
+          twoPlayerPrizePool={twoPlayerPrizePool}
+          threePlayerPrizePool={threePlayerPrizePool}
+          sixPlusPlayerPrizePool={sixPlusPlayerPrizePool}
+          className="mr-1"
+        />
+      ) : null}
     </div>
   );
 }

@@ -13,6 +13,7 @@ import {
   Zap,
 } from "lucide-react";
 import Link from "next/link";
+import GameTitleImage from "@/components/game/game-title-image";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -276,21 +277,14 @@ export function ProfileStatsSections({ data }: { data: ProfileStatsPageData }) {
             href={`/titles/${encodeURIComponent(data.stats.signatureTitle.id)}`}
             className="group block overflow-hidden rounded-[2rem] border border-border/70 shadow-2xl shadow-black/10"
           >
-            <div className="relative min-h-[16.5rem] bg-slate-950 text-white sm:min-h-[18rem]">
-              {data.stats.signatureTitle.imageUrl ? (
-                <div
-                  className="absolute inset-0 bg-cover bg-center opacity-70 transition-transform duration-500 group-hover:scale-[1.03]"
-                  style={{
-                    backgroundImage: `url("${data.stats.signatureTitle.imageUrl}")`,
-                  }}
-                />
-              ) : null}
-              <div
-                className="absolute -top-20 right-[-4rem] size-64 rounded-full blur-3xl"
-                style={{ backgroundColor: "var(--profile-accent-glow)" }}
-              />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(15,23,42,0.14)_0%,rgba(15,23,42,0.34)_38%,rgba(15,23,42,0.9)_100%)]" />
-              <div className="relative flex min-h-[16.5rem] flex-col justify-between p-5 sm:min-h-[18rem] sm:p-6">
+            <GameTitleImage
+              className="min-h-[16.5rem] bg-slate-950 text-white sm:min-h-[18rem]"
+              color={data.stats.signatureTitle.color}
+              contentClassName="h-full"
+              imageUrl={data.stats.signatureTitle.imageUrl}
+              imageClassName="transition-transform duration-500 group-hover:scale-[1.03]"
+            >
+              <div className="flex min-h-[16.5rem] flex-col justify-between p-5 sm:min-h-[18rem] sm:p-6">
                 <div className="flex flex-wrap gap-2">
                   <Badge
                     variant="outline"
@@ -313,31 +307,31 @@ export function ProfileStatsSections({ data }: { data: ProfileStatsPageData }) {
                   </p>
                 </div>
               </div>
-            </div>
+            </GameTitleImage>
           </Link>
         ) : (
-          <Card className="overflow-hidden rounded-[2rem] border border-border/70 shadow-xl shadow-black/5 dark:border-white/10 dark:bg-white/5 dark:shadow-black/20">
+          <Card className="overflow-hidden rounded-[2rem] border border-border/70 bg-card shadow-xl shadow-black/5 dark:border-white/10 dark:bg-card dark:shadow-black/20">
             <CardContent className="relative p-6">
               <div
-                className="absolute inset-0"
+                className="absolute inset-0 opacity-70 dark:opacity-100"
                 style={{
                   background:
-                    "linear-gradient(135deg,var(--profile-accent-soft),transparent 52%), linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,250,252,0.88))",
+                    "linear-gradient(135deg,var(--profile-accent-soft),transparent 52%)",
                 }}
               />
               <div className="relative space-y-3">
                 <Badge
                   variant="outline"
-                  className="rounded-full dark:border-white/10 dark:bg-white/6 dark:text-white/88"
+                  className="rounded-full border-border/80 bg-background/80 text-foreground dark:border-white/10 dark:bg-white/6 dark:text-white/88"
                 >
-                  Signature title
+                  Favorite game
                 </Badge>
                 <h2 className="text-3xl font-black tracking-tight text-foreground dark:text-white">
-                  Title energy coming soon
+                  Favorite game coming soon
                 </h2>
                 <p className="max-w-xl text-sm text-muted-foreground dark:text-white/72">
-                  Finish a few more games and this space will pick up some
-                  color.
+                  Finish a few more games and we&apos;ll highlight the title you
+                  come back to most.
                 </p>
               </div>
             </CardContent>

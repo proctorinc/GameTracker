@@ -1,5 +1,6 @@
 "use client";
 
+import GameTitleImage from "@/components/game/game-title-image";
 import { sectionActionClassName } from "@/components/ui/section-styles";
 import { CardContent, CardEmpty } from "@/components/ui/card";
 import { ArrowRight } from "lucide-react";
@@ -28,27 +29,20 @@ export function RecentlyPlayedSection() {
           <div className="overflow-visible">
             <div className="flex gap-3 overflow-x-auto px-4 scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden  pb-4">
               {recentGameTitles.map((gameTitle) => (
-                <div
+                <GameTitleImage
                   key={`title=${gameTitle.id}`}
                   className={cn(
-                    "relative flex aspect-[4/5] h-[30vh] shrink-0 flex-col justify-between overflow-hidden rounded-2xl border border-none shadow-lg",
+                    "flex aspect-[4/5] h-[30vh] shrink-0 flex-col justify-between rounded-2xl border border-border/70 shadow-lg",
                   )}
-                  style={{ backgroundColor: gameTitle.color }}
+                  color={gameTitle.color}
+                  contentClassName="h-full"
+                  imageUrl={gameTitle.imageUrl}
                 >
-                  {gameTitle.imageUrl ? (
-                    <div
-                      className="absolute inset-0 bg-cover bg-center opacity-45"
-                      style={{
-                        backgroundImage: `url("${gameTitle.imageUrl}")`,
-                      }}
-                    />
-                  ) : null}
-                  <div className="absolute inset-0 bg-linear-to-t from-white/45 via-white/25 dark:from-black/85 dark:via-black/35 to-transparent" />
-                  <div className="relative z-10 flex h-full flex-col justify-between p-3 text-white">
+                  <div className="flex h-full flex-col p-3 text-white">
                     <p className="text-lg font-black drop-shadow-sm">
                       {gameTitle.title}
                     </p>
-                    <div className="flex gap-2">
+                    <div className="mt-auto flex gap-2">
                       <Link
                         href={`/titles/${gameTitle.id}`}
                         className="rounded-full border border-white/25 bg-white/15 px-3 py-1 text-sm font-semibold backdrop-blur-sm transition-opacity hover:opacity-90"
@@ -63,7 +57,7 @@ export function RecentlyPlayedSection() {
                       </Link>
                     </div>
                   </div>
-                </div>
+                </GameTitleImage>
               ))}
             </div>
           </div>

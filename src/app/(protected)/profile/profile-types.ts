@@ -16,6 +16,15 @@ export type PublicProfileSummaryData = {
     createdAt: string | null;
     displayName: string;
   };
+  canViewPlayerRank: boolean;
+  playerRankTotal: string | null;
+  playerRankPosition: number | null;
+  playerRankWindowLabel: string | null;
+  playerRankGamesCount: number | null;
+  topThreeFinishes: number | null;
+  twoPlayerPrizePool: string | null;
+  threePlayerPrizePool: string | null;
+  sixPlusPlayerPrizePool: string | null;
   defaultBestFriend: ProfileStatsBestFriend | null;
   stats: {
     friendCount: number;

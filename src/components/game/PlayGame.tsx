@@ -13,6 +13,7 @@ import {
   upsertActiveRoundScore,
 } from "@/app/actions/game";
 import { updateOwnedGuestColor } from "@/app/actions/user";
+import GameTitleImage from "@/components/game/game-title-image";
 import { getProfileColorSurfaceStyles } from "@/components/profile/profile-color-styles";
 import { ProfileColorSelector } from "@/components/profile/profile-color-selector";
 import ProfilePicture from "@/components/profile/profile-picture";
@@ -1392,23 +1393,11 @@ export default function PlayGame(props: PlayGameProps) {
         >
           <details className="group">
             <summary className="flex cursor-pointer list-none items-stretch pr-4">
-              <div
-                className="relative w-20 shrink-0 overflow-hidden border-border/70"
-                style={{
-                  backgroundColor: game.gameTitle?.color ?? undefined,
-                }}
-              >
-                {game.gameTitle?.imageUrl ? (
-                  <div
-                    className="absolute inset-0 bg-cover bg-center opacity-60"
-                    style={{
-                      backgroundImage: `url("${game.gameTitle.imageUrl}")`,
-                    }}
-                  />
-                ) : null}
-                <div className="absolute inset-0 bg-linear-to-t from-white/45 via-white/20 dark:from-black/80 dark:via-black/30 to-transparent" />
-                <div className="absolute inset-0 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--game-header-accent)_28%,transparent)_0%,transparent_58%,color-mix(in_srgb,var(--game-header-accent)_18%,transparent)_100%)] dark:bg-[linear-gradient(135deg,color-mix(in_srgb,var(--game-header-accent)_30%,transparent)_0%,transparent_58%,color-mix(in_srgb,var(--game-header-accent)_22%,transparent)_100%)]" />
-              </div>
+              <GameTitleImage
+                className="w-20 shrink-0 border-border/70"
+                color={game.gameTitle?.color}
+                imageUrl={game.gameTitle?.imageUrl}
+              />
               <div className="flex min-w-0 min-h-18 flex-1 items-center gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1 space-y-1">
                   <h1 className="truncate text-lg font-black tracking-tight text-foreground">

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import GameTitleDefaultsEditor from "@/components/game/game-title-defaults-editor";
+import GameTitleImage from "@/components/game/game-title-image";
 import GameTitleImageEditor from "@/components/game/game-title-image-editor";
 import GameHistoryList from "@/components/game/game-history-list";
 import type { GameTitleStatsPageData } from "@/lib/db/store/game.store";
@@ -64,18 +65,13 @@ export default function GameTitlePage({
   return (
     <div className="min-h-screen px-4 pb-40">
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
-        <div
-          className="relative overflow-hidden rounded-[2rem] border border-black/5 p-6 text-white shadow-xl"
-          style={{ backgroundColor: title.color }}
+        <GameTitleImage
+          className="rounded-[2rem] border border-black/5 p-6 text-white shadow-xl"
+          color={title.color}
+          imageUrl={title.imageUrl}
+          variant="hero"
         >
-          {title.imageUrl ? (
-            <div
-              className="absolute inset-0 bg-cover bg-center opacity-35"
-              style={{ backgroundImage: `url("${title.imageUrl}")` }}
-            />
-          ) : null}
-          <div className="absolute inset-0 bg-gradient-to-tr from-black/80 via-black/30 to-transparent" />
-          <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div className="space-y-3">
               <Badge
                 className="w-fit border-white/25 bg-white/15 text-white backdrop-blur-sm"
@@ -101,7 +97,7 @@ export default function GameTitlePage({
               <ArrowRight className="size-4" />
             </Link>
           </div>
-        </div>
+        </GameTitleImage>
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <StatCard label="Games played" value={stats.totalGames} />
