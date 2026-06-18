@@ -114,9 +114,6 @@ export function FriendActivityCard() {
 
   return (
     <Card className="flex-1">
-      <CardHeader>
-        <CardTitle>Activity</CardTitle>
-      </CardHeader>
       <CardContent className="flex flex-1 flex-col">
         {groups.length === 0 ? (
           <CardEmpty className="flex flex-1 items-center justify-center">

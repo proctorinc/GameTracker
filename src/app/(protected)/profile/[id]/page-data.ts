@@ -16,6 +16,7 @@ import {
 } from "@/lib/db/store";
 import {
   getActivePlayerRankConfig,
+  getPlayerRankRecentChangeSummary,
   getUserPlayerRankSummary,
 } from "@/lib/db/store/player-rank.store";
 import { formatPlayerRankTotal } from "@/lib/player-rank";
@@ -48,6 +49,7 @@ export type PublicProfilePageData = {
   playerRankWindowLabel: string | null;
   playerRankGamesCount: number | null;
   topThreeFinishes: number | null;
+  playerRankRecentChangeSummary: PublicProfileSummaryData["playerRankRecentChangeSummary"];
   twoPlayerPrizePool: string | null;
   threePlayerPrizePool: string | null;
   sixPlusPlayerPrizePool: string | null;
@@ -70,22 +72,24 @@ export async function getPublicProfilePageData(
 
   const viewer = await loadOptionalCurrentUser();
   const viewerState = await getPublicProfileViewerState(profileId, viewer?.id ?? null);
-  const viewerCanViewPlayerRank = viewer?.role === "admin";
-  const [playerRankSummary, playerRankConfig] = viewerCanViewPlayerRank
-    ? await Promise.all([
-        getUserPlayerRankSummary(profileId),
-        getActivePlayerRankConfig(),
-      ])
-    : [null, null];
+  const [playerRankSummary, playerRankConfig, playerRankRecentChangeSummary] =
+    await Promise.all([
+      getUserPlayerRankSummary(profileId),
+      getActivePlayerRankConfig(),
+      getPlayerRankRecentChangeSummary(profileId),
+    ]);
 
   return {
     ...profileData,
-    canViewPlayerRank: viewerCanViewPlayerRank,
+    canViewPlayerRank: Boolean(playerRankConfig),
     playerRankTotal: playerRankSummary?.playerRankTotal ?? null,
     playerRankPosition: playerRankSummary?.playerRankPosition ?? null,
     playerRankWindowLabel: playerRankSummary?.playerRankWindowLabel ?? null,
     playerRankGamesCount: playerRankSummary?.playerRankGamesCount ?? null,
     topThreeFinishes: playerRankSummary?.topThreeFinishes ?? null,
+    playerRankRecentChangeSummary: playerRankConfig
+      ? playerRankRecentChangeSummary
+      : null,
     twoPlayerPrizePool: playerRankConfig
       ? formatPlayerRankTotal(playerRankConfig.prizePoolByPlayerCount[2] ?? 0)
       : null,
@@ -123,6 +127,7 @@ export async function getPublicProfileSummaryData(
     playerRankWindowLabel: null,
     playerRankGamesCount: null,
     topThreeFinishes: null,
+    playerRankRecentChangeSummary: null,
     twoPlayerPrizePool: null,
     threePlayerPrizePool: null,
     sixPlusPlayerPrizePool: null,
@@ -266,6 +271,7 @@ async function getProfileStatsPageData(input: {
         playerRankWindowLabel: null,
         playerRankGamesCount: null,
         topThreeFinishes: null,
+        playerRankRecentChangeSummary: null,
         twoPlayerPrizePool: null,
         threePlayerPrizePool: null,
         sixPlusPlayerPrizePool: null,

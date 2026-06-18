@@ -98,7 +98,7 @@ export function PublicProfileActions({
   if (viewerState.kind === "friends") {
     return (
       <Link
-        href="/friends"
+        href="/profile?tab=friends"
         className={buttonVariants({
           size: "lg",
           variant: "secondary",
@@ -113,7 +113,7 @@ export function PublicProfileActions({
   if (viewerState.kind === "incoming_invitation") {
     return (
       <Link
-        href="/friends"
+        href="/profile?tab=friends&invites=1"
         className={buttonVariants({ size: "lg", className: "rounded-full" })}
       >
         View invitation
@@ -124,7 +124,7 @@ export function PublicProfileActions({
   if (viewerState.kind === "outgoing_invitation") {
     return (
       <Link
-        href="/friends"
+        href="/profile?tab=friends"
         className={buttonVariants({
           size: "lg",
           variant: "secondary",

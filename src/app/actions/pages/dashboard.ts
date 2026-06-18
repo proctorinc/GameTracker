@@ -6,11 +6,19 @@ import {
   listRecentActiveGames,
   listRecentGameTitles,
 } from "@/lib/db/store";
+import type {
+  PlayerRankGameDelta,
+  PlayerRankRecentChangeSummary,
+} from "@/lib/db/store/player-rank.store";
+
+export type DashboardCompletedGame = GameFull & {
+  currentUserRankDelta: PlayerRankGameDelta | null;
+};
 
 export type DashboardPageData = {
   user: AuthUser;
   recentActiveGames: GameFull[];
-  recentCompletedGames: GameFull[];
+  recentCompletedGames: DashboardCompletedGame[];
   recentGameTitles: GameTitleBase[];
   canViewPlayerRank: boolean;
   playerRankTotal: string | null;
@@ -18,6 +26,7 @@ export type DashboardPageData = {
   playerRankWindowLabel: string | null;
   playerRankGamesCount: number | null;
   topThreeFinishes: number | null;
+  playerRankRecentChangeSummary: PlayerRankRecentChangeSummary | null;
   twoPlayerPrizePool: string | null;
   threePlayerPrizePool: string | null;
   sixPlusPlayerPrizePool: string | null;
@@ -25,7 +34,11 @@ export type DashboardPageData = {
 };
 
 export type DashboardPageCollections = Pick<
-  DashboardPageData,
+  {
+    recentActiveGames: GameFull[];
+    recentCompletedGames: GameFull[];
+    recentGameTitles: GameTitleBase[];
+  },
   "recentActiveGames" | "recentCompletedGames" | "recentGameTitles"
 >;
 

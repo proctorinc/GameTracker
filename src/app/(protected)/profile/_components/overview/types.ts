@@ -1,3 +1,4 @@
+import type { FriendsPageData } from "@/app/actions/pages/friends";
 import type { ProfileStatsPageData } from "../../profile-types";
 
 export type ProfileOverviewUser = {
@@ -19,6 +20,7 @@ export type ProfileOverviewPageData = {
   playerRankWindowLabel: string | null;
   playerRankGamesCount: number | null;
   topThreeFinishes: number | null;
+  playerRankRecentChangeSummary: ProfileStatsPageData["playerRankRecentChangeSummary"];
   twoPlayerPrizePool: string | null;
   threePlayerPrizePool: string | null;
   sixPlusPlayerPrizePool: string | null;
@@ -27,4 +29,10 @@ export type ProfileOverviewPageData = {
   comparisonOptions: ProfileStatsPageData["comparisonOptions"];
   comparisonSummariesByUserId: ProfileStatsPageData["comparisonSummariesByUserId"];
   defaultComparisonUserId: ProfileStatsPageData["defaultComparisonUserId"];
+  socialData: FriendsPageData;
+  hasPendingFriendInvitations: boolean;
+  showInviteNotice: boolean;
+  initialTab: ProfileOverviewTab;
 };
+
+export type ProfileOverviewTab = "stats" | "friends" | "settings";

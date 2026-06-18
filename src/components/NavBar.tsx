@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Dices, User2, Users } from "lucide-react";
+import { AudioLines, Dices, User2, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -9,10 +9,10 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   {
-    href: "/friends",
-    label: "Friends",
-    icon: Users,
-    matches: (pathname: string) => pathname.startsWith("/friends"),
+    href: "/activity",
+    label: "Activity",
+    icon: AudioLines,
+    matches: (pathname: string) => pathname.startsWith("/activity"),
   },
   {
     href: "/dashboard",
@@ -37,8 +37,7 @@ export default function NavBar({
 }: NavBarProps) {
   const pathname = usePathname();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
-  const hasPendingNavigation =
-    pendingHref !== null && pendingHref !== pathname;
+  const hasPendingNavigation = pendingHref !== null && pendingHref !== pathname;
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 px-3 pb-3 sm:px-6">
@@ -55,7 +54,7 @@ export default function NavBar({
             const isActive = matches(pathname);
             const isPending = pendingHref === href && !isActive;
             const showInviteIndicator =
-              href === "/friends" && hasPendingFriendInvitations;
+              href === "/profile" && hasPendingFriendInvitations;
 
             return (
               <Link
@@ -70,7 +69,7 @@ export default function NavBar({
                   }
                 }}
                 className={cn(
-                  "relative flex h-16 w-fit min-w-20 flex-col items-center justify-center gap-1 rounded-[1.4rem] border px-4 text-[0.68rem] font-semibold tracking-[0.08em] uppercase transition-[transform,colors,opacity] duration-200",
+                  "relative flex h-16 w-20 flex-col items-center justify-center gap-1 rounded-[1.4rem] border px-4 text-[0.68rem] font-semibold tracking-[0.08em] uppercase transition-[transform,colors,opacity] duration-200",
                   isActive
                     ? "border-transparent bg-primary text-primary-foreground"
                     : "border-border bg-background hover:bg-muted",

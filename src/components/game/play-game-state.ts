@@ -1,4 +1,5 @@
 import type { GameForPlayPage } from "@/lib/db/store/game.store";
+import type { PlayerRankGameDelta } from "@/lib/db/store/player-rank.store";
 import type { UserBase } from "@/lib/db/store/user.store";
 import {
   applyRoundScores,
@@ -12,6 +13,7 @@ export type PlayGameSnapshot = {
   isCreator: boolean;
   isManager: boolean;
   playerOptions: UserBase[];
+  playerRankDeltas: PlayerRankGameDelta[];
   game: GameForPlayPage;
 };
 

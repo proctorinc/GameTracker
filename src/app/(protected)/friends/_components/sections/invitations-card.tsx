@@ -3,7 +3,13 @@
 import { Check, X } from "lucide-react";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardEmpty, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardEmpty,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   sectionItemClassName,
   sectionItemMetaClassName,
@@ -11,6 +17,7 @@ import {
 } from "@/components/ui/section-styles";
 import { useFriendsPage } from "../friends-page-provider";
 import { getDisplayName } from "../utils";
+import { cn } from "@/lib/utils";
 
 export function InvitationsCard() {
   const {
@@ -23,7 +30,7 @@ export function InvitationsCard() {
   const { incomingInvitations, outgoingInvitations } = data;
 
   return (
-    <Card>
+    <Card className={cn(incomingInvitations.length > 0 && "order-first")}>
       <CardHeader>
         <CardTitle>Invitations</CardTitle>
       </CardHeader>
@@ -93,7 +100,9 @@ export function InvitationsCard() {
                   className={`flex items-center gap-3 ${sectionItemClassName}`}
                 >
                   <div className="min-w-0 flex-1">
-                    <p className={sectionItemTitleClassName}>{invitationTarget}</p>
+                    <p className={sectionItemTitleClassName}>
+                      {invitationTarget}
+                    </p>
                     <p className={`truncate ${sectionItemMetaClassName}`}>
                       {invitationLabel}
                     </p>

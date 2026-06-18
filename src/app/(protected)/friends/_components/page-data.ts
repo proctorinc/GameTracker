@@ -9,17 +9,17 @@ import { getServerRequestContext } from "@/lib/server-request-context";
 
 const FRIENDS_PAGE_REVALIDATE_SECONDS = 15;
 
-export async function getFriendsOverviewPageData() {
+export async function getFriendConnectionsPageData() {
   const requestContext = await getServerRequestContext();
 
   try {
     const user = await loadCurrentUser();
-    const data = await getFriendsOverviewPageDataCached(
+    const data = await getFriendConnectionsPageDataCached(
       user.id,
       user.phoneNumber ?? null,
     );
 
-    logInfo("friends.page_data.read.succeeded", {
+    logInfo("friend_connections.page_data.read.succeeded", {
       ...requestContext,
       userId: user.id,
       friendCount: data.friends.length,
@@ -34,12 +34,14 @@ export async function getFriendsOverviewPageData() {
       ...data,
     };
   } catch (error) {
-    logError("friends.page_data.read.failed", error, requestContext);
+    logError("friend_connections.page_data.read.failed", error, requestContext);
     throw error;
   }
 }
 
-async function getFriendsOverviewPageDataCached(
+export const getFriendsOverviewPageData = getFriendConnectionsPageData;
+
+async function getFriendConnectionsPageDataCached(
   userId: string,
   phoneNumber: string | null,
 ) {

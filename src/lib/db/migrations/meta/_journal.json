@@ -43,6 +43,13 @@
       "when": 1782150000000,
       "tag": "0005_player_rank",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1782150001000,
+      "tag": "0006_player_rank_leaderboard_disabled",
+      "breakpoints": true
     }
   ]
 }

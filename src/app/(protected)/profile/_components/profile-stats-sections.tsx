@@ -278,13 +278,13 @@ export function ProfileStatsSections({ data }: { data: ProfileStatsPageData }) {
             className="group block overflow-hidden rounded-[2rem] border border-border/70 shadow-2xl shadow-black/10"
           >
             <GameTitleImage
-              className="min-h-[16.5rem] bg-slate-950 text-white sm:min-h-[18rem]"
+              className="h-[20vh] bg-slate-950 text-white"
               color={data.stats.signatureTitle.color}
               contentClassName="h-full"
               imageUrl={data.stats.signatureTitle.imageUrl}
               imageClassName="transition-transform duration-500 group-hover:scale-[1.03]"
             >
-              <div className="flex min-h-[16.5rem] flex-col justify-between p-5 sm:min-h-[18rem] sm:p-6">
+              <div className="flex h-full flex-col justify-between p-5 sm:p-6">
                 <div className="flex flex-wrap gap-2">
                   <Badge
                     variant="outline"

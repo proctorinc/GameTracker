@@ -16,6 +16,7 @@ function toInitialPreviewRows(
     firstName: row.firstName,
     lastName: row.lastName,
     displayName: row.displayName,
+    isLeaderboardDisabled: row.isLeaderboardDisabled,
     currentRankTotal: row.playerRankTotal,
     currentRankTotalMinor: row.playerRankTotalMinor,
     currentPosition: row.playerRankPosition,
@@ -42,7 +43,7 @@ export default async function AdminPlayerRanksPage() {
   if (!activeConfig) {
     return (
       <div className="min-h-screen overflow-y-auto px-4 pb-40">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-6">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
           <div className="space-y-1">
             <h1 className="text-4xl font-black">Player Rank</h1>
             <p className="text-sm text-muted-foreground">
@@ -65,7 +66,7 @@ export default async function AdminPlayerRanksPage() {
 
   return (
     <div className="min-h-screen overflow-y-auto px-4 pb-40">
-      <div className="mx-auto flex w-full max-w-md flex-col gap-6">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
         <div className="space-y-1">
           <h1 className="text-4xl font-black">Player Rank</h1>
           <p className="text-sm text-muted-foreground">

@@ -10,7 +10,7 @@ export function getPostLoginPath(input: {
     input.hasPendingInvitations &&
     safeRequestedPath === DEFAULT_RETURN_PATH
   ) {
-    return "/friends?invites=1";
+    return "/profile?tab=friends&invites=1";
   }
 
   return safeRequestedPath;

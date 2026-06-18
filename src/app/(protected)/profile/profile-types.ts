@@ -6,6 +6,7 @@ import type {
   ProfileStatsStoryline,
   ProfileStatsStreak,
 } from "@/lib/profile-stats";
+import type { PlayerRankRecentChangeSummary } from "@/lib/db/store/player-rank.store";
 
 export type PublicProfileSummaryData = {
   profile: {
@@ -22,6 +23,7 @@ export type PublicProfileSummaryData = {
   playerRankWindowLabel: string | null;
   playerRankGamesCount: number | null;
   topThreeFinishes: number | null;
+  playerRankRecentChangeSummary: PlayerRankRecentChangeSummary | null;
   twoPlayerPrizePool: string | null;
   threePlayerPrizePool: string | null;
   sixPlusPlayerPrizePool: string | null;

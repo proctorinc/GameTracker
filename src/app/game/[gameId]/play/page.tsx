@@ -2,6 +2,7 @@ import PlayGame from "@/components/game/PlayGame";
 import { loadOptionalCurrentUser } from "@/lib/auth/auth-me";
 import { listAcceptedFriendsForUser } from "@/lib/db/store/friendship.store";
 import { getGameForPlayPage } from "@/lib/db/store/game.store";
+import { listPlayerRankGameDeltasForGame } from "@/lib/db/store/player-rank.store";
 import { listGuestsCreatedByUser } from "@/lib/db/store/user.store";
 import { notFound } from "next/navigation";
 
@@ -34,6 +35,7 @@ export default async function PlayGamePage({ params }: PageProps) {
         listGuestsCreatedByUser(viewer.id),
       ])
     : [[], []];
+  const playerRankDeltas = await listPlayerRankGameDeltasForGame(gameId);
 
   return (
     <PlayGame
@@ -42,6 +44,7 @@ export default async function PlayGamePage({ params }: PageProps) {
       isCreator={isCreator}
       isManager={isManager}
       playerOptions={[...friends, ...guests]}
+      playerRankDeltas={playerRankDeltas}
       game={game}
     />
   );

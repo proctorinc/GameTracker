@@ -48,6 +48,7 @@ import {
 } from "@/lib/db/store/game.store";
 import {
   deleteGamePlayerRankResults,
+  listPlayerRankGameDeltasForGame,
   writePlayerRankResultsForCompletedGame,
 } from "@/lib/db/store/player-rank.store";
 import { listGuestsCreatedByUser } from "@/lib/db/store/user.store";
@@ -206,6 +207,7 @@ export async function getPlayGameSnapshot(gameId: string) {
             listGuestsCreatedByUser(viewer.id),
           ])
         : [[], []];
+      const playerRankDeltas = await listPlayerRankGameDeltasForGame(gameId);
 
       return {
         currentUserId: viewer?.id ?? "",
@@ -213,6 +215,7 @@ export async function getPlayGameSnapshot(gameId: string) {
         isManager,
         canManageLiveGame,
         playerOptions: [...friends, ...guests],
+        playerRankDeltas,
         game,
       };
     },
@@ -221,6 +224,7 @@ export async function getPlayGameSnapshot(gameId: string) {
       isCreator: result.isCreator,
       isManager: result.isManager,
       playerOptionCount: result.playerOptions.length,
+      playerRankDeltaCount: result.playerRankDeltas.length,
       playerCount: result.game.players.length,
     }),
   );

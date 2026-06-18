@@ -77,15 +77,23 @@ export function CompletedGamesSection() {
                   className="block flex-1 p-4 transition-colors hover:bg-muted/80"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <h3
-                      className={cn(
-                        "min-w-0 truncate",
-                        sectionItemTitleClassName,
-                        "font-bold text-white",
-                      )}
-                    >
-                      {game.gameTitle?.title ?? "New Game"}
-                    </h3>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <h3
+                        className={cn(
+                          "min-w-0 truncate",
+                          sectionItemTitleClassName,
+                          "font-bold text-white",
+                        )}
+                      >
+                        {game.gameTitle?.title ?? "New Game"}
+                      </h3>
+                      {game.currentUserRankDelta &&
+                      game.currentUserRankDelta.deltaMinor !== 0 ? (
+                        <span className="shrink-0 text-[11px] font-semibold text-white/80">
+                          {game.currentUserRankDelta.deltaFormatted} Rank
+                        </span>
+                      ) : null}
+                    </div>
                     <div
                       className={cn(
                         "flex shrink-0 items-center gap-1",

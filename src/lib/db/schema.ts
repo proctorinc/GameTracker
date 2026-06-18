@@ -79,6 +79,11 @@ export const users = sqliteTable("users", {
     .notNull()
     .default(false),
   isGuest: integer("is_guest", { mode: "boolean" }).notNull().default(false),
+  playerRankLeaderboardDisabled: integer("player_rank_leaderboard_disabled", {
+    mode: "boolean",
+  })
+    .notNull()
+    .default(false),
   createdAt: text("created_at"),
   updatedAt: text("updated_at"),
 });

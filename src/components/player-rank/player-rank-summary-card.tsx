@@ -1,5 +1,7 @@
 import { Info } from "lucide-react";
+import Link from "next/link";
 import { Card } from "@/components/ui/card";
+import type { PlayerRankRecentChangeSummary } from "@/lib/db/store/player-rank.store";
 import { cn } from "@/lib/utils";
 
 export type PlayerRankSummaryCardProps = {
@@ -9,6 +11,7 @@ export type PlayerRankSummaryCardProps = {
   windowLabel: string | null;
   rankGamesCount: number | null;
   topThreeFinishes: number | null;
+  recentChangeSummary?: PlayerRankRecentChangeSummary | null;
   twoPlayerPrizePool?: string | null;
   threePlayerPrizePool?: string | null;
   sixPlusPlayerPrizePool?: string | null;
@@ -22,6 +25,7 @@ export function PlayerRankSummaryCard({
   windowLabel,
   rankGamesCount,
   topThreeFinishes,
+  recentChangeSummary,
   twoPlayerPrizePool,
   threePlayerPrizePool,
   sixPlusPlayerPrizePool,
@@ -30,6 +34,8 @@ export function PlayerRankSummaryCard({
   const gamesPlayed = rankGamesCount ?? 0;
   const podiumFinishes = topThreeFinishes ?? 0;
   const resolvedWindowLabel = windowLabel ?? "6-month rolling rank";
+  const latestIncrease = recentChangeSummary?.latestIncrease ?? null;
+  const latestDecrease = recentChangeSummary?.latestDecrease ?? null;
 
   return (
     <Card className={cn("overflow-hidden p-0", className)}>
@@ -71,6 +77,34 @@ export function PlayerRankSummaryCard({
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-2xl border border-border/70 bg-background/90 p-3">
               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Recent up
+              </p>
+              <p className="mt-1 text-xl font-black text-foreground">
+                {latestIncrease?.deltaFormatted ?? "--"}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {latestIncrease
+                  ? recentChangeSummary?.recentWindowLabel ?? "Recent window"
+                  : "No recent gain tracked"}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-background/90 p-3">
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Recent down
+              </p>
+              <p className="mt-1 text-xl font-black text-foreground">
+                {latestDecrease?.deltaFormatted ?? "--"}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {latestDecrease
+                  ? recentChangeSummary?.recentWindowLabel ?? "Recent window"
+                  : "No recent dip tracked"}
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-2xl border border-border/70 bg-background/90 p-3">
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Games Played
               </p>
               <p className="mt-1 text-xl font-black text-foreground">
@@ -95,6 +129,12 @@ export function PlayerRankSummaryCard({
               larger reward pools for playing with more friends.
             </p>
           </div>
+          <Link
+            href="/player-rank"
+            className="inline-flex text-sm font-semibold text-primary transition-colors hover:text-primary/80"
+          >
+            View full standings
+          </Link>
           <div className="grid grid-cols-3 gap-2">
             <div className="rounded-2xl border border-border/70 bg-background/90 p-3">
               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">

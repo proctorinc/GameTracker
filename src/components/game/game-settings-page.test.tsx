@@ -51,6 +51,7 @@ function createUser(input: {
     mergedAt: null,
     isProfileComplete: true,
     isGuest: false,
+    playerRankLeaderboardDisabled: false,
     createdAt: "2025-01-01T00:00:00.000Z",
     updatedAt: "2025-01-01T00:00:00.000Z",
   };

@@ -1,6 +1,7 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GameForPlayPage } from "@/lib/db/store/game.store";
+import type { PlayerRankGameDelta } from "@/lib/db/store/player-rank.store";
 import type { UserBase } from "@/lib/db/store/user.store";
 import { renderWithProviders } from "../../../tests/helpers/render";
 import PlayGame from "./PlayGame";
@@ -86,6 +87,7 @@ function createUser(input: {
     mergedAt: null,
     isProfileComplete: true,
     isGuest: false,
+    playerRankLeaderboardDisabled: false,
     createdAt: "2025-01-01T00:00:00.000Z",
     updatedAt: "2025-01-01T00:00:00.000Z",
   };
@@ -315,6 +317,7 @@ function renderComponent(input?: {
   isCreator?: boolean;
   isManager?: boolean;
   game?: GameForPlayPage;
+  playerRankDeltas?: PlayerRankGameDelta[];
   playerOptions?: UserBase[];
 }) {
   const game = input?.game ?? createGameSnapshot();
@@ -328,6 +331,7 @@ function renderComponent(input?: {
       game={game}
       isCreator={input?.isCreator ?? true}
       isManager={input?.isManager ?? false}
+      playerRankDeltas={input?.playerRankDeltas ?? []}
       playerOptions={input?.playerOptions ?? [creator, opponent]}
     />,
   );
@@ -403,6 +407,7 @@ describe("PlayGame", () => {
         createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
         createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
       ],
+      playerRankDeltas: [],
       game: createGameSnapshot(5),
     });
     deferred.resolve();
@@ -462,6 +467,7 @@ describe("PlayGame", () => {
       isCreator: boolean;
       isManager: boolean;
       playerOptions: UserBase[];
+      playerRankDeltas: PlayerRankGameDelta[];
       game: GameForPlayPage;
     }>();
 
@@ -530,6 +536,7 @@ describe("PlayGame", () => {
         createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
         createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
       ],
+      playerRankDeltas: [],
       game: createGameSnapshot(7),
     });
 
@@ -565,6 +572,7 @@ describe("PlayGame", () => {
         createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
         createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
       ],
+      playerRankDeltas: [],
       game: createGameSnapshot(2),
     });
 
@@ -596,6 +604,7 @@ describe("PlayGame", () => {
         createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
         createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
       ],
+      playerRankDeltas: [],
       game: createGameSnapshot(7),
     });
 
@@ -637,6 +646,7 @@ describe("PlayGame", () => {
         createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
         createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
       ],
+      playerRankDeltas: [],
       game: createGameSnapshot(5),
     });
 
@@ -725,6 +735,31 @@ describe("PlayGame", () => {
     expect(
       screen.queryByTestId("player-score-button-user-2"),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows player rank deltas in the completed leaderboard when rank results exist", () => {
+    renderComponent({
+      game: createCompletedGameSnapshot(),
+      playerRankDeltas: [
+        {
+          gameId: "game-1",
+          userId: "user-1",
+          deltaMinor: 5000,
+          deltaFormatted: "+50",
+          completedAt: "2025-01-05T00:00:00.000Z",
+        },
+        {
+          gameId: "game-1",
+          userId: "user-2",
+          deltaMinor: 0,
+          deltaFormatted: "0",
+          completedAt: "2025-01-05T00:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(screen.getByText("+50 Rank")).toBeInTheDocument();
+    expect(screen.getByText("No Rank change")).toBeInTheDocument();
   });
 
   it("asks for confirmation before reopening a completed game from the settings drawer", async () => {
@@ -1040,6 +1075,7 @@ describe("PlayGame", () => {
         createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
         createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
       ],
+      playerRankDeltas: [],
       game: createManagedGameSnapshot(),
     });
 
@@ -1068,6 +1104,7 @@ describe("PlayGame", () => {
         createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
         createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
       ],
+      playerRankDeltas: [],
       game: createManagedGameSnapshot(),
     });
 

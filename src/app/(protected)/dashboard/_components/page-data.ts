@@ -6,6 +6,8 @@ import { loadCurrentUser } from "@/lib/auth/auth-me";
 import { getDashboardTag, getPlayerRankTag } from "@/lib/cache-tags";
 import {
   getActivePlayerRankConfig,
+  getPlayerRankRecentChangeSummary,
+  listPlayerRankGameDeltasByGameIds,
   getUserPlayerRankSummary,
 } from "@/lib/db/store/player-rank.store";
 import { formatPlayerRankTotal } from "@/lib/player-rank";
@@ -20,13 +22,15 @@ export async function getDashboardOverviewPageData() {
   try {
     const user = await loadCurrentUser();
     const data = await getDashboardOverviewPageDataCached(user.id);
-    const [playerRankSummary, playerRankConfig] =
-      user.role === "admin"
-        ? await Promise.all([
-            getUserPlayerRankSummary(user.id),
-            getActivePlayerRankConfig(),
-          ])
-        : [null, null];
+    const [playerRankSummary, playerRankConfig, playerRankRecentChangeSummary] =
+      await Promise.all([
+        getUserPlayerRankSummary(user.id),
+        getActivePlayerRankConfig(),
+        getPlayerRankRecentChangeSummary(user.id),
+      ]);
+    const playerRankDeltasByGameId = await listPlayerRankGameDeltasByGameIds(
+      data.recentCompletedGames.map((game) => game.id),
+    );
 
     logInfo("dashboard.page_data.read.succeeded", {
       ...requestContext,
@@ -39,12 +43,21 @@ export async function getDashboardOverviewPageData() {
     return {
       user,
       ...data,
-      canViewPlayerRank: user.role === "admin",
+      recentCompletedGames: data.recentCompletedGames.map((game) => ({
+        ...game,
+        currentUserRankDelta:
+          playerRankDeltasByGameId[game.id]?.find((delta) => delta.userId === user.id) ??
+          null,
+      })),
+      canViewPlayerRank: Boolean(playerRankConfig),
       playerRankTotal: playerRankSummary?.playerRankTotal ?? null,
       playerRankPosition: playerRankSummary?.playerRankPosition ?? null,
       playerRankWindowLabel: playerRankSummary?.playerRankWindowLabel ?? null,
       playerRankGamesCount: playerRankSummary?.playerRankGamesCount ?? null,
       topThreeFinishes: playerRankSummary?.topThreeFinishes ?? null,
+      playerRankRecentChangeSummary: playerRankConfig
+        ? playerRankRecentChangeSummary
+        : null,
       twoPlayerPrizePool: playerRankConfig
         ? formatPlayerRankTotal(playerRankConfig.prizePoolByPlayerCount[2] ?? 0)
         : null,

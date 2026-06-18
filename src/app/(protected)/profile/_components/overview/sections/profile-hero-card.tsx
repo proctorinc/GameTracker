@@ -30,11 +30,11 @@ export function ProfileHeroCard() {
   const { user, data } = useProfileOverview();
 
   return (
-    <Card className="relative">
-      <CardHeader className="flex items-center gap-4">
-        <ProfilePicture size="lg" user={user} />
+    <div className="flex flex-col gap-4 relative">
+      <div className="flex items-center gap-4 px-2">
+        <ProfilePicture user={user} />
         <div className="z-10 flex flex-col justify-center gap-1">
-          <h2 className="text-3xl font-black tracking-tight text-foreground">
+          <h2 className="text-2xl font-black tracking-tight text-foreground">
             {formatDisplayName(user)}
           </h2>
           <div className="flex flex-col gap-1">
@@ -42,22 +42,21 @@ export function ProfileHeroCard() {
             <p>{user.phoneNumber}</p>
           </div>
         </div>
-      </CardHeader>
+      </div>
       {data.canViewPlayerRank ? (
-        <CardContent className="pt-0">
-          <PlayerRankSummaryCard
-            title="Your Player Rank"
-            rankGamesCount={data.playerRankGamesCount}
-            rankPosition={data.playerRankPosition}
-            rankTotal={data.playerRankTotal}
-            topThreeFinishes={data.topThreeFinishes}
-            windowLabel={data.playerRankWindowLabel}
-            twoPlayerPrizePool={data.twoPlayerPrizePool}
-            threePlayerPrizePool={data.threePlayerPrizePool}
-            sixPlusPlayerPrizePool={data.sixPlusPlayerPrizePool}
-          />
-        </CardContent>
+        <PlayerRankSummaryCard
+          title="Your Player Rank"
+          rankGamesCount={data.playerRankGamesCount}
+          rankPosition={data.playerRankPosition}
+          recentChangeSummary={data.playerRankRecentChangeSummary}
+          rankTotal={data.playerRankTotal}
+          topThreeFinishes={data.topThreeFinishes}
+          windowLabel={data.playerRankWindowLabel}
+          twoPlayerPrizePool={data.twoPlayerPrizePool}
+          threePlayerPrizePool={data.threePlayerPrizePool}
+          sixPlusPlayerPrizePool={data.sixPlusPlayerPrizePool}
+        />
       ) : null}
-    </Card>
+    </div>
   );
 }

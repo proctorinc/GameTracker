@@ -9,6 +9,7 @@ export function DashboardHeroSection() {
     canViewPlayerRank,
     playerRankGamesCount,
     playerRankPosition,
+    playerRankRecentChangeSummary,
     playerRankTotal,
     playerRankWindowLabel,
     topThreeFinishes,
@@ -24,6 +25,7 @@ export function DashboardHeroSection() {
         <PlayerRankSummaryCard
           rankGamesCount={playerRankGamesCount}
           rankPosition={playerRankPosition}
+          recentChangeSummary={playerRankRecentChangeSummary}
           rankTotal={playerRankTotal}
           topThreeFinishes={topThreeFinishes}
           windowLabel={playerRankWindowLabel}

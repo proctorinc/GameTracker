@@ -14,6 +14,7 @@ import {
 } from "@/app/actions/game";
 import { updateOwnedGuestColor } from "@/app/actions/user";
 import GameTitleImage from "@/components/game/game-title-image";
+import { PlayerRankDeltaBadge } from "@/components/player-rank/player-rank-delta-badge";
 import { getProfileColorSurfaceStyles } from "@/components/profile/profile-color-styles";
 import { ProfileColorSelector } from "@/components/profile/profile-color-selector";
 import ProfilePicture from "@/components/profile/profile-picture";
@@ -51,6 +52,7 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 import type { GameForPlayPage } from "@/lib/db/store/game.store";
+import type { PlayerRankGameDelta } from "@/lib/db/store/player-rank.store";
 import type { UserBase } from "@/lib/db/store/user.store";
 import {
   hasGameMetScoreThreshold,
@@ -110,6 +112,7 @@ type PlayGameProps = {
   isCreator: boolean;
   isManager: boolean;
   playerOptions: UserBase[];
+  playerRankDeltas: PlayerRankGameDelta[];
   game: GameForPlayPage;
 };
 
@@ -279,6 +282,7 @@ function buildInitialSnapshot(props: PlayGameProps): PlayGameSnapshot {
     isCreator: props.isCreator,
     isManager: props.isManager,
     playerOptions: props.playerOptions,
+    playerRankDeltas: props.playerRankDeltas,
     game: props.game,
   };
 }
@@ -306,6 +310,7 @@ function createTemporaryGuestUser(input: {
     mergedAt: null,
     isProfileComplete: true,
     isGuest: true,
+    playerRankLeaderboardDisabled: false,
     createdAt: timestamp,
     updatedAt: timestamp,
   } satisfies UserBase;
@@ -479,6 +484,13 @@ export default function PlayGame(props: PlayGameProps) {
   const canManageLiveGame = snapshot.canManageLiveGame;
   const game = snapshot.game;
   const currentUserId = snapshot.currentUserId;
+  const playerRankDeltasByUserId = useMemo(
+    () =>
+      new Map(
+        snapshot.playerRankDeltas.map((delta) => [delta.userId, delta] as const),
+      ),
+    [snapshot.playerRankDeltas],
+  );
   const isCreator = snapshot.isCreator;
   const isManager = snapshot.isManager;
   const isCompleted = Boolean(game.completedAt);
@@ -1597,6 +1609,7 @@ export default function PlayGame(props: PlayGameProps) {
             const activeRoundDelta = activeRoundScoreByUserId.get(
               player.userId,
             );
+            const playerRankDelta = playerRankDeltasByUserId.get(player.userId) ?? null;
             const playerCardHighlighted = highlightedPlayerIdSet.has(
               player.userId,
             );
@@ -1689,6 +1702,12 @@ export default function PlayGame(props: PlayGameProps) {
                       <p className="truncate text-xl font-black text-[color:var(--profile-surface-text)]">
                         {getDisplayName(player.user)}
                       </p>
+                      {isCompleted && playerRankDelta ? (
+                        <PlayerRankDeltaBadge
+                          delta={playerRankDelta}
+                          className="w-fit border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[color:var(--profile-surface-text)]"
+                        />
+                      ) : null}
                       {player.user.isGuest ? (
                         <Badge
                           className="border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[0.65rem] font-bold uppercase tracking-[0.12em] text-[color:var(--profile-surface-text)]"

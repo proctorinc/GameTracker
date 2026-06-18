@@ -1,4 +1,4 @@
-import { and, eq, gte, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull } from "drizzle-orm";
 import {
   db,
   gamePlayerRankResults,
@@ -10,6 +10,7 @@ import {
   assignDensePlayerRankPositions,
   computePlayerRankPayouts,
   formatPlayerRankTotal,
+  formatSignedPlayerRankDelta,
   getPlayerRankWindowStart,
   type PlayerRankGameLike,
   type PlayerRankPayout,
@@ -26,10 +27,11 @@ export type PlayerRankSummary = {
   userId: string;
   playerRankTotal: string;
   playerRankTotalMinor: number;
-  playerRankPosition: number;
+  playerRankPosition: number | null;
   playerRankWindowLabel: string;
   playerRankGamesCount: number;
   topThreeFinishes: number;
+  isLeaderboardDisabled: boolean;
 };
 
 export type PlayerRankStandingRow = PlayerRankSummary & {
@@ -43,14 +45,31 @@ export type PlayerRankPreviewRow = {
   firstName: string | null;
   lastName: string | null;
   displayName: string;
+  isLeaderboardDisabled: boolean;
   currentRankTotal: string;
   currentRankTotalMinor: number;
-  currentPosition: number;
+  currentPosition: number | null;
   previewRankTotal: string;
   previewRankTotalMinor: number;
-  previewPosition: number;
+  previewPosition: number | null;
   deltaMinor: number;
   eligibleGamesCount: number;
+};
+
+export type PlayerRankGameDelta = {
+  gameId: string;
+  userId: string;
+  deltaMinor: number;
+  deltaFormatted: string;
+  completedAt: string;
+};
+
+export type PlayerRankRecentChangeSummary = {
+  recentWindowLabel: string;
+  recentGamesCount: number;
+  latestChange: PlayerRankGameDelta | null;
+  latestIncrease: PlayerRankGameDelta | null;
+  latestDecrease: PlayerRankGameDelta | null;
 };
 
 export type PublishPlayerRankConfigInput = {
@@ -63,7 +82,7 @@ export type PublishPlayerRankConfigInput = {
 
 type UserRow = Pick<
   typeof users.$inferSelect,
-  "id" | "firstName" | "lastName"
+  "id" | "firstName" | "lastName" | "playerRankLeaderboardDisabled"
 >;
 
 function formatDisplayName(user: UserRow) {
@@ -77,6 +96,21 @@ function serializeConfig(input: PublishPlayerRankConfigInput) {
     prizePoolByPlayerCountJson: JSON.stringify(input.prizePoolByPlayerCount),
     smallGameDistributionJson: JSON.stringify(input.smallGameDistribution),
     largeGameDistributionJson: JSON.stringify(input.largeGameDistribution),
+  };
+}
+
+function buildPlayerRankGameDelta(
+  row: Pick<
+    GamePlayerRankResultRecord,
+    "gameId" | "userId" | "pointsAwardedMinor" | "gameCompletedAt"
+  >,
+): PlayerRankGameDelta {
+  return {
+    gameId: row.gameId,
+    userId: row.userId,
+    deltaMinor: row.pointsAwardedMinor,
+    deltaFormatted: formatSignedPlayerRankDelta(row.pointsAwardedMinor),
+    completedAt: row.gameCompletedAt,
   };
 }
 
@@ -332,6 +366,7 @@ async function listCurrentRankUsers() {
       id: true,
       firstName: true,
       lastName: true,
+      playerRankLeaderboardDisabled: true,
     },
   });
 }
@@ -384,30 +419,68 @@ function buildPlayerRankSummaries(input: {
     }
   }
 
-  return assignDensePlayerRankPositions(
-    input.users.map((user) => ({
-      userId: user.id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      displayName: formatDisplayName(user),
-      ...(aggregateByUserId.get(user.id) ?? {
-        pointsAwardedMinor: 0,
-        playerRankGamesCount: 0,
-        topThreeFinishes: 0,
-      }),
-    })),
-  ).map((row) => ({
-    userId: row.userId,
-    firstName: row.firstName,
-    lastName: row.lastName,
-    displayName: row.displayName,
-    playerRankTotal: formatPlayerRankTotal(row.pointsAwardedMinor),
-    playerRankTotalMinor: row.pointsAwardedMinor,
-    playerRankPosition: row.playerRankPosition,
-    playerRankWindowLabel: `${input.windowMonths}-month rolling rank`,
-    playerRankGamesCount: row.playerRankGamesCount,
-    topThreeFinishes: row.topThreeFinishes,
+  const rows = input.users.map((user) => ({
+    userId: user.id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    displayName: formatDisplayName(user),
+    isLeaderboardDisabled: user.playerRankLeaderboardDisabled,
+    ...(aggregateByUserId.get(user.id) ?? {
+      pointsAwardedMinor: 0,
+      playerRankGamesCount: 0,
+      topThreeFinishes: 0,
+    }),
   }));
+  const rankedRows = assignDensePlayerRankPositions(
+    rows.filter((row) => !row.isLeaderboardDisabled),
+  );
+  const rankByUserId = new Map(
+    rankedRows.map((row) => [row.userId, row.playerRankPosition] as const),
+  );
+
+  return rows
+    .map((row) => ({
+      userId: row.userId,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      displayName: row.displayName,
+      isLeaderboardDisabled: row.isLeaderboardDisabled,
+      playerRankTotal: formatPlayerRankTotal(row.pointsAwardedMinor),
+      playerRankTotalMinor: row.pointsAwardedMinor,
+      playerRankPosition: row.isLeaderboardDisabled
+        ? null
+        : (rankByUserId.get(row.userId) ?? null),
+      playerRankWindowLabel: `${input.windowMonths}-month rolling rank`,
+      playerRankGamesCount: row.playerRankGamesCount,
+      topThreeFinishes: row.topThreeFinishes,
+    }))
+    .sort((left, right) => {
+      if (left.isLeaderboardDisabled !== right.isLeaderboardDisabled) {
+        return left.isLeaderboardDisabled ? 1 : -1;
+      }
+
+      if (left.playerRankPosition !== null && right.playerRankPosition !== null) {
+        if (left.playerRankPosition !== right.playerRankPosition) {
+          return left.playerRankPosition - right.playerRankPosition;
+        }
+      } else if (left.playerRankPosition !== right.playerRankPosition) {
+        return left.playerRankPosition === null ? 1 : -1;
+      }
+
+      if (right.playerRankTotalMinor !== left.playerRankTotalMinor) {
+        return right.playerRankTotalMinor - left.playerRankTotalMinor;
+      }
+
+      if (right.topThreeFinishes !== left.topThreeFinishes) {
+        return right.topThreeFinishes - left.topThreeFinishes;
+      }
+
+      if (right.playerRankGamesCount !== left.playerRankGamesCount) {
+        return right.playerRankGamesCount - left.playerRankGamesCount;
+      }
+
+      return left.displayName.localeCompare(right.displayName);
+    });
 }
 
 export async function listPlayerRankStandings() {
@@ -430,6 +503,11 @@ export async function listPlayerRankStandings() {
   });
 }
 
+export async function listVisiblePlayerRankStandings() {
+  const standings = await listPlayerRankStandings();
+  return standings.filter((row) => !row.isLeaderboardDisabled);
+}
+
 export async function getUserPlayerRankSummary(userId: string): Promise<PlayerRankSummary | null> {
   const standings = await listPlayerRankStandings();
   const row = standings.find((entry) => entry.userId === userId);
@@ -446,7 +524,130 @@ export async function getUserPlayerRankSummary(userId: string): Promise<PlayerRa
     playerRankWindowLabel: row.playerRankWindowLabel,
     playerRankGamesCount: row.playerRankGamesCount,
     topThreeFinishes: row.topThreeFinishes,
+    isLeaderboardDisabled: row.isLeaderboardDisabled,
   };
+}
+
+export async function listPlayerRankGameDeltasByGameIds(
+  gameIds: string[],
+): Promise<Record<string, PlayerRankGameDelta[]>> {
+  const uniqueGameIds = Array.from(
+    new Set(gameIds.filter((gameId) => gameId.trim().length > 0)),
+  );
+
+  if (uniqueGameIds.length === 0) {
+    return {};
+  }
+
+  const rows = await withPlayerRankSchemaFallback(
+    () =>
+      db.query.gamePlayerRankResults.findMany({
+        where: inArray(gamePlayerRankResults.gameId, uniqueGameIds),
+        orderBy: (table, { desc }) => [
+          desc(table.gameCompletedAt),
+          desc(table.createdAt),
+        ],
+      }),
+    () => ([] as GamePlayerRankResultRecord[]),
+    "list_game_deltas_by_game_ids",
+  );
+
+  const deltasByGameId: Record<string, PlayerRankGameDelta[]> = {};
+
+  for (const row of rows) {
+    deltasByGameId[row.gameId] ??= [];
+    deltasByGameId[row.gameId]?.push(buildPlayerRankGameDelta(row));
+  }
+
+  return deltasByGameId;
+}
+
+export async function listPlayerRankGameDeltasForGame(gameId: string) {
+  const deltasByGameId = await listPlayerRankGameDeltasByGameIds([gameId]);
+  return deltasByGameId[gameId] ?? [];
+}
+
+export async function getPlayerRankGameDeltaForUser(input: {
+  gameId: string;
+  userId: string;
+}): Promise<PlayerRankGameDelta | null> {
+  const rows = await withPlayerRankSchemaFallback(
+    () =>
+      db.query.gamePlayerRankResults.findMany({
+        where: and(
+          eq(gamePlayerRankResults.gameId, input.gameId),
+          eq(gamePlayerRankResults.userId, input.userId),
+        ),
+        limit: 1,
+      }),
+    () => ([] as GamePlayerRankResultRecord[]),
+    "get_game_delta_for_user",
+  );
+
+  const row = rows[0];
+  return row ? buildPlayerRankGameDelta(row) : null;
+}
+
+export async function listPlayerRankGameDeltasForUser(input: {
+  userId: string;
+  limit?: number;
+  since?: string;
+}) {
+  const rows = await withPlayerRankSchemaFallback(
+    () =>
+      db.query.gamePlayerRankResults.findMany({
+        where: input.since
+          ? and(
+              eq(gamePlayerRankResults.userId, input.userId),
+              gte(gamePlayerRankResults.gameCompletedAt, input.since),
+            )
+          : eq(gamePlayerRankResults.userId, input.userId),
+        orderBy: (table, { desc }) => [
+          desc(table.gameCompletedAt),
+          desc(table.createdAt),
+        ],
+        limit: input.limit,
+      }),
+    () => ([] as GamePlayerRankResultRecord[]),
+    "list_user_game_deltas",
+  );
+
+  return rows.map(buildPlayerRankGameDelta);
+}
+
+export function summarizePlayerRankRecentChanges(input: {
+  deltas: PlayerRankGameDelta[];
+  recentDays: number;
+}): PlayerRankRecentChangeSummary {
+  return {
+    recentWindowLabel: `Last ${input.recentDays} days`,
+    recentGamesCount: input.deltas.length,
+    latestChange: input.deltas[0] ?? null,
+    latestIncrease: input.deltas.find((delta) => delta.deltaMinor > 0) ?? null,
+    latestDecrease: input.deltas.find((delta) => delta.deltaMinor < 0) ?? null,
+  };
+}
+
+export async function getPlayerRankRecentChangeSummary(
+  userId: string,
+  input?: {
+    now?: Date;
+    recentDays?: number;
+  },
+): Promise<PlayerRankRecentChangeSummary> {
+  const recentDays = input?.recentDays ?? 30;
+  const now = input?.now ?? new Date();
+  const since = new Date(now.getTime() - recentDays * 24 * 60 * 60 * 1000).toISOString();
+  const deltas = await listPlayerRankGameDeltasForUser({
+    userId,
+    since,
+    limit: 12,
+  });
+
+  return summarizePlayerRankRecentChanges({
+    deltas,
+    recentDays,
+  });
 }
 
 async function listCompletedGamesForPreview(windowStart: string) {
@@ -542,6 +743,7 @@ export async function previewPlayerRankStandings(
       firstName: row.firstName,
       lastName: row.lastName,
       displayName: row.displayName,
+      isLeaderboardDisabled: row.isLeaderboardDisabled,
       currentRankTotal: current?.playerRankTotal ?? "0",
       currentRankTotalMinor: current?.playerRankTotalMinor ?? 0,
       currentPosition: current?.playerRankPosition ?? row.playerRankPosition,

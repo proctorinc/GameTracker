@@ -7,9 +7,11 @@ import {
   type PropsWithChildren,
 } from "react";
 import { usePageAutoRefresh } from "@/lib/use-page-auto-refresh";
-import type { ProfileOverviewPageData, ProfileOverviewUser } from "./types";
-
-type ProfileOverviewTab = "stats" | "settings";
+import type {
+  ProfileOverviewPageData,
+  ProfileOverviewTab,
+  ProfileOverviewUser,
+} from "./types";
 
 type ProfileOverviewContextValue = {
   data: ProfileOverviewPageData;
@@ -36,7 +38,9 @@ export function ProfileOverviewProvider({
   usePageAutoRefresh();
 
   const [data, setData] = useState(initialData);
-  const [activeTab, setActiveTab] = useState<ProfileOverviewTab>("stats");
+  const [activeTab, setActiveTab] = useState<ProfileOverviewTab>(
+    initialData.initialTab,
+  );
 
   const value: ProfileOverviewContextValue = {
     data,

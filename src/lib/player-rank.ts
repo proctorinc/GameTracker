@@ -35,7 +35,7 @@ export type PlayerRankPayout = {
 export type PlayerRankStandingRow = {
   userId: string;
   pointsAwardedMinor: number;
-  playerRankPosition: number;
+  playerRankPosition: number | null;
   playerRankGamesCount: number;
   topThreeFinishes: number;
 };
@@ -56,6 +56,20 @@ export function getPlayerRankWindowStart(windowMonths: number, now = new Date())
 export function formatPlayerRankTotal(pointsAwardedMinor: number) {
   const value = pointsAwardedMinor / 100;
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
+export function formatSignedPlayerRankDelta(pointsAwardedMinor: number) {
+  const formatted = formatPlayerRankTotal(Math.abs(pointsAwardedMinor));
+
+  if (pointsAwardedMinor > 0) {
+    return `+${formatted}`;
+  }
+
+  if (pointsAwardedMinor < 0) {
+    return `-${formatted}`;
+  }
+
+  return formatted;
 }
 
 export function getPrizePoolMinor(

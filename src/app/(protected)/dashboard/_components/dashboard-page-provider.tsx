@@ -13,6 +13,7 @@ type DashboardPageContextValue = {
   playerRankWindowLabel: DashboardPageData["playerRankWindowLabel"];
   playerRankGamesCount: DashboardPageData["playerRankGamesCount"];
   topThreeFinishes: DashboardPageData["topThreeFinishes"];
+  playerRankRecentChangeSummary: DashboardPageData["playerRankRecentChangeSummary"];
   twoPlayerPrizePool: DashboardPageData["twoPlayerPrizePool"];
   threePlayerPrizePool: DashboardPageData["threePlayerPrizePool"];
   sixPlusPlayerPrizePool: DashboardPageData["sixPlusPlayerPrizePool"];
@@ -39,6 +40,7 @@ export function DashboardPageProvider({
     playerRankWindowLabel: data.playerRankWindowLabel,
     playerRankGamesCount: data.playerRankGamesCount,
     topThreeFinishes: data.topThreeFinishes,
+    playerRankRecentChangeSummary: data.playerRankRecentChangeSummary,
     twoPlayerPrizePool: data.twoPlayerPrizePool,
     threePlayerPrizePool: data.threePlayerPrizePool,
     sixPlusPlayerPrizePool: data.sixPlusPlayerPrizePool,

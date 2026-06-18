@@ -16,6 +16,7 @@ export function ProfileStatsTab() {
         playerRankWindowLabel: data.playerRankWindowLabel,
         playerRankGamesCount: data.playerRankGamesCount,
         topThreeFinishes: data.topThreeFinishes,
+        playerRankRecentChangeSummary: data.playerRankRecentChangeSummary,
         twoPlayerPrizePool: data.twoPlayerPrizePool,
         threePlayerPrizePool: data.threePlayerPrizePool,
         sixPlusPlayerPrizePool: data.sixPlusPlayerPrizePool,

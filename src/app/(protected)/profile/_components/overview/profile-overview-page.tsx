@@ -8,6 +8,7 @@ import type { ProfileOverviewPageData } from "./types";
 import { AdminToolsCard } from "./sections/admin-tools-card";
 import { ProfileDetailsCard } from "./sections/profile-details-card";
 import { ProfileHeroCard } from "./sections/profile-hero-card";
+import { ProfileFriendsTab } from "./sections/profile-friends-tab";
 import { ProfileOverviewTabs } from "./sections/profile-overview-tabs";
 import { ProfileStatsTab } from "./sections/profile-stats-tab";
 import { PublicProfileCard } from "./sections/public-profile-card";
@@ -27,6 +28,8 @@ function ProfileOverviewContent() {
         <ProfileOverviewTabs />
         {activeTab === "stats" ? (
           <ProfileStatsTab />
+        ) : activeTab === "friends" ? (
+          <ProfileFriendsTab />
         ) : (
           <>
             <PublicProfileCard />

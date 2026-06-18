@@ -17,7 +17,7 @@ function createDashboardPageData(): DashboardPageData {
       clerkUserId: null,
       profileCardId: null,
       color: "#ffffff",
-      role: "admin",
+      role: "user",
       phoneNumber: "15555551111",
       email: null,
       avatarUrl: null,
@@ -28,6 +28,7 @@ function createDashboardPageData(): DashboardPageData {
       mergedAt: null,
       isProfileComplete: true,
       isGuest: false,
+      playerRankLeaderboardDisabled: false,
       createdAt: null,
       updatedAt: null,
       activeProfileCard: null,
@@ -45,6 +46,25 @@ function createDashboardPageData(): DashboardPageData {
     playerRankWindowLabel: "6-month rolling rank",
     playerRankGamesCount: 4,
     topThreeFinishes: 3,
+    playerRankRecentChangeSummary: {
+      recentWindowLabel: "Last 30 days",
+      recentGamesCount: 2,
+      latestChange: {
+        gameId: "completed-1",
+        userId: "user-a",
+        deltaMinor: 5000,
+        deltaFormatted: "+50",
+        completedAt: "2025-01-16T00:00:00.000Z",
+      },
+      latestIncrease: {
+        gameId: "completed-1",
+        userId: "user-a",
+        deltaMinor: 5000,
+        deltaFormatted: "+50",
+        completedAt: "2025-01-16T00:00:00.000Z",
+      },
+      latestDecrease: null,
+    },
     twoPlayerPrizePool: "50",
     threePlayerPrizePool: "100",
     sixPlusPlayerPrizePool: "400",
@@ -132,6 +152,13 @@ function createDashboardPageData(): DashboardPageData {
             },
           },
         ],
+        currentUserRankDelta: {
+          gameId: "completed-1",
+          userId: "user-a",
+          deltaMinor: 5000,
+          deltaFormatted: "+50",
+          completedAt: "2025-01-16T00:00:00.000Z",
+        },
       },
       {
         id: "completed-2",
@@ -165,6 +192,7 @@ function createDashboardPageData(): DashboardPageData {
           },
         ],
         winners: [],
+        currentUserRankDelta: null,
       },
     ],
   } as DashboardPageData;
@@ -179,12 +207,15 @@ describe("DashboardPageView", () => {
     expect(markup).toContain("Hi, Alex!");
     expect(markup).toContain("Player Rank");
     expect(markup).toContain("#2");
+    expect(markup).toContain("Recent up");
+    expect(markup).toContain("View full standings");
     expect(markup).toContain("History");
     expect(markup).toContain("Continue Playing");
     expect(markup).toContain("Play");
     expect(markup).toContain("12");
     expect(markup).toContain("28");
     expect(markup).toContain("Recent games");
+    expect(markup).toContain("+50 Rank");
     expect(markup).toContain("1st");
     expect(markup).toContain("Rematch");
     expect(markup).toContain("2nd");

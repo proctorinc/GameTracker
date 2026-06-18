@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import { getPostLoginPath } from "./post-login-path";
 
 describe("getPostLoginPath", () => {
-  it("sends users with pending invitations to friends when using the default return path", () => {
+  it("sends users with pending invitations to the profile friends tab when using the default return path", () => {
     expect(
       getPostLoginPath({
         requestedPath: undefined,
         hasPendingInvitations: true,
       }),
-    ).toBe("/friends?invites=1");
+    ).toBe("/profile?tab=friends&invites=1");
   });
 
   it("preserves an explicit requested path even if there are invitations", () => {

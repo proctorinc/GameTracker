@@ -70,15 +70,16 @@ export default async function PublicProfilePage({
         {data.canViewPlayerRank ? (
           <PlayerRankSummaryCard
             rankGamesCount={data.playerRankGamesCount}
-          rankPosition={data.playerRankPosition}
-          rankTotal={data.playerRankTotal}
-          topThreeFinishes={data.topThreeFinishes}
-          windowLabel={data.playerRankWindowLabel}
-          twoPlayerPrizePool={data.twoPlayerPrizePool}
-          threePlayerPrizePool={data.threePlayerPrizePool}
-          sixPlusPlayerPrizePool={data.sixPlusPlayerPrizePool}
-        />
-      ) : null}
+            rankPosition={data.playerRankPosition}
+            recentChangeSummary={data.playerRankRecentChangeSummary}
+            rankTotal={data.playerRankTotal}
+            topThreeFinishes={data.topThreeFinishes}
+            windowLabel={data.playerRankWindowLabel}
+            twoPlayerPrizePool={data.twoPlayerPrizePool}
+            threePlayerPrizePool={data.threePlayerPrizePool}
+            sixPlusPlayerPrizePool={data.sixPlusPlayerPrizePool}
+          />
+        ) : null}
         <ProfileStatsSections data={data} />
       </div>
     </main>

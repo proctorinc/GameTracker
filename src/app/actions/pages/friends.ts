@@ -10,8 +10,12 @@ import {
   listRecentlyPlayedWithForUser,
 } from "@/lib/db/store";
 
-export type FriendsPageData = {
-  user: Awaited<ReturnType<typeof loadCurrentUser>>;
+export type FriendConnectionsUser = Pick<
+  Awaited<ReturnType<typeof loadCurrentUser>>,
+  "id" | "firstName" | "lastName" | "phoneNumber" | "color" | "createdAt" | "role"
+>;
+
+export type FriendConnectionsCollections = {
   friends: Awaited<ReturnType<typeof listAcceptedFriendsForUser>>;
   incomingInvitations: InvitationFull[];
   outgoingInvitations: InvitationFull[];
@@ -20,6 +24,13 @@ export type FriendsPageData = {
     lastPlayedAt: string | null;
     pendingInvitation: InvitationFull | null;
   }>;
+};
+
+export type FriendConnectionsData = FriendConnectionsCollections & {
+  user: FriendConnectionsUser;
+};
+
+export type FriendsPageData = FriendConnectionsData & {
   friendActivity: Awaited<ReturnType<typeof listFriendActivityGames>>;
 };
 
