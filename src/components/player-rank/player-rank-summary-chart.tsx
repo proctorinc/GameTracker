@@ -205,7 +205,7 @@ export function PlayerRankSummaryChart({
           className="pointer-events-none absolute z-10"
           style={{
             ...latestPointStyle,
-            transform: "translate(-15%, -50%)",
+            transform: "translate(0%, -50%)",
           }}
         >
           <ProfilePicture
