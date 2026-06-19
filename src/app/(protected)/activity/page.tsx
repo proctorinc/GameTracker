@@ -1,8 +1,24 @@
 import { ActivityPageView } from "./_components/activity-page";
 import { getActivityPageData } from "./_components/page-data";
 
-export default async function ActivityPage() {
-  const data = await getActivityPageData();
+function selectInitialActivityTab(input?: {
+  tab?: string | null;
+}): "activity" | "leaderboard" {
+  if (input?.tab === "leaderboard") {
+    return "leaderboard";
+  }
 
-  return <ActivityPageView data={data} />;
+  return "activity";
+}
+
+export default async function ActivityPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const data = await getActivityPageData();
+  const resolvedSearchParams = await searchParams;
+  const initialTab = selectInitialActivityTab(resolvedSearchParams);
+
+  return <ActivityPageView data={data} initialTab={initialTab} />;
 }

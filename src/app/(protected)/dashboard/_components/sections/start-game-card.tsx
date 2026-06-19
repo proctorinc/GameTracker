@@ -12,11 +12,11 @@ export function StartGameCard() {
         <CardHeader className="flex justify-between items-center">
           <CardTitle className="flex gap-1.5 items-center">
             <Dices />
-            New game
+            Start a new game
           </CardTitle>
           <CardAction>
             <span className={sectionActionClassName}>
-              Start
+              Play
               <ArrowRight />
             </span>
           </CardAction>

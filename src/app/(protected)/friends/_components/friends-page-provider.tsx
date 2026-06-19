@@ -39,20 +39,18 @@ type FriendsPageContextValue = {
   isPending: boolean;
   activeTab: TabKey;
   activeRecentPlayer: RecentlyPlayedItem | null;
+  friendToRemove: FriendsPageData["friends"][number] | null;
   guestActionMode: "merge" | null;
   mergeFriendUserId: string;
-  friendToRemove: FriendsPageData["friends"][number] | null;
   showAllFriends: boolean;
   showAllRecentlyPlayed: boolean;
   visibleFriends: FriendsPageData["friends"];
   visibleRecentlyPlayed: FriendsPageData["recentlyPlayedWith"];
   availableFriendsForMerge: FriendsPageData["friends"];
   setActiveTab: (tab: TabKey) => void;
+  setFriendToRemove: (friend: FriendsPageData["friends"][number] | null) => void;
   setMergeFriendUserId: (value: string) => void;
   setGuestActionMode: (value: "merge" | null) => void;
-  setFriendToRemove: (
-    friend: FriendsPageData["friends"][number] | null,
-  ) => void;
   toggleShowAllFriends: () => void;
   toggleShowAllRecentlyPlayed: () => void;
   handleSharePublicProfile: () => Promise<void>;
@@ -63,12 +61,12 @@ type FriendsPageContextValue = {
     guestName?: string | null;
   }) => Promise<void>;
   handleGuestMerge: () => void;
+  handleRemoveFriendConfirm: () => void;
   handleAcceptInvitation: (invitationId: string) => void;
   handleDeclineInvitation: (invitationId: string) => void;
   handleRevokeInvitation: (invitationId: string) => void;
   openRecentPlayerDialog: (entry: RecentlyPlayedItem) => void;
   closeRecentPlayerDialog: () => void;
-  handleRemoveFriendConfirm: () => void;
 };
 
 const FriendsPageContext = createContext<FriendsPageContextValue | null>(null);
@@ -90,11 +88,11 @@ export function FriendsPageProvider({
   });
   const [activeRecentPlayer, setActiveRecentPlayer] =
     useState<RecentlyPlayedItem | null>(null);
-  const [guestActionMode, setGuestActionMode] = useState<"merge" | null>(null);
-  const [mergeFriendUserId, setMergeFriendUserId] = useState("");
   const [friendToRemove, setFriendToRemove] = useState<
     FriendsPageData["friends"][number] | null
   >(null);
+  const [guestActionMode, setGuestActionMode] = useState<"merge" | null>(null);
+  const [mergeFriendUserId, setMergeFriendUserId] = useState("");
   const [showAllFriends, setShowAllFriends] = useState(false);
   const [showAllRecentlyPlayed, setShowAllRecentlyPlayed] = useState(false);
 
@@ -104,10 +102,10 @@ export function FriendsPageProvider({
     () => friends.filter((friend) => friend.id !== activeRecentPlayerId),
     [activeRecentPlayerId, friends],
   );
-  const visibleFriends = showAllFriends ? friends : friends.slice(0, 3);
   const visibleRecentlyPlayed = showAllRecentlyPlayed
     ? recentlyPlayedWith
     : recentlyPlayedWith.slice(0, 3);
+  const visibleFriends = showAllFriends ? friends : friends.slice(0, 3);
 
   function refreshWithSuccess(message: string) {
     router.refresh();
@@ -310,6 +308,24 @@ export function FriendsPageProvider({
     );
   }
 
+  function handleRemoveFriendConfirm() {
+    if (!friendToRemove) {
+      return;
+    }
+
+    runAsyncAction(
+      () => removeFriend({ friendUserId: friendToRemove.id }),
+      {
+        loading: "Removing friend...",
+        success: "Friend removed",
+        error: "Failed to remove friend",
+      },
+      () => {
+        setFriendToRemove(null);
+      },
+    );
+  }
+
   function handleInvitationAction(
     action: (formData: FormData) => Promise<unknown>,
     invitationId: string,
@@ -336,42 +352,24 @@ export function FriendsPageProvider({
     setMergeFriendUserId("");
   }
 
-  function handleRemoveFriendConfirm() {
-    if (!friendToRemove) {
-      return;
-    }
-
-    runAsyncAction(
-      () => removeFriend({ friendUserId: friendToRemove.id }),
-      {
-        loading: "Removing friend...",
-        success: "Friend removed",
-        error: "Failed to remove friend",
-      },
-      () => {
-        setFriendToRemove(null);
-      },
-    );
-  }
-
   const value: FriendsPageContextValue = {
     data,
     showInviteNotice,
     isPending,
     activeTab,
     activeRecentPlayer,
+    friendToRemove,
     guestActionMode,
     mergeFriendUserId,
-    friendToRemove,
     showAllFriends,
     showAllRecentlyPlayed,
     visibleFriends,
     visibleRecentlyPlayed,
     availableFriendsForMerge,
     setActiveTab,
+    setFriendToRemove,
     setMergeFriendUserId,
     setGuestActionMode,
-    setFriendToRemove,
     toggleShowAllFriends() {
       setShowAllFriends((current) => !current);
     },
@@ -383,6 +381,7 @@ export function FriendsPageProvider({
     handleQuickInviteUser,
     handleReshareInvitation,
     handleGuestMerge,
+    handleRemoveFriendConfirm,
     handleAcceptInvitation(invitationId) {
       handleInvitationAction(acceptInvitation, invitationId, {
         loading: "Accepting invitation...",
@@ -406,7 +405,6 @@ export function FriendsPageProvider({
     },
     openRecentPlayerDialog,
     closeRecentPlayerDialog,
-    handleRemoveFriendConfirm,
   };
 
   return (

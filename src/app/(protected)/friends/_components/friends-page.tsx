@@ -3,7 +3,6 @@
 import type { FriendsPageData } from "@/app/actions/pages/friends";
 import { FriendsPageProvider, useFriendsPage } from "./friends-page-provider";
 import { GuestActionsDialog } from "./dialogs/guest-actions-dialog";
-import { RemoveFriendDialog } from "./dialogs/remove-friend-dialog";
 import { ActivityTabContent } from "./sections/activity-tab-content";
 import { FriendsPageHeader } from "./sections/friends-page-header";
 import { FriendsTabContent } from "./sections/friends-tab-content";
@@ -39,7 +38,6 @@ function FriendsPageContent() {
       </div>
 
       <GuestActionsDialog />
-      <RemoveFriendDialog />
     </div>
   );
 }

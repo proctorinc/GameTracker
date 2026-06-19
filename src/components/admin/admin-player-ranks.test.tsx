@@ -4,7 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { AdminPlayerRanks } from "./admin-player-ranks";
 
-const { refresh, setPlayerRankLeaderboardDisabled } = vi.hoisted(() => ({
+const {
+  forceRefreshAllPlayerRankHistory,
+  refresh,
+  setPlayerRankLeaderboardDisabled,
+} = vi.hoisted(() => ({
+  forceRefreshAllPlayerRankHistory: vi.fn(),
   refresh: vi.fn(),
   setPlayerRankLeaderboardDisabled: vi.fn(),
 }));
@@ -24,12 +29,54 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/app/actions/player-rank", () => ({
   backfillPlayerRankHistory: vi.fn(),
+  forceRefreshAllPlayerRankHistory,
   generatePlayerRankPreview: vi.fn(),
   publishPlayerRankSettings: vi.fn(),
   setPlayerRankLeaderboardDisabled,
 }));
 
 describe("AdminPlayerRanks", () => {
+  it("lets admins force rebuild all player rank history", async () => {
+    forceRefreshAllPlayerRankHistory.mockResolvedValue({
+      startDate: "2026-06-01",
+      endDate: "2026-06-19",
+      rebuiltDayCount: 19,
+      writtenSnapshotCount: 12,
+    });
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <AdminPlayerRanks
+        activeConfig={{
+          id: "config-1",
+          windowMonths: 6,
+          defaultMaxPrizePool: 40000,
+          prizePoolByPlayerCount: {
+            2: 5000,
+            3: 10000,
+            4: 20000,
+            5: 30000,
+          },
+          smallGameDistribution: {
+            2: [10000, 0, 0],
+            3: [10000, 0, 0],
+          },
+          largeGameDistribution: [6000, 3000, 1000],
+        }}
+        standings={[]}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Force rebuild all history" }),
+    );
+
+    await waitFor(() =>
+      expect(forceRefreshAllPlayerRankHistory).toHaveBeenCalled(),
+    );
+    expect(refresh).toHaveBeenCalled();
+  });
+
   it("renders a compact leaderboard list and updates excluded status from the toggle", async () => {
     setPlayerRankLeaderboardDisabled.mockResolvedValue(undefined);
     const user = userEvent.setup();

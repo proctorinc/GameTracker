@@ -1,9 +1,10 @@
-import { and, eq, gte, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, lte } from "drizzle-orm";
 import {
   db,
   gamePlayerRankResults,
   games,
   playerRankConfigs,
+  playerRankHistory,
   users,
 } from "../index";
 import {
@@ -22,6 +23,7 @@ export type { PlayerRankConfig } from "@/lib/player-rank";
 
 export type PlayerRankConfigRecord = typeof playerRankConfigs.$inferSelect;
 export type GamePlayerRankResultRecord = typeof gamePlayerRankResults.$inferSelect;
+export type PlayerRankHistoryRecord = typeof playerRankHistory.$inferSelect;
 
 export type PlayerRankSummary = {
   userId: string;
@@ -64,12 +66,51 @@ export type PlayerRankGameDelta = {
   completedAt: string;
 };
 
+export type PlayerRankWindowDelta = {
+  deltaMinor: number;
+  deltaFormatted: string;
+  startTotal: string;
+  startTotalMinor: number;
+  endTotal: string;
+  endTotalMinor: number;
+};
+
 export type PlayerRankRecentChangeSummary = {
   recentWindowLabel: string;
-  recentGamesCount: number;
-  latestChange: PlayerRankGameDelta | null;
-  latestIncrease: PlayerRankGameDelta | null;
-  latestDecrease: PlayerRankGameDelta | null;
+  startRankTotal: string;
+  startRankTotalMinor: number;
+  currentRankTotal: string;
+  currentRankTotalMinor: number;
+  netChange: PlayerRankWindowDelta | null;
+  recentIncrease: PlayerRankWindowDelta | null;
+  recentDecrease: PlayerRankWindowDelta | null;
+};
+
+export type PlayerRankHistorySnapshot = {
+  userId: string;
+  historyDate: string;
+  playerRankPosition: number | null;
+  playerRankTotal: string;
+  playerRankTotalMinor: number;
+  playerRankGamesCount: number;
+  topThreeFinishes: number;
+};
+
+export type PlayerRankChartPoint = {
+  historyDate: string;
+  hasSnapshot: boolean;
+  playerRankPosition: number | null;
+  playerRankTotal: string | null;
+  playerRankTotalMinor: number | null;
+  playerRankGamesCount: number | null;
+  topThreeFinishes: number | null;
+};
+
+export type PlayerRankHistorySeries = {
+  startDate: string;
+  endDate: string;
+  historyDateKeys: string[];
+  pointsByUserId: Record<string, PlayerRankChartPoint[]>;
 };
 
 export type PublishPlayerRankConfigInput = {
@@ -82,7 +123,7 @@ export type PublishPlayerRankConfigInput = {
 
 type UserRow = Pick<
   typeof users.$inferSelect,
-  "id" | "firstName" | "lastName" | "playerRankLeaderboardDisabled"
+  "id" | "firstName" | "lastName" | "playerRankLeaderboardDisabled" | "createdAt"
 >;
 
 function formatDisplayName(user: UserRow) {
@@ -133,8 +174,10 @@ function isMissingPlayerRankSchemaError(error: unknown) {
     error instanceof Error &&
     (error.message.includes("no such table: player_rank_configs") ||
       error.message.includes("no such table: game_player_rank_results") ||
+      error.message.includes("no such table: player_rank_history") ||
       error.message.includes("player_rank_configs") ||
-      error.message.includes("game_player_rank_results"))
+      error.message.includes("game_player_rank_results") ||
+      error.message.includes("player_rank_history"))
   );
 }
 
@@ -157,6 +200,148 @@ async function withPlayerRankSchemaFallback<T>(
     });
     return fallback();
   }
+}
+
+function toHistoryDateKey(value: Date | string) {
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+function getHistoryDayStartIso(historyDate: string) {
+  return `${historyDate}T00:00:00.000Z`;
+}
+
+function getHistoryDayEndIso(historyDate: string) {
+  return `${historyDate}T23:59:59.999Z`;
+}
+
+function addHistoryDays(historyDate: string, days: number) {
+  const value = new Date(getHistoryDayStartIso(historyDate));
+  value.setUTCDate(value.getUTCDate() + days);
+  return toHistoryDateKey(value);
+}
+
+function listHistoryDateKeys(startDate: string, endDate: string) {
+  const keys: string[] = [];
+
+  for (
+    let cursor = startDate;
+    cursor <= endDate;
+    cursor = addHistoryDays(cursor, 1)
+  ) {
+    keys.push(cursor);
+  }
+
+  return keys;
+}
+
+function buildHistorySnapshot(input: {
+  historyDate: string;
+  row: PlayerRankStandingRow;
+}): PlayerRankHistorySnapshot {
+  return {
+    userId: input.row.userId,
+    historyDate: input.historyDate,
+    playerRankPosition: input.row.playerRankPosition,
+    playerRankTotal: input.row.playerRankTotal,
+    playerRankTotalMinor: input.row.playerRankTotalMinor,
+    playerRankGamesCount: input.row.playerRankGamesCount,
+    topThreeFinishes: input.row.topThreeFinishes,
+  };
+}
+
+function areHistorySnapshotsEqual(
+  left: PlayerRankHistorySnapshot | null | undefined,
+  right: PlayerRankHistorySnapshot | null | undefined,
+) {
+  if (!left || !right) {
+    return false;
+  }
+
+  return (
+    left.playerRankPosition === right.playerRankPosition &&
+    left.playerRankTotalMinor === right.playerRankTotalMinor &&
+    left.playerRankGamesCount === right.playerRankGamesCount &&
+    left.topThreeFinishes === right.topThreeFinishes
+  );
+}
+
+function createEmptyChartPoint(historyDate: string): PlayerRankChartPoint {
+  return {
+    historyDate,
+    hasSnapshot: false,
+    playerRankPosition: null,
+    playerRankTotal: null,
+    playerRankTotalMinor: null,
+    playerRankGamesCount: null,
+    topThreeFinishes: null,
+  };
+}
+
+function toHistorySnapshot(record: PlayerRankHistoryRecord): PlayerRankHistorySnapshot {
+  return {
+    userId: record.userId,
+    historyDate: record.historyDate,
+    playerRankPosition: record.playerRankPosition,
+    playerRankTotal: formatPlayerRankTotal(record.playerRankTotalMinor),
+    playerRankTotalMinor: record.playerRankTotalMinor,
+    playerRankGamesCount: record.playerRankGamesCount,
+    topThreeFinishes: record.topThreeFinishes,
+  };
+}
+
+function buildPlayerRankWindowDelta(input: {
+  startTotalMinor: number;
+  endTotalMinor: number;
+}): PlayerRankWindowDelta {
+  return {
+    deltaMinor: input.endTotalMinor - input.startTotalMinor,
+    deltaFormatted: formatSignedPlayerRankDelta(
+      input.endTotalMinor - input.startTotalMinor,
+    ),
+    startTotal: formatPlayerRankTotal(input.startTotalMinor),
+    startTotalMinor: input.startTotalMinor,
+    endTotal: formatPlayerRankTotal(input.endTotalMinor),
+    endTotalMinor: input.endTotalMinor,
+  };
+}
+
+export function buildDensePlayerRankChartPoints(input: {
+  historyDateKeys: string[];
+  snapshots: PlayerRankHistorySnapshot[];
+}) {
+  const snapshots = [...input.snapshots].sort((left, right) =>
+    left.historyDate.localeCompare(right.historyDate),
+  );
+  const points: PlayerRankChartPoint[] = [];
+  let snapshotIndex = 0;
+  let currentSnapshot: PlayerRankHistorySnapshot | null = null;
+
+  for (const historyDate of input.historyDateKeys) {
+    while (
+      snapshots[snapshotIndex] &&
+      snapshots[snapshotIndex]!.historyDate <= historyDate
+    ) {
+      currentSnapshot = snapshots[snapshotIndex] ?? null;
+      snapshotIndex += 1;
+    }
+
+    if (!currentSnapshot) {
+      points.push(createEmptyChartPoint(historyDate));
+      continue;
+    }
+
+    points.push({
+      historyDate,
+      hasSnapshot: true,
+      playerRankPosition: currentSnapshot.playerRankPosition,
+      playerRankTotal: currentSnapshot.playerRankTotal,
+      playerRankTotalMinor: currentSnapshot.playerRankTotalMinor,
+      playerRankGamesCount: currentSnapshot.playerRankGamesCount,
+      topThreeFinishes: currentSnapshot.topThreeFinishes,
+    });
+  }
+
+  return points;
 }
 
 export function toPlayerRankConfig(record: PlayerRankConfigRecord): PlayerRankConfig {
@@ -367,6 +552,7 @@ async function listCurrentRankUsers() {
       firstName: true,
       lastName: true,
       playerRankLeaderboardDisabled: true,
+      createdAt: true,
     },
   });
 }
@@ -528,6 +714,272 @@ export async function getUserPlayerRankSummary(userId: string): Promise<PlayerRa
   };
 }
 
+async function listPlayerRankHistoryRowsForUsers(input: {
+  userIds: string[];
+  endDate: string;
+}) {
+  const userIds = Array.from(
+    new Set(input.userIds.filter((userId) => userId.trim().length > 0)),
+  );
+
+  if (userIds.length === 0) {
+    return [];
+  }
+
+  return withPlayerRankSchemaFallback(
+    () =>
+      db.query.playerRankHistory.findMany({
+        where: and(
+          inArray(playerRankHistory.userId, userIds),
+          lte(playerRankHistory.historyDate, input.endDate),
+        ),
+        orderBy: (table, { asc }) => [asc(table.userId), asc(table.historyDate)],
+      }),
+    () => ([] as PlayerRankHistoryRecord[]),
+    "list_history_rows_for_users",
+  );
+}
+
+export async function listPlayerRankHistorySeries(input: {
+  userIds: string[];
+  days?: number;
+  now?: Date;
+}): Promise<PlayerRankHistorySeries> {
+  const days = Math.max(1, input.days ?? 30);
+  const endDate = toHistoryDateKey(input.now ?? new Date());
+  const startDate = addHistoryDays(endDate, -(days - 1));
+  const historyDateKeys = listHistoryDateKeys(startDate, endDate);
+  const uniqueUserIds = Array.from(
+    new Set(input.userIds.filter((userId) => userId.trim().length > 0)),
+  );
+  const rows = await listPlayerRankHistoryRowsForUsers({
+    userIds: uniqueUserIds,
+    endDate,
+  });
+  const snapshotsByUserId = new Map<string, PlayerRankHistorySnapshot[]>();
+
+  for (const row of rows) {
+    const snapshots = snapshotsByUserId.get(row.userId) ?? [];
+    snapshots.push(toHistorySnapshot(row));
+    snapshotsByUserId.set(row.userId, snapshots);
+  }
+
+  return {
+    startDate,
+    endDate,
+    historyDateKeys,
+    pointsByUserId: Object.fromEntries(
+      uniqueUserIds.map((userId) => [
+        userId,
+        buildDensePlayerRankChartPoints({
+          historyDateKeys,
+          snapshots: snapshotsByUserId.get(userId) ?? [],
+        }),
+      ]),
+    ),
+  };
+}
+
+async function deletePlayerRankHistoryOnOrAfter(historyDate: string) {
+  await withPlayerRankSchemaFallback(
+    () =>
+      db
+        .delete(playerRankHistory)
+        .where(gte(playerRankHistory.historyDate, historyDate)),
+    () => undefined,
+    "delete_history_on_or_after",
+  );
+}
+
+async function deleteAllPlayerRankHistory() {
+  await withPlayerRankSchemaFallback(
+    () => db.delete(playerRankHistory),
+    () => undefined,
+    "delete_all_history",
+  );
+}
+
+async function listHistoryEligibleRankResults(input: {
+  startDate: string;
+  endDate: string;
+  windowMonths: number;
+}) {
+  const firstWindowStart = getPlayerRankWindowStart(
+    input.windowMonths,
+    new Date(getHistoryDayEndIso(input.startDate)),
+  );
+
+  return withPlayerRankSchemaFallback(
+    () =>
+      db.query.gamePlayerRankResults.findMany({
+        where: and(
+          gte(gamePlayerRankResults.gameCompletedAt, firstWindowStart),
+          lte(gamePlayerRankResults.gameCompletedAt, getHistoryDayEndIso(input.endDate)),
+        ),
+        orderBy: (table, { asc }) => [asc(table.gameCompletedAt), asc(table.gameId)],
+      }),
+    () => ([] as GamePlayerRankResultRecord[]),
+    "list_history_eligible_results",
+  );
+}
+
+export async function rebuildPlayerRankHistoryFromDate(input: {
+  startDate: string;
+  now?: Date;
+}) {
+  const config = await getActivePlayerRankConfig();
+  const startDate = toHistoryDateKey(input.startDate);
+  const endDate = toHistoryDateKey(input.now ?? new Date());
+
+  if (startDate > endDate) {
+    return {
+      startDate,
+      endDate,
+      rebuiltDayCount: 0,
+      writtenSnapshotCount: 0,
+    };
+  }
+
+  if (!config) {
+    await deletePlayerRankHistoryOnOrAfter(startDate);
+
+    return {
+      startDate,
+      endDate,
+      rebuiltDayCount: 0,
+      writtenSnapshotCount: 0,
+    };
+  }
+
+  const [rankUsers, results] = await Promise.all([
+    listCurrentRankUsers(),
+    listHistoryEligibleRankResults({
+      startDate,
+      endDate,
+      windowMonths: config.windowMonths,
+    }),
+  ]);
+
+  const snapshotsToWrite: PlayerRankHistorySnapshot[] = [];
+  const previousSnapshotByUserId = new Map<string, PlayerRankHistorySnapshot | null>();
+  const historyDateKeys = listHistoryDateKeys(startDate, endDate);
+
+  for (const historyDate of historyDateKeys) {
+    const activeUsers = rankUsers.filter((user) => {
+      if (!user.createdAt) {
+        return true;
+      }
+
+      return toHistoryDateKey(user.createdAt) <= historyDate;
+    });
+
+    if (activeUsers.length === 0) {
+      previousSnapshotByUserId.clear();
+      continue;
+    }
+
+    const windowStart = getPlayerRankWindowStart(
+      config.windowMonths,
+      new Date(getHistoryDayEndIso(historyDate)),
+    );
+    const dayEnd = getHistoryDayEndIso(historyDate);
+    const eligibleResults = results.filter(
+      (result) =>
+        result.gameCompletedAt >= windowStart && result.gameCompletedAt <= dayEnd,
+    );
+
+    if (eligibleResults.length === 0) {
+      previousSnapshotByUserId.clear();
+      continue;
+    }
+
+    const summaries = buildPlayerRankSummaries({
+      users: activeUsers,
+      results: eligibleResults,
+      windowMonths: config.windowMonths,
+    });
+
+    for (const row of summaries) {
+      const snapshot = buildHistorySnapshot({
+        historyDate,
+        row,
+      });
+      const previousSnapshot = previousSnapshotByUserId.get(row.userId);
+
+      if (!areHistorySnapshotsEqual(previousSnapshot, snapshot)) {
+        snapshotsToWrite.push(snapshot);
+      }
+
+      previousSnapshotByUserId.set(row.userId, snapshot);
+    }
+  }
+
+  await deletePlayerRankHistoryOnOrAfter(startDate);
+
+  if (snapshotsToWrite.length > 0) {
+    const nowIso = new Date().toISOString();
+    await withPlayerRankSchemaFallback(
+      () =>
+        db.insert(playerRankHistory).values(
+          snapshotsToWrite.map((snapshot) => ({
+            userId: snapshot.userId,
+            historyDate: snapshot.historyDate,
+            playerRankPosition: snapshot.playerRankPosition,
+            playerRankTotalMinor: snapshot.playerRankTotalMinor,
+            playerRankGamesCount: snapshot.playerRankGamesCount,
+            topThreeFinishes: snapshot.topThreeFinishes,
+            createdAt: nowIso,
+            updatedAt: nowIso,
+          })),
+        ),
+      () => undefined,
+      "insert_history_snapshots",
+    );
+  }
+
+  return {
+    startDate,
+    endDate,
+    rebuiltDayCount: historyDateKeys.length,
+    writtenSnapshotCount: snapshotsToWrite.length,
+  };
+}
+
+async function getEarliestPlayerRankResultHistoryDate() {
+  const row = await withPlayerRankSchemaFallback(
+    () =>
+      db.query.gamePlayerRankResults.findFirst({
+        orderBy: (table, { asc }) => [asc(table.gameCompletedAt), asc(table.gameId)],
+        columns: {
+          gameCompletedAt: true,
+        },
+      }),
+    () => null,
+    "get_earliest_result_history_date",
+  );
+
+  return row?.gameCompletedAt ? toHistoryDateKey(row.gameCompletedAt) : null;
+}
+
+export async function rebuildAllPlayerRankHistory(input?: { now?: Date }) {
+  const earliestHistoryDate = await getEarliestPlayerRankResultHistoryDate();
+
+  if (!earliestHistoryDate) {
+    await deleteAllPlayerRankHistory();
+    return {
+      startDate: null,
+      endDate: toHistoryDateKey(input?.now ?? new Date()),
+      rebuiltDayCount: 0,
+      writtenSnapshotCount: 0,
+    };
+  }
+
+  return rebuildPlayerRankHistoryFromDate({
+    startDate: earliestHistoryDate,
+    now: input?.now,
+  });
+}
+
 export async function listPlayerRankGameDeltasByGameIds(
   gameIds: string[],
 ): Promise<Record<string, PlayerRankGameDelta[]>> {
@@ -616,15 +1068,30 @@ export async function listPlayerRankGameDeltasForUser(input: {
 }
 
 export function summarizePlayerRankRecentChanges(input: {
-  deltas: PlayerRankGameDelta[];
+  points: PlayerRankChartPoint[];
   recentDays: number;
 }): PlayerRankRecentChangeSummary {
+  const startRankTotalMinor = input.points[0]?.playerRankTotalMinor ?? 0;
+  const currentRankTotalMinor =
+    input.points[input.points.length - 1]?.playerRankTotalMinor ?? 0;
+  const netChangeMinor = currentRankTotalMinor - startRankTotalMinor;
+  const netChange =
+    netChangeMinor === 0
+      ? null
+      : buildPlayerRankWindowDelta({
+          startTotalMinor: startRankTotalMinor,
+          endTotalMinor: currentRankTotalMinor,
+        });
+
   return {
     recentWindowLabel: `Last ${input.recentDays} days`,
-    recentGamesCount: input.deltas.length,
-    latestChange: input.deltas[0] ?? null,
-    latestIncrease: input.deltas.find((delta) => delta.deltaMinor > 0) ?? null,
-    latestDecrease: input.deltas.find((delta) => delta.deltaMinor < 0) ?? null,
+    startRankTotal: formatPlayerRankTotal(startRankTotalMinor),
+    startRankTotalMinor,
+    currentRankTotal: formatPlayerRankTotal(currentRankTotalMinor),
+    currentRankTotalMinor,
+    netChange,
+    recentIncrease: netChangeMinor > 0 ? netChange : null,
+    recentDecrease: netChangeMinor < 0 ? netChange : null,
   };
 }
 
@@ -637,15 +1104,14 @@ export async function getPlayerRankRecentChangeSummary(
 ): Promise<PlayerRankRecentChangeSummary> {
   const recentDays = input?.recentDays ?? 30;
   const now = input?.now ?? new Date();
-  const since = new Date(now.getTime() - recentDays * 24 * 60 * 60 * 1000).toISOString();
-  const deltas = await listPlayerRankGameDeltasForUser({
-    userId,
-    since,
-    limit: 12,
+  const historySeries = await listPlayerRankHistorySeries({
+    userIds: [userId],
+    days: recentDays,
+    now,
   });
 
   return summarizePlayerRankRecentChanges({
-    deltas,
+    points: historySeries.pointsByUserId[userId] ?? [],
     recentDays,
   });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, UserPlus } from "lucide-react";
+import { ChevronDown, Share2, UserPlus } from "lucide-react";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,8 +35,20 @@ export function RecentlyPlayedCard() {
     toggleShowAllRecentlyPlayed,
     visibleRecentlyPlayed,
     handleQuickInviteUser,
+    handleReshareInvitation,
   } = useFriendsPage();
   const { recentlyPlayedWith } = data;
+
+  function isReshareableGuestInvitation(
+    pendingInvitation: typeof visibleRecentlyPlayed[number]["pendingInvitation"],
+  ) {
+    return Boolean(
+      pendingInvitation &&
+        pendingInvitation.kind === "claim_guest" &&
+        pendingInvitation.targetType === "link" &&
+        pendingInvitation.inviteToken,
+    );
+  }
 
   return (
     <Card>
@@ -83,11 +95,33 @@ export function RecentlyPlayedCard() {
                       {getDisplayName(entry.user)}
                     </p>
                     <p className={sectionItemMetaClassName}>
-                      {formatLastPlayedAt(entry.lastPlayedAt, dateFormatting)}
+                      {isReshareableGuestInvitation(entry.pendingInvitation)
+                        ? "Invitation link shared"
+                        : formatLastPlayedAt(entry.lastPlayedAt, dateFormatting)}
                     </p>
                   </div>
                 </button>
-                {entry.user.isGuest ? (
+                {entry.user.isGuest &&
+                isReshareableGuestInvitation(entry.pendingInvitation) ? (
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    disabled={isPending}
+                    onClick={() => {
+                      if (!entry.pendingInvitation?.inviteToken) {
+                        return;
+                      }
+
+                      void handleReshareInvitation({
+                        invitePath: `/invite/${entry.pendingInvitation.inviteToken}`,
+                        guestName: getDisplayName(entry.user),
+                      });
+                    }}
+                  >
+                    <Share2 />
+                    <span className="sr-only">Reshare invitation link</span>
+                  </Button>
+                ) : entry.user.isGuest ? (
                   <Button
                     size="icon-sm"
                     variant="ghost"

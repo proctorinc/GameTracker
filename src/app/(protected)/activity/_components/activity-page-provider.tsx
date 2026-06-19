@@ -22,13 +22,14 @@ const ActivityPageContext = createContext<ActivityPageContextValue | null>(null)
 
 export function ActivityPageProvider({
   data,
+  initialTab,
   children,
-}: PropsWithChildren<{ data: ActivityPageData }>) {
+}: PropsWithChildren<{ data: ActivityPageData; initialTab: ActivityTabKey }>) {
   usePageAutoRefresh();
 
   const [activeTab, setActiveTab] = useRememberedPageTabState<ActivityTabKey>({
     storageKey: ACTIVITY_TAB_STORAGE_KEY,
-    initialValue: "activity",
+    initialValue: initialTab,
     validTabs: ACTIVITY_TABS,
   });
   const [expandedFriendId, setExpandedFriendId] = useState<string | null>(null);

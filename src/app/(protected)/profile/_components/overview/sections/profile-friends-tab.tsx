@@ -5,7 +5,6 @@ import { FriendsTabContent } from "@/app/(protected)/friends/_components/section
 import { InviteNotices } from "@/app/(protected)/friends/_components/sections/invite-notices";
 import { FriendsPageProvider } from "@/app/(protected)/friends/_components/friends-page-provider";
 import { GuestActionsDialog } from "@/app/(protected)/friends/_components/dialogs/guest-actions-dialog";
-import { RemoveFriendDialog } from "@/app/(protected)/friends/_components/dialogs/remove-friend-dialog";
 import { useProfileOverview } from "../profile-overview-provider";
 
 export function ProfileFriendsTab() {
@@ -23,7 +22,6 @@ export function ProfileFriendsTab() {
         <FriendsTabContent />
       </div>
       <GuestActionsDialog />
-      <RemoveFriendDialog />
     </FriendsPageProvider>
   );
 }

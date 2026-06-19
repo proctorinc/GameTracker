@@ -249,8 +249,10 @@ describe("server action integration", () => {
       const rankRows = await db.query.gamePlayerRankResults.findMany({
         where: eq(gamePlayerRankResults.gameId, game.id),
       });
+      const historyRows = await db.query.playerRankHistory.findMany();
 
       expect(rankRows).toHaveLength(2);
+      expect(historyRows.length).toBeGreaterThan(0);
       expect(
         rankRows.find((row) => row.userId === creator.id)?.pointsAwardedMinor,
       ).toBe(5000);
@@ -265,8 +267,10 @@ describe("server action integration", () => {
       const clearedRows = await db.query.gamePlayerRankResults.findMany({
         where: eq(gamePlayerRankResults.gameId, game.id),
       });
+      const clearedHistoryRows = await db.query.playerRankHistory.findMany();
 
       expect(clearedRows).toHaveLength(0);
+      expect(clearedHistoryRows).toHaveLength(0);
     }, "player-rank-complete-action");
   });
 

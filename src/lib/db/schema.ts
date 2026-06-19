@@ -4,6 +4,7 @@ import {
   integer,
   primaryKey,
   check,
+  index,
   type AnySQLiteColumn,
 } from "drizzle-orm/sqlite-core";
 import { createId } from "@paralleldrive/cuid2";
@@ -439,6 +440,50 @@ export const gamePlayerRankResults = sqliteTable(
   ],
 );
 
+export const playerRankHistory = sqliteTable(
+  "player_rank_history",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    historyDate: text("history_date").notNull(),
+    playerRankPosition: integer("player_rank_position"),
+    playerRankTotalMinor: integer("player_rank_total_minor").notNull(),
+    playerRankGamesCount: integer("player_rank_games_count").notNull(),
+    topThreeFinishes: integer("top_three_finishes").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    updatedAt: text("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.historyDate] }),
+    index("player_rank_history_history_date_idx").on(table.historyDate),
+    index("player_rank_history_user_history_date_idx").on(
+      table.userId,
+      table.historyDate,
+    ),
+    check(
+      "player_rank_history_total_minor_non_negative",
+      sql`${table.playerRankTotalMinor} >= 0`,
+    ),
+    check(
+      "player_rank_history_games_count_non_negative",
+      sql`${table.playerRankGamesCount} >= 0`,
+    ),
+    check(
+      "player_rank_history_top_three_non_negative",
+      sql`${table.topThreeFinishes} >= 0`,
+    ),
+    check(
+      "player_rank_history_position_positive",
+      sql`${table.playerRankPosition} IS NULL OR ${table.playerRankPosition} > 0`,
+    ),
+  ],
+);
+
 export const cardsRelations = relations(cards, ({ one }) => ({
   owner: one(users, {
     fields: [cards.ownerId],
@@ -623,6 +668,16 @@ export const gamePlayerRankResultsRelations = relations(
     rankConfig: one(playerRankConfigs, {
       fields: [gamePlayerRankResults.rankConfigId],
       references: [playerRankConfigs.id],
+    }),
+  }),
+);
+
+export const playerRankHistoryRelations = relations(
+  playerRankHistory,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [playerRankHistory.userId],
+      references: [users.id],
     }),
   }),
 );

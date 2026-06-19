@@ -4,9 +4,11 @@ import {
   backfillMissingPlayerRankResults,
   publishPlayerRankConfig,
   previewPlayerRankStandings,
+  rebuildAllPlayerRankHistory,
   type PublishPlayerRankConfigInput,
 } from "@/lib/db/store/player-rank.store";
 import {
+  revalidatePlayerRankHistory,
   revalidatePlayerRankStandings,
   revalidatePlayerRankPages,
   revalidateProfileOverviewPage,
@@ -31,6 +33,7 @@ async function revalidatePlayerRankForActiveUsers() {
     .filter((entry) => !entry.isGuest && !entry.mergedIntoUserId)
     .map((entry) => entry.id);
 
+  revalidatePlayerRankHistory();
   revalidatePlayerRankStandings();
   revalidatePlayerRankPages(activeUserIds);
 
@@ -51,6 +54,7 @@ export async function publishPlayerRankSettings(input: PublishPlayerRankConfigIn
     actorUserId: user.id,
     config: input,
   });
+  await rebuildAllPlayerRankHistory();
   await revalidatePlayerRankForActiveUsers();
 
   return config;
@@ -59,6 +63,15 @@ export async function publishPlayerRankSettings(input: PublishPlayerRankConfigIn
 export async function backfillPlayerRankHistory() {
   await requireAdminUser();
   const result = await backfillMissingPlayerRankResults();
+  await rebuildAllPlayerRankHistory();
+  await revalidatePlayerRankForActiveUsers();
+
+  return result;
+}
+
+export async function forceRefreshAllPlayerRankHistory() {
+  await requireAdminUser();
+  const result = await rebuildAllPlayerRankHistory();
   await revalidatePlayerRankForActiveUsers();
 
   return result;
@@ -83,6 +96,7 @@ export async function setPlayerRankLeaderboardDisabled(input: {
     throw new Error("Unable to update Player Rank leaderboard state");
   }
 
+  await rebuildAllPlayerRankHistory();
   await revalidatePlayerRankForActiveUsers();
 
   return updatedUser;

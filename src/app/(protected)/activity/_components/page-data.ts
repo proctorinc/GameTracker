@@ -5,11 +5,15 @@ import { getFriendsPageCollections } from "@/app/actions/pages/friends";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
 import {
   getFriendsTag,
+  getPlayerRankHistoryTag,
   getPlayerRankStandingsTag,
 } from "@/lib/cache-tags";
 import {
+  getUserPlayerRankSummary,
   listPlayerRankGameDeltasByGameIds,
+  listPlayerRankHistorySeries,
   listPlayerRankStandings,
+  type PlayerRankChartPoint,
   type PlayerRankGameDelta,
 } from "@/lib/db/store/player-rank.store";
 import { logError, logInfo } from "@/lib/server-log";
@@ -33,6 +37,13 @@ export type ActivityPageData = {
     }
   >;
   leaderboardFriends: ActivityLeaderboardFriend[];
+  playerRankTrend: {
+    rankTotal: string | null;
+    rankPosition: number | null;
+    windowLabel: string | null;
+    chartPoints: PlayerRankChartPoint[];
+    hasHistory: boolean;
+  } | null;
 };
 
 export async function getActivityPageData(): Promise<ActivityPageData> {
@@ -90,9 +101,17 @@ async function getActivityPageDataCached(
         }),
         listPlayerRankStandings(),
       ]);
+      const [playerRankSummary, historySeries] = await Promise.all([
+        getUserPlayerRankSummary(userId),
+        listPlayerRankHistorySeries({
+          userIds: [userId],
+          days: 30,
+        }),
+      ]);
       const playerRankDeltasByGameId = await listPlayerRankGameDeltasByGameIds(
         collections.friendActivity.map((game) => game.id),
       );
+      const currentUserChartPoints = historySeries.pointsByUserId[userId] ?? [];
 
       return {
         friends: collections.friends,
@@ -109,11 +128,24 @@ async function getActivityPageDataCached(
           playerRankDeltasByGameId,
           standings,
         }),
+        playerRankTrend: playerRankSummary
+          ? {
+              rankTotal: playerRankSummary.playerRankTotal,
+              rankPosition: playerRankSummary.playerRankPosition,
+              windowLabel: playerRankSummary.playerRankWindowLabel,
+              chartPoints: currentUserChartPoints,
+              hasHistory: currentUserChartPoints.some((point) => point.hasSnapshot),
+            }
+          : null,
       };
     },
     [userId],
     {
-      tags: [getFriendsTag(userId), getPlayerRankStandingsTag()],
+      tags: [
+        getFriendsTag(userId),
+        getPlayerRankStandingsTag(),
+        getPlayerRankHistoryTag(),
+      ],
       revalidate: ACTIVITY_PAGE_REVALIDATE_SECONDS,
     },
   )();

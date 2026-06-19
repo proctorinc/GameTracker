@@ -6,14 +6,15 @@ import { buildActivityLeaderboard } from "@/app/(protected)/activity/_components
 import { loadCurrentUser } from "@/lib/auth/auth-me";
 import {
   getFriendsTag,
+  getPlayerRankHistoryTag,
   getPlayerRankStandingsTag,
   getPlayerRankTag,
 } from "@/lib/cache-tags";
 import {
   getActivePlayerRankConfig,
-  getPlayerRankRecentChangeSummary,
-  getUserPlayerRankSummary,
+  listPlayerRankHistorySeries,
   listPlayerRankStandings,
+  summarizePlayerRankRecentChanges,
 } from "@/lib/db/store/player-rank.store";
 import { formatPlayerRankTotal } from "@/lib/player-rank";
 
@@ -30,16 +31,12 @@ async function getPlayerRankPageDataCached(userId: string) {
   return unstable_cache(
     async () => {
       const [
-        playerRankSummary,
         playerRankConfig,
-        recentChangeSummary,
         currentUser,
         collections,
         standings,
       ] = await Promise.all([
-          getUserPlayerRankSummary(userId),
           getActivePlayerRankConfig(),
-          getPlayerRankRecentChangeSummary(userId),
           loadCurrentUser(),
           getFriendsPageCollections({ userId }),
           listPlayerRankStandings(),
@@ -56,18 +53,64 @@ async function getPlayerRankPageDataCached(userId: string) {
         friendActivity: collections.friendActivity,
         standings,
       });
-      const currentUserFriendStanding =
-        friendStandings.find((row) => row.user.id === userId) ?? null;
+      const comparisonUserIds = friendStandings.map((row) => row.user.id);
+      const historySeries = await listPlayerRankHistorySeries({
+        userIds: comparisonUserIds,
+        days: 30,
+      });
+      const comparisonSeries = friendStandings.map((row) => {
+        const chartPoints = historySeries.pointsByUserId[row.user.id] ?? [];
+
+        return {
+          userId: row.user.id,
+          firstName: row.user.firstName,
+          lastName: row.user.lastName,
+          color: row.user.color,
+          displayName:
+            [row.user.firstName, row.user.lastName].filter(Boolean).join(" ").trim() ||
+            "Skybo Player",
+          isCurrentUser: row.user.id === userId,
+          currentRankTotal: row.playerRankTotal,
+          currentRankTotalMinor: row.playerRankTotalMinor,
+          currentPosition: row.globalPosition,
+          friendPosition: row.friendPosition,
+          playerRankGamesCount: row.playerRankGamesCount,
+          topThreeFinishes: row.topThreeFinishes,
+          chartPoints,
+          hasHistory: chartPoints.some((point) => point.hasSnapshot),
+        };
+      });
+      const summaryByUserId = Object.fromEntries(
+        comparisonSeries.map((series) => [
+          series.userId,
+          {
+            userId: series.userId,
+            firstName: series.firstName,
+            lastName: series.lastName,
+            displayName: series.displayName,
+            color: series.color,
+            rankTotal: series.currentRankTotal,
+            rankPosition: series.currentPosition,
+            rankGamesCount: series.playerRankGamesCount,
+            topThreeFinishes: series.topThreeFinishes,
+            recentChangeSummary: summarizePlayerRankRecentChanges({
+              points: series.chartPoints,
+              recentDays: historySeries.historyDateKeys.length || 30,
+            }),
+          },
+        ]),
+      );
+      const defaultSelectedUserIds = [
+        userId,
+        ...comparisonSeries
+          .filter((series) => series.userId !== userId)
+          .slice(0, 4)
+          .map((series) => series.userId),
+      ];
 
       return {
         canViewPlayerRank: Boolean(playerRankConfig),
-        friendStandings,
-        playerRankTotal: playerRankSummary?.playerRankTotal ?? null,
-        playerRankPosition: currentUserFriendStanding?.friendPosition ?? null,
-        playerRankWindowLabel: playerRankSummary?.playerRankWindowLabel ?? null,
-        playerRankGamesCount: playerRankSummary?.playerRankGamesCount ?? null,
-        topThreeFinishes: playerRankSummary?.topThreeFinishes ?? null,
-        playerRankRecentChangeSummary: playerRankConfig ? recentChangeSummary : null,
+        playerRankWindowLabel: "30-day rank history",
         twoPlayerPrizePool: playerRankConfig
           ? formatPlayerRankTotal(playerRankConfig.prizePoolByPlayerCount[2] ?? 0)
           : null,
@@ -81,11 +124,20 @@ async function getPlayerRankPageDataCached(userId: string) {
             )
           : null,
         currentUserId: userId,
+        comparisonSeries,
+        summaryByUserId,
+        defaultSelectedUserIds,
+        historyDateKeys: historySeries.historyDateKeys,
       };
     },
     [userId],
     {
-      tags: [getFriendsTag(userId), getPlayerRankTag(userId), getPlayerRankStandingsTag()],
+      tags: [
+        getFriendsTag(userId),
+        getPlayerRankTag(userId),
+        getPlayerRankStandingsTag(),
+        getPlayerRankHistoryTag(),
+      ],
       revalidate: PLAYER_RANK_PAGE_REVALIDATE_SECONDS,
     },
   )();

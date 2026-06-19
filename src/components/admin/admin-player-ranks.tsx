@@ -2,6 +2,7 @@
 
 import {
   backfillPlayerRankHistory,
+  forceRefreshAllPlayerRankHistory,
   generatePlayerRankPreview,
   publishPlayerRankSettings,
   setPlayerRankLeaderboardDisabled,
@@ -262,6 +263,26 @@ export function AdminPlayerRanks(props: {
     });
   }
 
+  function handleForceRefreshHistory() {
+    startTransition(async () => {
+      try {
+        const result = await forceRefreshAllPlayerRankHistory();
+        toast.success(
+          result.startDate
+            ? `Rebuilt Player Rank history across ${result.rebuiltDayCount} day${result.rebuiltDayCount === 1 ? "" : "s"}`
+            : "Cleared Player Rank history because no ranked games are available",
+        );
+        router.refresh();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Unable to rebuild Player Rank history",
+        );
+      }
+    });
+  }
+
   function handleLeaderboardToggle(row: PlayerRankPreviewRow) {
     startTransition(async () => {
       try {
@@ -508,6 +529,15 @@ export function AdminPlayerRanks(props: {
               onClick={handleBackfill}
             >
               Recalculate missing history
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={isPending}
+              onClick={handleForceRefreshHistory}
+            >
+              Force rebuild all history
             </Button>
             <Button
               type="button"

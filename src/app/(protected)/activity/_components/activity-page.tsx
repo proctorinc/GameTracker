@@ -1,6 +1,9 @@
 "use client";
 
-import { ActivityPageProvider, useActivityPage } from "./activity-page-provider";
+import {
+  ActivityPageProvider,
+  useActivityPage,
+} from "./activity-page-provider";
 import type { ActivityPageData } from "./page-data";
 import { FriendActivityCard } from "./sections/friend-activity-card";
 import { ActivityPageHeader } from "./sections/activity-page-header";
@@ -27,9 +30,15 @@ function ActivityPageContent() {
   );
 }
 
-export function ActivityPageView({ data }: { data: ActivityPageData }) {
+export function ActivityPageView({
+  data,
+  initialTab,
+}: {
+  data: ActivityPageData;
+  initialTab: "activity" | "leaderboard";
+}) {
   return (
-    <ActivityPageProvider data={data}>
+    <ActivityPageProvider data={data} initialTab={initialTab}>
       <ActivityPageContent />
     </ActivityPageProvider>
   );

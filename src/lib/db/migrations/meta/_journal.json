@@ -57,6 +57,13 @@
       "when": 1782180000000,
       "tag": "0007_link_only_invites",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1782230000000,
+      "tag": "0008_player_rank_history",
+      "breakpoints": true
     }
   ]
 }

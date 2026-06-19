@@ -3,6 +3,7 @@ import {
   getDashboardTag,
   getFriendsTag,
   getGameHistoryTag,
+  getPlayerRankHistoryTag,
   getPlayerRankStandingsTag,
   getPlayerRankTag,
   getProfileOverviewTag,
@@ -93,4 +94,8 @@ export function revalidatePlayerRankPages(
 
 export function revalidatePlayerRankStandings() {
   revalidateTag(getPlayerRankStandingsTag(), "max");
+}
+
+export function revalidatePlayerRankHistory() {
+  revalidateTag(getPlayerRankHistoryTag(), "max");
 }

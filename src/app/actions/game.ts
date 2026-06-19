@@ -5,6 +5,7 @@ import {
   revalidateDashboardPages,
   revalidateGameHistoryPage,
   revalidateGameHistoryPages,
+  revalidatePlayerRankHistory,
   revalidatePlayerRankPages,
   revalidatePlayerRankStandings,
   revalidateProfileOverviewPage,
@@ -48,6 +49,7 @@ import {
 } from "@/lib/db/store/game.store";
 import {
   deleteGamePlayerRankResults,
+  rebuildPlayerRankHistoryFromDate,
   listPlayerRankGameDeltasForGame,
   writePlayerRankResultsForCompletedGame,
 } from "@/lib/db/store/player-rank.store";
@@ -152,6 +154,7 @@ function getDashboardUserIdsForGame(game: Awaited<ReturnType<typeof getGameForPl
 }
 
 function revalidateRankRelatedPages(userIds: Array<string | null | undefined>) {
+  revalidatePlayerRankHistory();
   revalidatePlayerRankPages(userIds);
   revalidatePlayerRankStandings();
 
@@ -176,6 +179,9 @@ async function syncPlayerRankForCompletedGame(input: {
       players: input.players,
       winnerUserIds: input.winnerUserIds,
     },
+  });
+  await rebuildPlayerRankHistoryFromDate({
+    startDate: input.completedAt,
   });
 }
 
@@ -734,6 +740,9 @@ export async function reopenCompletedGame(input: { gameId: string }) {
         userIds: [],
       });
       await deleteGamePlayerRankResults(game.id);
+      await rebuildPlayerRankHistoryFromDate({
+        startDate: game.completedAt,
+      });
 
       revalidateDashboardPages(getDashboardUserIdsForGame(game));
       revalidateGameHistoryPages(getDashboardUserIdsForGame(game));

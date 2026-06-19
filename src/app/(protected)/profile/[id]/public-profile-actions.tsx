@@ -1,12 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { Send, Share2 } from "lucide-react";
+import { Send, Share2, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { createFriendInvitationByUserId } from "@/app/actions/friends";
+import {
+  createFriendInvitationByUserId,
+  removeFriend,
+} from "@/app/actions/friends";
 import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { PublicProfileViewerState } from "./page-data";
 import { APP_NAME } from "@/lib/app-config";
 
@@ -23,6 +34,7 @@ export function PublicProfileActions({
 }: PublicProfileActionsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false);
 
   async function handleShare() {
     const profileUrl = window.location.href;
@@ -97,16 +109,74 @@ export function PublicProfileActions({
 
   if (viewerState.kind === "friends") {
     return (
-      <Link
-        href="/profile?tab=friends"
-        className={buttonVariants({
-          size: "lg",
-          variant: "secondary",
-          className: "rounded-full",
-        })}
-      >
-        You&apos;re friends
-      </Link>
+      <>
+        <div className="flex gap-2">
+          <Button
+            disabled
+            size="lg"
+            variant="secondary"
+            className="rounded-full"
+          >
+            You&apos;re friends
+          </Button>
+          <Button
+            variant="ghost"
+            disabled={isPending}
+            onClick={() => setShowRemoveDialog(true)}
+          >
+            <Trash2 />
+            Unfriend
+          </Button>
+        </div>
+        <Dialog
+          open={showRemoveDialog}
+          onOpenChange={(open) => {
+            if (!isPending) {
+              setShowRemoveDialog(open);
+            }
+          }}
+        >
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Unfriend {profileName}?</DialogTitle>
+              <DialogDescription>
+                This will remove them from your friends list.
+              </DialogDescription>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              You can always send another friend invite later.
+            </p>
+            <DialogFooter showCloseButton>
+              <Button
+                variant="destructive"
+                disabled={isPending}
+                onClick={() => {
+                  startTransition(async () => {
+                    const loadingId = toast.loading("Removing friend...");
+
+                    try {
+                      await removeFriend({ friendUserId: profileId });
+                      toast.dismiss(loadingId);
+                      toast.success("Friend removed");
+                      setShowRemoveDialog(false);
+                      router.refresh();
+                    } catch (error) {
+                      toast.dismiss(loadingId);
+                      toast.error(
+                        error instanceof Error
+                          ? error.message
+                          : "Unable to remove friend",
+                      );
+                    }
+                  });
+                }}
+              >
+                <Trash2 /> Unfriend
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 

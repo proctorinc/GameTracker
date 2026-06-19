@@ -33,3 +33,7 @@ export function getPlayerRankTag(userId: string) {
 export function getPlayerRankStandingsTag() {
   return "player-rank:standings";
 }
+
+export function getPlayerRankHistoryTag() {
+  return "player-rank:history";
+}

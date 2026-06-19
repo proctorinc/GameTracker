@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { ChevronDown, Info } from "lucide-react";
 import Link from "next/link";
+import ProfilePicture from "@/components/profile/profile-picture";
 import { Card } from "@/components/ui/card";
 import type { PlayerRankRecentChangeSummary } from "@/lib/db/store/player-rank.store";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,13 @@ export type PlayerRankSummaryCardProps = {
   twoPlayerPrizePool?: string | null;
   threePlayerPrizePool?: string | null;
   sixPlusPlayerPrizePool?: string | null;
+  highlightedUser?: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    color: string;
+    displayName?: string;
+  } | null;
   className?: string;
 };
 
@@ -34,6 +42,7 @@ export function PlayerRankSummaryCard({
   twoPlayerPrizePool,
   threePlayerPrizePool,
   sixPlusPlayerPrizePool,
+  highlightedUser,
   className,
 }: PlayerRankSummaryCardProps) {
   const detailsId = useId();
@@ -41,22 +50,50 @@ export function PlayerRankSummaryCard({
   const gamesPlayed = rankGamesCount ?? 0;
   const podiumFinishes = topThreeFinishes ?? 0;
   const resolvedWindowLabel = windowLabel ?? "6-month rolling rank";
-  const latestIncrease = recentChangeSummary?.latestIncrease ?? null;
-  const latestDecrease = recentChangeSummary?.latestDecrease ?? null;
+  const recentIncrease = recentChangeSummary?.recentIncrease ?? null;
+  const recentDecrease = recentChangeSummary?.recentDecrease ?? null;
+  const fallbackDisplayName =
+    [highlightedUser?.firstName, highlightedUser?.lastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim() || null;
+  const displayName =
+    highlightedUser?.displayName ?? fallbackDisplayName;
+  const rankTotalLabel = rankTotal ? Number(rankTotal).toFixed(0) : "0";
+  const detailCopy = displayName
+    ? `${displayName}'s Player Rank reflects their top 3 finishes within the last ${resolvedWindowLabel.replace(" rolling rank", "")} period.`
+    : `Your Player Rank reflects your top 3 finishes within the last ${resolvedWindowLabel.replace(" rolling rank", "")} period. Keep playing to keep your rank.`;
 
   return (
     <Card className={cn("overflow-hidden p-0", className)}>
       <button
         type="button"
-        className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 px-5 pt-3 pb-1 text-left"
+        className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 px-5 pt-3 text-left"
         aria-expanded={isExpanded}
         aria-controls={detailsId}
         onClick={() => setIsExpanded((current) => !current)}
       >
         <div className="min-w-0 flex-1">
-          <div className="flex">
+          {highlightedUser ? (
+            <div className="mb-2 flex items-center gap-3">
+              <ProfilePicture
+                user={highlightedUser}
+                size="sm"
+                className="ring-2 ring-background shadow-sm"
+              />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-foreground">
+                  {displayName}
+                </p>
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Highlighted Player
+                </p>
+              </div>
+            </div>
+          ) : null}
+          <div className="flex items-center gap-1">
             <p className="text-3xl font-black tracking-tight text-foreground">
-              {Number(rankTotal).toFixed(0) ?? "0"}
+              {rankTotalLabel}
             </p>
             <div className="flex size-9 shrink-0 items-center justify-center text-muted-foreground transition-colors">
               <Info className="size-4" />
@@ -98,11 +135,7 @@ export function PlayerRankSummaryCard({
           <div className="space-y-4 border-t border-border/80 bg-muted/35 px-4 py-4">
             <div className="space-y-1">
               <p className="text-sm font-semibold text-foreground">{title}</p>
-              <p className="text-sm text-muted-foreground">
-                Your Player Rank reflects your top 3 finishes within the last{" "}
-                {resolvedWindowLabel.replace(" rolling rank", "")} period. Keep
-                playing to keep your rank.
-              </p>
+              <p className="text-sm text-muted-foreground">{detailCopy}</p>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-2xl border border-border/70 bg-background/90 p-3">
@@ -110,10 +143,10 @@ export function PlayerRankSummaryCard({
                   Recent up
                 </p>
                 <p className="mt-1 text-xl font-black text-foreground">
-                  {latestIncrease?.deltaFormatted ?? "--"}
+                  {recentIncrease?.deltaFormatted ?? "--"}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {latestIncrease
+                  {recentIncrease
                     ? (recentChangeSummary?.recentWindowLabel ??
                       "Recent window")
                     : "No recent gain tracked"}
@@ -124,10 +157,10 @@ export function PlayerRankSummaryCard({
                   Recent down
                 </p>
                 <p className="mt-1 text-xl font-black text-foreground">
-                  {latestDecrease?.deltaFormatted ?? "--"}
+                  {recentDecrease?.deltaFormatted ?? "--"}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {latestDecrease
+                  {recentDecrease
                     ? (recentChangeSummary?.recentWindowLabel ??
                       "Recent window")
                     : "No recent dip tracked"}
