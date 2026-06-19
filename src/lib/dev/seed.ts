@@ -6,7 +6,6 @@ import { addPlayerToGame, createGame } from "../db/store/game.store";
 import { backfillMissingPlayerRankResults } from "../db/store/player-rank.store";
 
 const DEMO_ADMIN_EMAIL = "admin@demo.com";
-const DEMO_ADMIN_PHONE = "+15550009999";
 
 function createTitlePreviewUrl(input: {
   title: string;
@@ -63,7 +62,6 @@ export async function runDevSeed() {
       lastName: "Proctor",
       color: "#FF5733",
       role: "admin",
-      phoneNumber: DEMO_ADMIN_PHONE,
       email: DEMO_ADMIN_EMAIL,
       isProfileComplete: true,
       isGuest: false,
@@ -74,7 +72,6 @@ export async function runDevSeed() {
 
   console.log(`✅ Main user created: ${mainUser.firstName}`);
   console.log(`   Demo email: ${DEMO_ADMIN_EMAIL}`);
-  console.log(`   Demo phone: ${DEMO_ADMIN_PHONE}`);
 
   // --- 3. Seed Friends (Other Registered Users) ---
   const totalFriends = 15;
@@ -87,7 +84,6 @@ export async function runDevSeed() {
         firstName: faker.person.firstName(),
         lastName: faker.person.lastName(),
         color: faker.color.rgb(),
-        phoneNumber: faker.phone.number({ style: "international" }),
         isProfileComplete: true,
         isGuest: false,
         createdAt: faker.date.past().toISOString(),
@@ -115,18 +111,6 @@ export async function runDevSeed() {
       inviterUserId: mainUser.id,
       targetType: "user",
       inviteeUserId: friend.id,
-      kind: "friend",
-      status: "pending",
-      createdAt: faker.date.recent().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-  }
-
-  for (let i = 0; i < 3; i++) {
-    await db.insert(schema.invitations).values({
-      inviterUserId: mainUser.id,
-      targetType: "phone",
-      inviteePhoneNumber: faker.phone.number({ style: "international" }),
       kind: "friend",
       status: "pending",
       createdAt: faker.date.recent().toISOString(),

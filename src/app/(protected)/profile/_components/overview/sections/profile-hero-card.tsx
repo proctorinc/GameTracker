@@ -39,7 +39,6 @@ export function ProfileHeroCard() {
           </h2>
           <div className="flex flex-col gap-1">
             <p>{formatMemberSince(user.createdAt)}</p>
-            <p>{user.phoneNumber}</p>
           </div>
         </div>
       </div>

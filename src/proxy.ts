@@ -9,7 +9,7 @@ const PUBLIC_ROUTES = new Set(["/", "/login", "/register", "/sign-in", "/sign-up
 const ONBOARDING_ROUTE = "/profile/complete";
 
 function isPublicRoute(pathname: string) {
-  return PUBLIC_ROUTES.has(pathname);
+  return PUBLIC_ROUTES.has(pathname) || pathname.startsWith("/invite/");
 }
 
 function isAuthRoute(pathname: string) {

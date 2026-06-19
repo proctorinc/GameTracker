@@ -319,7 +319,6 @@ function createTemporaryGuestUser(input: {
     profileCardId: null,
     color: "#FFFFFF",
     role: "user" as const,
-    phoneNumber: null,
     email: null,
     avatarUrl: null,
     firstName: input.firstName,
@@ -581,7 +580,7 @@ export default function PlayGame(props: PlayGameProps) {
 
     return availablePlayers.filter((player) => {
       const haystack = normalizeValue(
-        [player.firstName, player.lastName, player.phoneNumber]
+        [player.firstName, player.lastName]
           .filter(Boolean)
           .join(" "),
       );

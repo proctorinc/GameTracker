@@ -31,14 +31,12 @@ export function RecentlyPlayedCard() {
     data,
     isPending,
     openRecentPlayerDialog,
-    availableFriendsForMerge,
     showAllRecentlyPlayed,
     toggleShowAllRecentlyPlayed,
     visibleRecentlyPlayed,
     handleQuickInviteUser,
   } = useFriendsPage();
   const { recentlyPlayedWith } = data;
-  const canMergeGuests = availableFriendsForMerge.length > 0;
 
   return (
     <Card>
@@ -74,7 +72,7 @@ export function RecentlyPlayedCard() {
                   type="button"
                   className="flex min-w-0 flex-1 items-center gap-3 text-left"
                   onClick={() =>
-                    entry.user.isGuest && canMergeGuests
+                    entry.user.isGuest
                       ? openRecentPlayerDialog(entry)
                       : undefined
                   }
@@ -90,17 +88,15 @@ export function RecentlyPlayedCard() {
                   </div>
                 </button>
                 {entry.user.isGuest ? (
-                  canMergeGuests ? (
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      disabled={isPending}
-                      onClick={() => openRecentPlayerDialog(entry)}
-                    >
-                      <UserPlus />
-                      <span className="sr-only">Open guest actions</span>
-                    </Button>
-                  ) : null
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    disabled={isPending}
+                    onClick={() => openRecentPlayerDialog(entry)}
+                  >
+                    <UserPlus />
+                    <span className="sr-only">Open guest actions</span>
+                  </Button>
                 ) : entry.pendingInvitation ? (
                   <Badge variant="outline">Pending</Badge>
                 ) : (

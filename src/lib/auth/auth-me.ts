@@ -78,7 +78,6 @@ export async function loadAuthMeData(authUser: AuthUser): Promise<{
   firstName: string | null;
   lastName: string | null;
   color: string;
-  phoneNumber: string | null;
   profileCardId: string | null;
   isProfileComplete: boolean;
   createdAt: string | null;
@@ -89,7 +88,6 @@ export async function loadAuthMeData(authUser: AuthUser): Promise<{
     firstName?: string | null;
     lastName?: string | null;
     color: string;
-    phoneNumber: string | null;
     createdAt: string | null;
     updatedAt: string | null;
     isProfileComplete: boolean;

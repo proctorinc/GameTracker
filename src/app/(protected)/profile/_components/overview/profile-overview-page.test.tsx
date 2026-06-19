@@ -30,7 +30,6 @@ describe("ProfileOverviewPage", () => {
             firstName: "Maya",
             lastName: "Viewer",
             color: "#2563eb",
-            phoneNumber: "15550001111",
             createdAt: "2026-01-02T00:00:00.000Z",
           },
           profile: {
@@ -75,7 +74,6 @@ describe("ProfileOverviewPage", () => {
               id: "viewer",
               firstName: "Maya",
               lastName: "Viewer",
-              phoneNumber: "15550001111",
               color: "#2563eb",
               createdAt: "2026-01-02T00:00:00.000Z",
               role: "user",
@@ -91,7 +89,6 @@ describe("ProfileOverviewPage", () => {
                   color: "#22c55e",
                 },
                 invitee: null,
-                inviteePhoneNumber: null,
                 targetType: "user",
                 kind: "friend",
                 status: "pending",
@@ -110,8 +107,9 @@ describe("ProfileOverviewPage", () => {
 
     expect(screen.getByText("Pending invitations need your review.")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /friends/i }).length).toBeGreaterThan(0);
+    expect(screen.getByText("Share")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /share with friends/i }),
+      screen.getByRole("button", { name: /share your profile/i }),
     ).toBeInTheDocument();
     expect(container.querySelectorAll(".bg-red-500")).toHaveLength(1);
     expect(window.localStorage.getItem("page-tab:/profile")).toBe("friends");

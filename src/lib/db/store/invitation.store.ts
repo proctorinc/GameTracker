@@ -102,7 +102,6 @@ export async function listOutgoingInvitationsForUser(
 
 export async function listIncomingInvitationsForUser(input: {
   userId: string;
-  phoneNumber?: string | null;
 }): Promise<InvitationFull[]> {
   const predicates = [
     and(
@@ -116,17 +115,6 @@ export async function listIncomingInvitationsForUser(input: {
       eq(invitations.inviteeUserId, input.userId),
     ),
   ];
-
-  if (input.phoneNumber) {
-    predicates.push(
-      and(
-        eq(invitations.status, "pending"),
-        eq(invitations.targetType, "phone"),
-        eq(invitations.inviteePhoneNumber, input.phoneNumber),
-      ),
-    );
-  }
-
   return db.query.invitations.findMany({
     where: or(...predicates),
     orderBy: [desc(invitations.createdAt)],
@@ -141,7 +129,6 @@ export async function listIncomingInvitationsForUser(input: {
 
 export async function countIncomingPendingInvitationsForUser(input: {
   userId: string;
-  phoneNumber?: string | null;
 }): Promise<number> {
   const predicates = [
     and(
@@ -155,17 +142,6 @@ export async function countIncomingPendingInvitationsForUser(input: {
       eq(invitations.inviteeUserId, input.userId),
     ),
   ];
-
-  if (input.phoneNumber) {
-    predicates.push(
-      and(
-        eq(invitations.status, "pending"),
-        eq(invitations.targetType, "phone"),
-        eq(invitations.inviteePhoneNumber, input.phoneNumber),
-      ),
-    );
-  }
-
   const [result] = await db
     .select({ count: count() })
     .from(invitations)
@@ -202,26 +178,6 @@ export async function findPendingInvitationForUserTarget(input: {
       eq(invitations.inviterUserId, input.inviterUserId),
       eq(invitations.targetType, "user"),
       eq(invitations.inviteeUserId, input.inviteeUserId),
-      eq(invitations.status, "pending"),
-      input.guestUserId
-        ? eq(invitations.guestUserId, input.guestUserId)
-        : isNull(invitations.guestUserId),
-    ),
-  });
-
-  return invitation ?? null;
-}
-
-export async function findPendingInvitationForPhoneTarget(input: {
-  inviterUserId: string;
-  inviteePhoneNumber: string;
-  guestUserId?: string | null;
-}): Promise<InvitationBase | null> {
-  const invitation = await db.query.invitations.findFirst({
-    where: and(
-      eq(invitations.inviterUserId, input.inviterUserId),
-      eq(invitations.targetType, "phone"),
-      eq(invitations.inviteePhoneNumber, input.inviteePhoneNumber),
       eq(invitations.status, "pending"),
       input.guestUserId
         ? eq(invitations.guestUserId, input.guestUserId)

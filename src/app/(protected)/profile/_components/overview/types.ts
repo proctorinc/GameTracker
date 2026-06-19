@@ -7,7 +7,6 @@ export type ProfileOverviewUser = {
   firstName: string | null;
   lastName: string | null;
   color: string;
-  phoneNumber: string | null;
   createdAt: string | null;
 };
 

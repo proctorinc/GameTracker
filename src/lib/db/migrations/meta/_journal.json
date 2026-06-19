@@ -50,6 +50,13 @@
       "when": 1782150001000,
       "tag": "0006_player_rank_leaderboard_disabled",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1782180000000,
+      "tag": "0007_link_only_invites",
+      "breakpoints": true
     }
   ]
 }

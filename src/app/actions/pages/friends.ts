@@ -12,7 +12,7 @@ import {
 
 export type FriendConnectionsUser = Pick<
   Awaited<ReturnType<typeof loadCurrentUser>>,
-  "id" | "firstName" | "lastName" | "phoneNumber" | "color" | "createdAt" | "role"
+  "id" | "firstName" | "lastName" | "color" | "createdAt" | "role"
 >;
 
 export type FriendConnectionsCollections = {
@@ -38,7 +38,6 @@ export type FriendsPageCollections = Omit<FriendsPageData, "user">;
 
 export async function getFriendsPageCollections(input: {
   userId: string;
-  phoneNumber: string | null;
 }): Promise<FriendsPageCollections> {
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const [friends, incomingInvitations, outgoingInvitations, createdGuests] =
@@ -46,7 +45,6 @@ export async function getFriendsPageCollections(input: {
       listAcceptedFriendsForUser(input.userId),
       listIncomingInvitationsForUser({
         userId: input.userId,
-        phoneNumber: input.phoneNumber,
       }),
       listOutgoingInvitationsForUser(input.userId),
       listGuestsCreatedByUser(input.userId),

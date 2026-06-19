@@ -58,19 +58,6 @@ export function logError(event: string, error: unknown, meta: LogMeta = {}) {
   });
 }
 
-export function redactPhoneNumber(phoneNumber?: string | null) {
-  if (!phoneNumber) {
-    return null;
-  }
-
-  const digits = phoneNumber.replace(/\D/g, "");
-  if (digits.length <= 4) {
-    return `***${digits}`;
-  }
-
-  return `***${digits.slice(-4)}`;
-}
-
 export function redactToken(token?: string | null) {
   if (!token) {
     return null;

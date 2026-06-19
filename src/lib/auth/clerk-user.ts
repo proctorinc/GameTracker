@@ -5,7 +5,6 @@ import {
   createUser,
   getUserByClerkUserId,
   getUserByEmail,
-  getUserByPhoneNumber,
   type UserBase,
   updateUser,
 } from "@/lib/db/store/user.store";
@@ -50,24 +49,6 @@ function getPrimaryEmail(user: ClerkUserPayload) {
   );
 }
 
-function getPrimaryPhone(user: ClerkUserPayload) {
-  const primary =
-    ("phoneNumbers" in user ? user.phoneNumbers : user.phone_numbers).find(
-      (phoneNumber) =>
-        phoneNumber.id ===
-        ("primaryPhoneNumberId" in user
-          ? user.primaryPhoneNumberId
-          : user.primary_phone_number_id),
-    ) ??
-    ("phoneNumbers" in user ? user.phoneNumbers : user.phone_numbers)[0];
-
-  return (
-    (primary && "phoneNumber" in primary
-      ? primary.phoneNumber
-      : primary?.phone_number) ?? null
-  );
-}
-
 function buildIdentityPatch(user: ClerkUserPayload, existing?: UserBase | null) {
   const firstName = getClerkUserFirstName(user)?.trim() || null;
   const lastName = getClerkUserLastName(user)?.trim() || null;
@@ -76,7 +57,6 @@ function buildIdentityPatch(user: ClerkUserPayload, existing?: UserBase | null) 
     clerkUserId: getClerkUserId(user),
     email: getPrimaryEmail(user),
     avatarUrl: getClerkUserImageUrl(user) || null,
-    phoneNumber: getPrimaryPhone(user),
     firstName: existing?.firstName ?? firstName,
     lastName: existing?.lastName ?? lastName,
   };
@@ -95,14 +75,6 @@ async function findExistingUserForClerkUser(
     const byEmail = await getUserByEmail(email);
     if (byEmail) {
       return byEmail;
-    }
-  }
-
-  const phoneNumber = getPrimaryPhone(user);
-  if (phoneNumber) {
-    const byPhoneNumber = await getUserByPhoneNumber(phoneNumber);
-    if (byPhoneNumber) {
-      return byPhoneNumber;
     }
   }
 
@@ -148,6 +120,5 @@ export async function clearLocalUserClerkIdentity(
     clerkUserId: null,
     email: null,
     avatarUrl: null,
-    phoneNumber: null,
   });
 }

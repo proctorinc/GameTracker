@@ -42,7 +42,6 @@ export async function getActivityPageData(): Promise<ActivityPageData> {
     const user = await loadCurrentUser();
     const data = await getActivityPageDataCached(
       user.id,
-      user.phoneNumber ?? null,
       {
         id: user.id,
         firstName: user.firstName,
@@ -78,7 +77,6 @@ export async function getActivityPageData(): Promise<ActivityPageData> {
 
 async function getActivityPageDataCached(
   userId: string,
-  phoneNumber: string | null,
   currentUser: Pick<
     Awaited<ReturnType<typeof loadCurrentUser>>,
     "id" | "firstName" | "lastName" | "color" | "playerRankLeaderboardDisabled"
@@ -89,7 +87,6 @@ async function getActivityPageDataCached(
       const [collections, standings] = await Promise.all([
         getFriendsPageCollections({
           userId,
-          phoneNumber,
         }),
         listPlayerRankStandings(),
       ]);
@@ -114,7 +111,7 @@ async function getActivityPageDataCached(
         }),
       };
     },
-    [userId, phoneNumber ?? ""],
+    [userId],
     {
       tags: [getFriendsTag(userId), getPlayerRankStandingsTag()],
       revalidate: ACTIVITY_PAGE_REVALIDATE_SECONDS,

@@ -14,10 +14,7 @@ export async function getFriendConnectionsPageData() {
 
   try {
     const user = await loadCurrentUser();
-    const data = await getFriendConnectionsPageDataCached(
-      user.id,
-      user.phoneNumber ?? null,
-    );
+    const data = await getFriendConnectionsPageDataCached(user.id);
 
     logInfo("friend_connections.page_data.read.succeeded", {
       ...requestContext,
@@ -43,15 +40,13 @@ export const getFriendsOverviewPageData = getFriendConnectionsPageData;
 
 async function getFriendConnectionsPageDataCached(
   userId: string,
-  phoneNumber: string | null,
 ) {
   return unstable_cache(
     async () =>
       getFriendsPageCollections({
         userId,
-        phoneNumber,
       }),
-    [userId, phoneNumber ?? ""],
+    [userId],
     {
       tags: [getFriendsTag(userId)],
       revalidate: FRIENDS_PAGE_REVALIDATE_SECONDS,

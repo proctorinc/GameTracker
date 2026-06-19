@@ -18,7 +18,6 @@ function createDashboardPageData(): DashboardPageData {
       profileCardId: null,
       color: "#ffffff",
       role: "user",
-      phoneNumber: "15555551111",
       email: null,
       avatarUrl: null,
       firstName: "Alex",

@@ -5,7 +5,6 @@ export interface ReferralTreeUser {
   id: string;
   first_name: string | null;
   last_name: string | null;
-  phone_last4: string;
 }
 
 export interface ReferralTreeGroup {

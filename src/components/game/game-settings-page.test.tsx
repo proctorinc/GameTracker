@@ -41,7 +41,6 @@ function createUser(input: {
     profileCardId: null,
     color: input.color ?? "#ffffff",
     role: "user",
-    phoneNumber: null,
     email: null,
     avatarUrl: null,
     firstName: input.firstName,

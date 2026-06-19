@@ -1,6 +1,6 @@
 "use client";
 
-import { Users } from "lucide-react";
+import { Link2, Users } from "lucide-react";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Button } from "@/components/ui/button";
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -27,6 +27,7 @@ export function GuestActionsDialog() {
     guestActionMode,
     mergeFriendUserId,
     isPending,
+    handleCreateInviteLink,
     setGuestActionMode,
     setMergeFriendUserId,
     closeRecentPlayerDialog,
@@ -99,6 +100,16 @@ export function GuestActionsDialog() {
           </FieldGroup>
         ) : (
           <FieldGroup>
+            {activeRecentPlayer ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPending}
+                onClick={() => handleCreateInviteLink(activeRecentPlayer.user.id)}
+              >
+                <Link2 /> Share invitation link
+              </Button>
+            ) : null}
             {canMerge ? (
               <Button
                 type="button"

@@ -6,7 +6,7 @@ import type { PlayerRankPageData } from "./page-data";
 export function PlayerRankPageView({ data }: { data: PlayerRankPageData }) {
   if (!data.canViewPlayerRank) {
     return (
-      <div className="min-h-screen overflow-y-auto px-4 pb-40">
+      <div className="min-h-screen overflow-y-auto px-4 pb-28">
         <div className="mx-auto flex w-full max-w-md flex-col gap-4">
           <div className="space-y-1">
             <h1 className="text-4xl font-black">Player Rank</h1>
@@ -29,7 +29,7 @@ export function PlayerRankPageView({ data }: { data: PlayerRankPageData }) {
   }
 
   return (
-    <div className="min-h-screen overflow-y-auto px-4 pb-40">
+    <div className="min-h-screen overflow-y-auto px-4 pb-28">
       <div className="mx-auto flex w-full max-w-md flex-col gap-4">
         <div className="space-y-1">
           <h1 className="text-4xl font-black">Player Rank</h1>
@@ -42,6 +42,7 @@ export function PlayerRankPageView({ data }: { data: PlayerRankPageData }) {
           title="Your Player Rank"
           rankGamesCount={data.playerRankGamesCount}
           rankPosition={data.playerRankPosition}
+          rankPositionLabel="Friends"
           rankTotal={data.playerRankTotal}
           recentChangeSummary={data.playerRankRecentChangeSummary}
           topThreeFinishes={data.topThreeFinishes}
@@ -53,7 +54,7 @@ export function PlayerRankPageView({ data }: { data: PlayerRankPageData }) {
 
         <PlayerRankStandingsList
           currentUserId={data.currentUserId}
-          standings={data.standings}
+          standings={data.friendStandings}
         />
       </div>
     </div>

@@ -10,7 +10,7 @@ describe("PlayerRankPageView", () => {
           canViewPlayerRank: true,
           currentUserId: "user-1",
           playerRankTotal: "180",
-          playerRankPosition: 3,
+          playerRankPosition: 1,
           playerRankWindowLabel: "6-month rolling rank",
           playerRankGamesCount: 4,
           topThreeFinishes: 2,
@@ -36,19 +36,30 @@ describe("PlayerRankPageView", () => {
           twoPlayerPrizePool: "50",
           threePlayerPrizePool: "100",
           sixPlusPlayerPrizePool: "400",
-          standings: [
+          friendStandings: [
             {
-              userId: "user-1",
-              firstName: "Maya",
-              lastName: "Viewer",
-              displayName: "Maya Viewer",
-              isLeaderboardDisabled: false,
+              user: {
+                id: "user-1",
+                firstName: "Maya",
+                lastName: "Viewer",
+                color: "#22c55e",
+                playerRankLeaderboardDisabled: false,
+              },
+              isCurrentUser: true,
+              friendPosition: 1,
               playerRankTotal: "180",
               playerRankTotalMinor: 18_000,
-              playerRankPosition: 3,
+              globalPosition: 3,
               playerRankWindowLabel: "6-month rolling rank",
               playerRankGamesCount: 4,
               topThreeFinishes: 2,
+              recentRankedGameAt: "2026-06-18T10:00:00.000Z",
+              recentActivityCount: 1,
+              headlineStat: {
+                kind: "rank",
+                label: "+40 in the last week",
+              },
+              supportingStats: [],
             },
           ],
         }}
@@ -57,7 +68,7 @@ describe("PlayerRankPageView", () => {
 
     expect(markup).toContain("Player Rank");
     expect(markup).toContain("Your Player Rank");
-    expect(markup).toContain("Global standings");
+    expect(markup).toContain("Friends standings");
     expect(markup).toContain("Maya Viewer");
     expect(markup).toContain("You");
   });

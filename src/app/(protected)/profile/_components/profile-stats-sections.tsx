@@ -5,7 +5,6 @@ import {
   BadgeCheck,
   Flame,
   Gamepad2,
-  Orbit,
   Search,
   Target,
   Trophy,
@@ -95,7 +94,7 @@ function StatCard(props: {
         props.className,
       )}
     >
-      <CardContent className="relative flex min-h-30 flex-col items-center justify-center gap-3 px-4 py-3 text-center sm:min-h-32 sm:px-5 sm:py-3.5">
+      <CardContent className="relative flex min-h-28 flex-col items-center justify-center gap-3 px-4 py-0 text-center sm:min-h-32 sm:px-5 sm:py-3.5">
         <div
           className={cn(
             "inline-flex size-12 items-center justify-center rounded-[1.2rem] border border-white/60 bg-white/90 text-foreground shadow-sm dark:border-white/10 dark:bg-white/10 dark:text-white",
@@ -210,7 +209,13 @@ function MatchupSelector(props: {
   );
 }
 
-export function ProfileStatsSections({ data }: { data: ProfileStatsPageData }) {
+export function ProfileStatsSections({
+  data,
+  hero,
+}: {
+  data: ProfileStatsPageData;
+  hero?: ReactNode;
+}) {
   const [selectedComparisonUserId, setSelectedComparisonUserId] = useState(
     data.defaultComparisonUserId,
   );
@@ -238,6 +243,7 @@ export function ProfileStatsSections({ data }: { data: ProfileStatsPageData }) {
 
   return (
     <div className="space-y-4" style={accentStyles}>
+      {hero}
       <section>
         <Card className="overflow-hidden rounded-[2rem] py-0 border border-border/70 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-white/5 dark:shadow-black/20">
           <CardContent className="relative px-5 py-0">
@@ -251,20 +257,11 @@ export function ProfileStatsSections({ data }: { data: ProfileStatsPageData }) {
             <div className="relative flex items-start justify-between gap-4">
               <div className="space-y-2 py-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground dark:text-white/60">
-                  Recent
+                  My activity
                 </p>
                 <h2 className="text-2xl font-black tracking-tight text-foreground dark:text-white sm:text-[2.1rem]">
                   {data.stats.storyline.label}
                 </h2>
-              </div>
-              <div
-                className="mt-4 flex size-12 shrink-0 items-center justify-center rounded-[1.25rem] border dark:border-white/10"
-                style={{
-                  backgroundColor: "var(--profile-accent-panel)",
-                  borderColor: "var(--profile-accent-line)",
-                }}
-              >
-                <Orbit className="size-5 text-foreground dark:text-white" />
               </div>
             </div>
           </CardContent>
@@ -339,7 +336,7 @@ export function ProfileStatsSections({ data }: { data: ProfileStatsPageData }) {
         )}
       </section>
 
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+      <section className="grid grid-cols-3 gap-3 xl:grid-cols-3">
         <StatCard
           label="Games"
           value={data.stats.completedGames}
@@ -491,52 +488,6 @@ export function ProfileStatsSections({ data }: { data: ProfileStatsPageData }) {
             )}
           </CardContent>
         </Card>
-
-        <div className="grid gap-4">
-          <Card className="overflow-hidden rounded-[2rem] border border-border/70 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-white/5 dark:shadow-black/20">
-            <CardContent className="space-y-4 px-5">
-              <div className="flex items-center gap-3">
-                <div
-                  className="flex size-11 items-center justify-center rounded-2xl border dark:border-white/10"
-                  style={{
-                    backgroundColor: "var(--profile-accent-soft)",
-                    borderColor: "var(--profile-accent-line)",
-                  }}
-                >
-                  <BadgeCheck className="size-5 text-foreground dark:text-white" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground dark:text-white/60">
-                    Last matchup
-                  </p>
-                  <p className="mt-1 text-2xl font-black tracking-tight text-foreground dark:text-white">
-                    {selectedComparison
-                      ? formatDate(selectedComparison.lastPlayedAt)
-                      : "Not yet"}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="overflow-hidden rounded-[2rem] border border-border/70 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-white/5 dark:shadow-black/20">
-            <CardContent className="space-y-4 px-5">
-              <div className="flex items-center gap-3">
-                <div className="flex size-11 items-center justify-center rounded-2xl bg-muted text-foreground dark:bg-white/8 dark:text-white">
-                  <Users className="size-5" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground dark:text-white/60">
-                    Friends
-                  </p>
-                  <p className="mt-1 text-2xl font-black tracking-tight text-foreground dark:text-white">
-                    {data.stats.friendCount}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
       </section>
     </div>
   );

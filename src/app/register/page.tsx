@@ -3,15 +3,25 @@ import { SignUp } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { loadOptionalCurrentUser } from "@/lib/auth/auth-me";
+import {
+  DEFAULT_RETURN_PATH,
+  sanitizeReturnPath,
+} from "@/lib/auth/return-path";
 
-export default async function RegisterPage() {
-  const [clerkAuth, currentUser] = await Promise.all([
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string }>;
+}) {
+  const [{ from }, clerkAuth, currentUser] = await Promise.all([
+    searchParams,
     auth(),
     loadOptionalCurrentUser(),
   ]);
+  const target = sanitizeReturnPath(from ?? DEFAULT_RETURN_PATH);
 
   if (clerkAuth.userId && currentUser) {
-    redirect(currentUser.isProfileComplete ? "/dashboard" : "/profile/complete");
+    redirect(currentUser.isProfileComplete ? target : "/profile/complete");
   }
 
   return (
@@ -25,7 +35,7 @@ export default async function RegisterPage() {
             path="/register"
             routing="path"
             signInUrl="/login"
-            fallbackRedirectUrl="/profile/complete"
+            fallbackRedirectUrl={target}
           />
         </CardContent>
       </Card>

@@ -1,18 +1,18 @@
 "use client";
 
+import type { ActivityLeaderboardFriend } from "@/app/(protected)/activity/_components/leaderboard-utils";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { PlayerRankStandingRow } from "@/lib/db/store/player-rank.store";
 import { cn } from "@/lib/utils";
 
 type PlayerRankStandingsListProps = {
   currentUserId?: string | null;
-  standings: PlayerRankStandingRow[];
+  standings: ActivityLeaderboardFriend[];
 };
 
-function getDisplayName(row: Pick<PlayerRankStandingRow, "displayName">) {
-  return row.displayName || "Skybo Player";
+function getDisplayName(row: ActivityLeaderboardFriend) {
+  return [row.user.firstName, row.user.lastName].filter(Boolean).join(" ").trim() || "Skybo Player";
 }
 
 export function PlayerRankStandingsList({
@@ -22,20 +22,20 @@ export function PlayerRankStandingsList({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg font-black">Global standings</CardTitle>
+        <CardTitle className="text-lg font-black">Friends standings</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
         {standings.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border/70 px-4 py-6 text-center text-sm text-muted-foreground">
-            No Player Rank standings are available yet.
+            Add friends to see your Player Rank circle.
           </div>
         ) : (
           standings.map((row) => {
-            const isCurrentUser = row.userId === currentUserId;
+            const isCurrentUser = row.user.id === currentUserId;
 
             return (
               <div
-                key={row.userId}
+                key={row.user.id}
                 className={cn(
                   "flex items-center gap-3 rounded-2xl border border-border/70 bg-card/95 px-3 py-3",
                   isCurrentUser && "border-primary/40 bg-primary/5",
@@ -43,16 +43,16 @@ export function PlayerRankStandingsList({
               >
                 <div className="flex w-11 shrink-0 items-center justify-center">
                   <span className="text-lg font-black text-muted-foreground">
-                    {row.playerRankPosition ? `#${row.playerRankPosition}` : "--"}
+                    #{row.friendPosition}
                   </span>
                 </div>
                 <ProfilePicture
                   size="sm"
                   user={{
-                    id: row.userId,
-                    firstName: row.firstName,
-                    lastName: row.lastName,
-                    color: "#FFFFFF",
+                    id: row.user.id,
+                    firstName: row.user.firstName,
+                    lastName: row.user.lastName,
+                    color: row.user.color,
                   }}
                 />
                 <div className="min-w-0 flex-1">
@@ -68,7 +68,7 @@ export function PlayerRankStandingsList({
                 <div className="text-right">
                   <p className="text-lg font-black">{row.playerRankTotal}</p>
                   <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                    Rank
+                    Player Rank
                   </p>
                 </div>
               </div>

@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { randomBytes } from "node:crypto";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
-import { normalizePhoneToE164 } from "@/lib/auth/phone";
 import {
   revalidateFriendsPage,
   revalidateGameHistoryPage,
@@ -14,18 +13,18 @@ import {
   createFriendship,
   createInvitation,
   deleteFriendship,
-  findPendingInvitationForPhoneTarget,
   findPendingInvitationForUserTarget,
   getFriendshipByUsers,
   getInvitationFullById,
   getInvitationFullByToken,
   getUserById,
-  getUserByPhoneNumber,
+  listPendingInvitationsForGuest,
   updateInvitation,
+  updateInvitationsByIds,
   mergeGuestUserIntoUser,
   revokePendingInvitationsForGuest,
 } from "@/lib/db/store";
-import { logError, logInfo, redactPhoneNumber, type LogMeta } from "@/lib/server-log";
+import { logError, logInfo, type LogMeta } from "@/lib/server-log";
 
 function nowIso() {
   return new Date().toISOString();
@@ -181,92 +180,6 @@ export async function createFriendInvitationByUserId(input: {
   }
 }
 
-export async function createFriendInvitationByPhone(
-  formData: FormData,
-): Promise<{ invitationId: string; targetType: "user" | "phone" }> {
-  let actorUserId: string | null = null;
-  const phoneInput = getStringValue(formData, "phoneNumber");
-  const guestUserId = getStringValue(formData, "guestUserId") || null;
-
-  try {
-    const user = await requireCurrentUser();
-    actorUserId = user.id;
-    const normalizedPhone = normalizePhoneToE164(phoneInput);
-
-    if (typeof normalizedPhone !== "string") {
-      throw new Error(normalizedPhone.message);
-    }
-
-    if (user.phoneNumber && normalizedPhone === user.phoneNumber) {
-      throw new Error("You cannot invite your own phone number");
-    }
-
-    const existing = await findPendingInvitationForPhoneTarget({
-      inviterUserId: user.id,
-      inviteePhoneNumber: normalizedPhone,
-      guestUserId,
-    });
-
-    if (existing) {
-      revalidateOwnFriendsData(user.id);
-      logFriendsActionSuccess("invitation.create", {
-        actorUserId: user.id,
-        invitationId: existing.id,
-        targetType: "phone",
-        guestUserId,
-        inviteePhoneNumber: redactPhoneNumber(normalizedPhone),
-        reusedExistingInvitation: true,
-      });
-      return {
-        invitationId: existing.id,
-        targetType: "phone",
-      };
-    }
-
-    const existingUser = await getUserByPhoneNumber(normalizedPhone);
-
-    if (existingUser) {
-      return createFriendInvitationByUserId({
-        inviteeUserId: existingUser.id,
-        guestUserId,
-      });
-    }
-
-    const invitation = await createInvitation({
-      inviterUserId: user.id,
-      targetType: "phone",
-      inviteePhoneNumber: normalizedPhone,
-      guestUserId,
-      kind: guestUserId ? "claim_guest" : "friend",
-      status: "pending",
-    });
-
-    revalidateOwnFriendsData(user.id);
-
-    logFriendsActionSuccess("invitation.create", {
-      actorUserId: user.id,
-      invitationId: invitation.id,
-      targetType: "phone",
-      guestUserId,
-      inviteePhoneNumber: redactPhoneNumber(normalizedPhone),
-      reusedExistingInvitation: false,
-    });
-
-    return {
-      invitationId: invitation.id,
-      targetType: "phone",
-    };
-  } catch (error) {
-    logFriendsActionFailure("invitation.create", error, {
-      actorUserId,
-      targetType: "phone",
-      guestUserId,
-      inviteePhoneNumber: redactPhoneNumber(phoneInput),
-    });
-    throw error;
-  }
-}
-
 export async function createFriendInvitationLink(
   formData: FormData,
 ): Promise<{ invitationId: string; invitePath: string | null }> {
@@ -338,11 +251,285 @@ function canUserActOnInvitation(
     return invitation.inviteeUserId === user.id;
   }
 
-  if (invitation.targetType === "phone") {
-    return Boolean(user.phoneNumber) && invitation.inviteePhoneNumber === user.phoneNumber;
+  return invitation.inviterUserId !== user.id;
+}
+
+type GuestClaimResult =
+  | { status: "claimed"; invitationId: string }
+  | { status: "already_claimed"; invitationId: string }
+  | { status: "invalid"; reason: string; invitationId?: string };
+
+type FriendLinkFinalizeResult =
+  | { status: "accepted"; invitationId: string }
+  | { status: "already_accepted"; invitationId: string }
+  | { status: "invalid"; reason: string; invitationId?: string };
+
+function revalidateInvitationAcceptanceViews(input: {
+  inviterUserId: string;
+  inviteeUserId: string;
+  inviteToken?: string | null;
+}) {
+  revalidateOwnFriendsData(input.inviterUserId);
+  revalidateOwnFriendsData(input.inviteeUserId);
+  revalidateOwnProfileOverview(input.inviteeUserId);
+  revalidateGameHistoryPage(input.inviterUserId);
+  revalidateGameHistoryPage(input.inviteeUserId);
+  revalidateFriendsViews(input.inviteToken);
+  revalidatePublicProfile(input.inviterUserId);
+  revalidatePublicProfile(input.inviteeUserId);
+}
+
+async function claimGuestInvitationForUser(
+  invitation: NonNullable<Awaited<ReturnType<typeof getInvitationFullById>>>,
+  user: Awaited<ReturnType<typeof loadCurrentUser>>,
+): Promise<GuestClaimResult> {
+  if (invitation.kind !== "claim_guest" || !invitation.guestUserId) {
+    return {
+      status: "invalid",
+      reason: "This invitation does not claim a guest profile.",
+      invitationId: invitation.id,
+    };
   }
 
-  return invitation.inviterUserId !== user.id;
+  if (invitation.inviterUserId === user.id) {
+    return {
+      status: "invalid",
+      reason: "You cannot claim your own invitation link.",
+      invitationId: invitation.id,
+    };
+  }
+
+  if (
+    invitation.status === "accepted" &&
+    invitation.acceptedByUserId === user.id
+  ) {
+    return {
+      status: "already_claimed",
+      invitationId: invitation.id,
+    };
+  }
+
+  if (invitation.status !== "pending") {
+    return {
+      status: "invalid",
+      reason: "This invitation is no longer active.",
+      invitationId: invitation.id,
+    };
+  }
+
+  const guest = await getUserById(invitation.guestUserId);
+
+  if (!guest) {
+    return {
+      status: "invalid",
+      reason: "This guest profile could not be found.",
+      invitationId: invitation.id,
+    };
+  }
+
+  if (guest.mergedIntoUserId) {
+    return guest.mergedIntoUserId === user.id
+      ? {
+          status: "already_claimed",
+          invitationId: invitation.id,
+        }
+      : {
+          status: "invalid",
+          reason: "This guest profile has already been claimed.",
+          invitationId: invitation.id,
+        };
+  }
+
+  const [existingFriendship, pendingGuestInvitations] = await Promise.all([
+    getFriendshipByUsers(invitation.inviterUserId, user.id),
+    listPendingInvitationsForGuest(guest.id),
+  ]);
+
+  if (!existingFriendship) {
+    await createFriendship({
+      user1Id: invitation.inviterUserId,
+      user2Id: user.id,
+      inviterId: invitation.inviterUserId,
+    });
+  }
+
+  await mergeGuestUserIntoUser({
+    guestUserId: guest.id,
+    recipientUserId: user.id,
+    inviterUserId: invitation.inviterUserId,
+  });
+
+  await updateInvitation(invitation.id, {
+    status: "accepted",
+    acceptedByUserId: user.id,
+    acceptedAt: nowIso(),
+    inviteeUserId: user.id,
+    guestUserId: user.id,
+  });
+
+  const invitationIdsToRevoke = pendingGuestInvitations
+    .map((pendingInvitation) => pendingInvitation.id)
+    .filter((id) => id !== invitation.id);
+
+  await updateInvitationsByIds(invitationIdsToRevoke, {
+    status: "revoked",
+    guestUserId: user.id,
+  });
+
+  revalidateInvitationAcceptanceViews({
+    inviterUserId: invitation.inviterUserId,
+    inviteeUserId: user.id,
+    inviteToken: invitation.inviteToken,
+  });
+
+  return {
+    status: "claimed",
+    invitationId: invitation.id,
+  };
+}
+
+async function finalizeFriendLinkInvitationForUser(
+  invitation: NonNullable<Awaited<ReturnType<typeof getInvitationFullById>>>,
+  user: Awaited<ReturnType<typeof loadCurrentUser>>,
+): Promise<FriendLinkFinalizeResult> {
+  if (invitation.kind !== "friend" || invitation.targetType !== "link") {
+    return {
+      status: "invalid",
+      reason: "This invitation link cannot be accepted automatically.",
+      invitationId: invitation.id,
+    };
+  }
+
+  if (invitation.inviterUserId === user.id) {
+    return {
+      status: "invalid",
+      reason: "You cannot use your own invitation link.",
+      invitationId: invitation.id,
+    };
+  }
+
+  if (
+    invitation.status === "accepted" &&
+    invitation.acceptedByUserId === user.id
+  ) {
+    return {
+      status: "already_accepted",
+      invitationId: invitation.id,
+    };
+  }
+
+  if (invitation.status !== "pending") {
+    return {
+      status: "invalid",
+      reason: "This invitation is no longer active.",
+      invitationId: invitation.id,
+    };
+  }
+
+  const existingFriendship = await getFriendshipByUsers(
+    invitation.inviterUserId,
+    user.id,
+  );
+
+  if (!existingFriendship) {
+    await createFriendship({
+      user1Id: invitation.inviterUserId,
+      user2Id: user.id,
+      inviterId: invitation.inviterUserId,
+    });
+  }
+
+  await updateInvitation(invitation.id, {
+    status: "accepted",
+    acceptedByUserId: user.id,
+    acceptedAt: nowIso(),
+    inviteeUserId: user.id,
+  });
+
+  revalidateInvitationAcceptanceViews({
+    inviterUserId: invitation.inviterUserId,
+    inviteeUserId: user.id,
+    inviteToken: invitation.inviteToken,
+  });
+
+  return {
+    status: existingFriendship ? "already_accepted" : "accepted",
+    invitationId: invitation.id,
+  };
+}
+
+export async function finalizeGuestClaimInvitation(input: {
+  inviteToken: string;
+}): Promise<GuestClaimResult> {
+  let actorUserId: string | null = null;
+
+  try {
+    const user = await requireCurrentUser();
+    actorUserId = user.id;
+    const invitation = await getInvitationFullByToken(input.inviteToken);
+
+    if (!invitation) {
+      return {
+        status: "invalid",
+        reason: "Invitation not found.",
+      };
+    }
+
+    const result = await claimGuestInvitationForUser(invitation, user);
+
+    if (result.status !== "invalid") {
+      logFriendsActionSuccess("invitation.claim_guest", {
+        actorUserId: user.id,
+        invitationId: invitation.id,
+        resultStatus: result.status,
+      });
+    }
+
+    return result;
+  } catch (error) {
+    logFriendsActionFailure("invitation.claim_guest", error, {
+      actorUserId,
+      inviteTokenPresent: Boolean(input.inviteToken),
+    });
+    throw error;
+  }
+}
+
+export async function finalizeFriendLinkInvitation(input: {
+  inviteToken: string;
+}): Promise<FriendLinkFinalizeResult> {
+  let actorUserId: string | null = null;
+
+  try {
+    const user = await requireCurrentUser();
+    actorUserId = user.id;
+    const invitation = await getInvitationFullByToken(input.inviteToken);
+
+    if (!invitation) {
+      return {
+        status: "invalid",
+        reason: "Invitation not found.",
+      };
+    }
+
+    const result = await finalizeFriendLinkInvitationForUser(invitation, user);
+
+    if (result.status !== "invalid") {
+      logFriendsActionSuccess("invitation.link_accept", {
+        actorUserId: user.id,
+        invitationId: invitation.id,
+        resultStatus: result.status,
+      });
+    }
+
+    return result;
+  } catch (error) {
+    logFriendsActionFailure("invitation.link_accept", error, {
+      actorUserId,
+      inviteTokenPresent: Boolean(input.inviteToken),
+    });
+    throw error;
+  }
 }
 
 export async function acceptInvitation(formData: FormData) {
@@ -363,6 +550,25 @@ export async function acceptInvitation(formData: FormData) {
       throw new Error("You cannot accept this invitation");
     }
 
+    if (invitation.kind === "claim_guest") {
+      const result = await claimGuestInvitationForUser(invitation, user);
+
+      if (result.status === "invalid") {
+        throw new Error(result.reason);
+      }
+
+      logFriendsActionSuccess("invitation.accept", {
+        actorUserId: user.id,
+        invitationId: invitation.id,
+        inviterUserId: invitation.inviterUserId,
+        targetType: invitation.targetType,
+        invitationKind: invitation.kind,
+        mergedGuest: true,
+        createdFriendship: result.status === "claimed",
+      });
+      return;
+    }
+
     const existingFriendship = await getFriendshipByUsers(
       invitation.inviterUserId,
       user.id,
@@ -376,15 +582,6 @@ export async function acceptInvitation(formData: FormData) {
       });
     }
 
-    if (invitation.kind === "claim_guest" && invitation.guestUserId) {
-      await mergeGuestUserIntoUser({
-        guestUserId: invitation.guestUserId,
-        recipientUserId: user.id,
-        inviterUserId: invitation.inviterUserId,
-      });
-      await revokePendingInvitationsForGuest(invitation.guestUserId, invitation.id);
-    }
-
     await updateInvitation(invitation.id, {
       status: "accepted",
       acceptedByUserId: user.id,
@@ -392,21 +589,18 @@ export async function acceptInvitation(formData: FormData) {
       inviteeUserId: invitation.inviteeUserId ?? user.id,
     });
 
-    revalidateOwnFriendsData(invitation.inviterUserId);
-    revalidateOwnFriendsData(user.id);
-    revalidateOwnProfileOverview(user.id);
-    revalidateGameHistoryPage(invitation.inviterUserId);
-    revalidateGameHistoryPage(user.id);
-    revalidateFriendsViews(invitation.inviteToken);
-    revalidatePublicProfile(invitation.inviterUserId);
-    revalidatePublicProfile(user.id);
+    revalidateInvitationAcceptanceViews({
+      inviterUserId: invitation.inviterUserId,
+      inviteeUserId: user.id,
+      inviteToken: invitation.inviteToken,
+    });
     logFriendsActionSuccess("invitation.accept", {
       actorUserId: user.id,
       invitationId: invitation.id,
       inviterUserId: invitation.inviterUserId,
       targetType: invitation.targetType,
       invitationKind: invitation.kind,
-      mergedGuest: invitation.kind === "claim_guest" && Boolean(invitation.guestUserId),
+      mergedGuest: false,
       createdFriendship: !existingFriendship,
     });
   } catch (error) {

@@ -24,7 +24,7 @@ function ProfileOverviewContent() {
         }}
       />
       <div className="relative mx-auto flex w-full max-w-md flex-col gap-6">
-        <ProfileHeroCard />
+        <h1 className="text-4xl font-black pl-2">My profile</h1>
         <ProfileOverviewTabs />
         {activeTab === "stats" ? (
           <ProfileStatsTab />

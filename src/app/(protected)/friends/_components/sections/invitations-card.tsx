@@ -26,8 +26,16 @@ export function InvitationsCard() {
     handleAcceptInvitation,
     handleDeclineInvitation,
     handleRevokeInvitation,
+    handleReshareInvitation,
   } = useFriendsPage();
   const { incomingInvitations, outgoingInvitations } = data;
+  const outgoingGuestInvitations = outgoingInvitations.filter(
+    (invitation) =>
+      invitation.kind === "claim_guest" &&
+      invitation.targetType === "link" &&
+      Boolean(invitation.inviteToken) &&
+      Boolean(invitation.guestUser),
+  );
 
   return (
     <Card className={cn(incomingInvitations.length > 0 && "order-first")}>
@@ -77,36 +85,42 @@ export function InvitationsCard() {
           )}
         </div>
 
-        {outgoingInvitations.length > 0 ? (
+        {outgoingGuestInvitations.length > 0 ? (
           <div className="flex flex-col gap-2">
-            {outgoingInvitations.map((invitation) => {
-              const invitationTarget = invitation.invitee
-                ? getDisplayName(invitation.invitee)
-                : invitation.inviteePhoneNumber
-                  ? invitation.inviteePhoneNumber
-                  : "Shared invite";
-              const invitationLabel =
-                invitation.targetType === "phone"
-                  ? "Phone invite"
-                  : invitation.targetType === "link"
-                    ? "Legacy share link"
-                    : invitation.kind === "claim_guest"
-                      ? "Guest claim invite"
-                      : "Friend invitation";
+            {outgoingGuestInvitations.map((invitation) => {
+              const invitationTarget = invitation.guestUser
+                ? getDisplayName(invitation.guestUser)
+                : "Guest player";
 
               return (
                 <div
                   key={invitation.id}
                   className={`flex items-center gap-3 ${sectionItemClassName}`}
                 >
-                  <div className="min-w-0 flex-1">
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 text-left"
+                    disabled={isPending}
+                    onClick={() => {
+                      if (!invitation.inviteToken) {
+                        return;
+                      }
+
+                      void handleReshareInvitation({
+                        invitePath: `/invite/${invitation.inviteToken}`,
+                        guestName: invitation.guestUser
+                          ? getDisplayName(invitation.guestUser)
+                          : null,
+                      });
+                    }}
+                  >
                     <p className={sectionItemTitleClassName}>
                       {invitationTarget}
                     </p>
                     <p className={`truncate ${sectionItemMetaClassName}`}>
-                      {invitationLabel}
+                      Guest invitation link
                     </p>
-                  </div>
+                  </button>
                   <Button
                     size="icon-sm"
                     variant="ghost"

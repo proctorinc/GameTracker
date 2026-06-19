@@ -10,7 +10,6 @@ export default async function ProtectedLayout({
   const user = await loadCurrentUser();
   const pendingInvitationCount = await countIncomingPendingInvitationsForUser({
     userId: user.id,
-    phoneNumber: user.phoneNumber,
   });
 
   return (

@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import type { FriendsPageData } from "@/app/actions/pages/friends";
 import {
   acceptInvitation,
-  createFriendInvitationByPhone,
+  createFriendInvitationLink,
   createFriendInvitationByUserId,
   declineInvitation,
   mergeGuestIntoFriend,
@@ -38,12 +38,9 @@ type FriendsPageContextValue = {
   showInviteNotice: boolean;
   isPending: boolean;
   activeTab: TabKey;
-  isInviteDialogOpen: boolean;
   activeRecentPlayer: RecentlyPlayedItem | null;
-  guestActionMode: "phone" | "merge" | null;
-  guestPhoneInput: string;
+  guestActionMode: "merge" | null;
   mergeFriendUserId: string;
-  invitePhone: string;
   friendToRemove: FriendsPageData["friends"][number] | null;
   showAllFriends: boolean;
   showAllRecentlyPlayed: boolean;
@@ -51,21 +48,20 @@ type FriendsPageContextValue = {
   visibleRecentlyPlayed: FriendsPageData["recentlyPlayedWith"];
   availableFriendsForMerge: FriendsPageData["friends"];
   setActiveTab: (tab: TabKey) => void;
-  setInvitePhone: (value: string) => void;
-  setIsInviteDialogOpen: (open: boolean) => void;
-  setGuestPhoneInput: (value: string) => void;
   setMergeFriendUserId: (value: string) => void;
-  setGuestActionMode: (value: "phone" | "merge" | null) => void;
+  setGuestActionMode: (value: "merge" | null) => void;
   setFriendToRemove: (
     friend: FriendsPageData["friends"][number] | null,
   ) => void;
   toggleShowAllFriends: () => void;
   toggleShowAllRecentlyPlayed: () => void;
-  copyLink: (value: string) => Promise<void>;
   handleSharePublicProfile: () => Promise<void>;
-  handleInviteByPhone: () => void;
+  handleCreateInviteLink: (guestUserId?: string) => void;
   handleQuickInviteUser: (userId: string) => void;
-  handleGuestPhoneInvite: () => void;
+  handleReshareInvitation: (input: {
+    invitePath: string;
+    guestName?: string | null;
+  }) => Promise<void>;
   handleGuestMerge: () => void;
   handleAcceptInvitation: (invitationId: string) => void;
   handleDeclineInvitation: (invitationId: string) => void;
@@ -92,14 +88,9 @@ export function FriendsPageProvider({
     initialValue: showInviteNotice || hasPendingInvitations ? "friends" : "activity",
     validTabs: FRIENDS_TABS,
   });
-  const [invitePhone, setInvitePhone] = useState("");
-  const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [activeRecentPlayer, setActiveRecentPlayer] =
     useState<RecentlyPlayedItem | null>(null);
-  const [guestActionMode, setGuestActionMode] = useState<
-    "phone" | "merge" | null
-  >(null);
-  const [guestPhoneInput, setGuestPhoneInput] = useState("");
+  const [guestActionMode, setGuestActionMode] = useState<"merge" | null>(null);
   const [mergeFriendUserId, setMergeFriendUserId] = useState("");
   const [friendToRemove, setFriendToRemove] = useState<
     FriendsPageData["friends"][number] | null
@@ -147,12 +138,53 @@ export function FriendsPageProvider({
     });
   }
 
-  function copyLink(value: string) {
-    if (navigator.clipboard?.writeText) {
-      return navigator.clipboard.writeText(value);
-    }
+  function runAsyncActionSilently<T>(
+    work: () => Promise<T>,
+    errorMessage: string,
+    onSuccess?: (result: T) => void | Promise<void>,
+  ) {
+    startTransition(async () => {
+      try {
+        const result = await work();
+        await onSuccess?.(result);
+        router.refresh();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : errorMessage);
+      }
+    });
+  }
 
-    return Promise.resolve();
+  async function shareInvitationLink(input: {
+    inviteUrl: string;
+    title: string;
+    text: string;
+    copiedMessage: string;
+    errorMessage: string;
+  }) {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: input.title,
+          text: input.text,
+          url: input.inviteUrl,
+        });
+        return;
+      }
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(input.inviteUrl);
+        toast.success(input.copiedMessage);
+        return;
+      }
+
+      toast.error("Sharing is not supported on this device");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+
+      toast.error(input.errorMessage);
+    }
   }
 
   async function handleSharePublicProfile() {
@@ -187,25 +219,50 @@ export function FriendsPageProvider({
     }
   }
 
-  function handleInviteByPhone() {
-    if (!invitePhone.trim()) {
-      toast.error("Enter a phone number");
-      return;
+  async function handleReshareInvitation(input: {
+    invitePath: string;
+    guestName?: string | null;
+  }) {
+    const guestName = input.guestName?.trim() || "your guest profile";
+
+    await shareInvitationLink({
+      inviteUrl: `${window.location.origin}${input.invitePath}`,
+      title: `${APP_NAME} invitation`,
+      text: `Claim ${guestName} on ${APP_NAME} and keep the game history.`,
+      copiedMessage: "Invitation link copied",
+      errorMessage: "Unable to share the invitation link",
+    });
+  }
+
+  function handleCreateInviteLink(guestUserId?: string) {
+    const formData = new FormData();
+    if (guestUserId) {
+      formData.set("guestUserId", guestUserId);
     }
 
-    const formData = new FormData();
-    formData.set("phoneNumber", invitePhone);
+    runAsyncActionSilently(
+      () => createFriendInvitationLink(formData),
+      guestUserId ? "Failed to create invitation link" : "Failed to create invitation link",
+      async (result) => {
+        if (!result.invitePath) {
+          throw new Error("Invite link was not created");
+        }
 
-    runAsyncAction(
-      () => createFriendInvitationByPhone(formData),
-      {
-        loading: "Creating invitation...",
-        success: "Invitation created",
-        error: "Failed to create invitation",
-      },
-      () => {
-        setInvitePhone("");
-        setIsInviteDialogOpen(false);
+        await shareInvitationLink({
+          inviteUrl: `${window.location.origin}${result.invitePath}`,
+          title: `${APP_NAME} invitation`,
+          text: guestUserId
+            ? `Claim your guest profile on ${APP_NAME} and keep the game history.`
+            : `Join me on ${APP_NAME}.`,
+          copiedMessage: guestUserId
+            ? "Invitation link copied"
+            : "Invitation link copied",
+          errorMessage: guestUserId
+            ? "Unable to share the invitation link"
+            : "Unable to share the invitation link",
+        });
+        setActiveRecentPlayer(null);
+        setGuestActionMode(null);
         setActiveTab("friends");
       },
     );
@@ -220,36 +277,6 @@ export function FriendsPageProvider({
         error: "Failed to create invitation",
       },
       () => {
-        setActiveTab("friends");
-      },
-    );
-  }
-
-  function handleGuestPhoneInvite() {
-    if (!activeRecentPlayer) {
-      return;
-    }
-
-    if (!guestPhoneInput.trim()) {
-      toast.error("Enter a phone number for the guest");
-      return;
-    }
-
-    const formData = new FormData();
-    formData.set("guestUserId", activeRecentPlayer.user.id);
-    formData.set("phoneNumber", guestPhoneInput);
-
-    runAsyncAction(
-      () => createFriendInvitationByPhone(formData),
-      {
-        loading: "Creating guest invite...",
-        success: "Guest invite created",
-        error: "Failed to create guest invite",
-      },
-      () => {
-        setGuestPhoneInput("");
-        setMergeFriendUserId("");
-        setActiveRecentPlayer(null);
         setActiveTab("friends");
       },
     );
@@ -277,7 +304,6 @@ export function FriendsPageProvider({
         error: "Failed to merge guest",
       },
       () => {
-        setGuestPhoneInput("");
         setMergeFriendUserId("");
         setActiveRecentPlayer(null);
       },
@@ -301,14 +327,12 @@ export function FriendsPageProvider({
   function openRecentPlayerDialog(entry: RecentlyPlayedItem) {
     setActiveRecentPlayer(entry);
     setGuestActionMode(null);
-    setGuestPhoneInput("");
     setMergeFriendUserId("");
   }
 
   function closeRecentPlayerDialog() {
     setActiveRecentPlayer(null);
     setGuestActionMode(null);
-    setGuestPhoneInput("");
     setMergeFriendUserId("");
   }
 
@@ -335,12 +359,9 @@ export function FriendsPageProvider({
     showInviteNotice,
     isPending,
     activeTab,
-    isInviteDialogOpen,
     activeRecentPlayer,
     guestActionMode,
-    guestPhoneInput,
     mergeFriendUserId,
-    invitePhone,
     friendToRemove,
     showAllFriends,
     showAllRecentlyPlayed,
@@ -348,9 +369,6 @@ export function FriendsPageProvider({
     visibleRecentlyPlayed,
     availableFriendsForMerge,
     setActiveTab,
-    setInvitePhone,
-    setIsInviteDialogOpen,
-    setGuestPhoneInput,
     setMergeFriendUserId,
     setGuestActionMode,
     setFriendToRemove,
@@ -360,11 +378,10 @@ export function FriendsPageProvider({
     toggleShowAllRecentlyPlayed() {
       setShowAllRecentlyPlayed((current) => !current);
     },
-    copyLink,
     handleSharePublicProfile,
-    handleInviteByPhone,
+    handleCreateInviteLink,
     handleQuickInviteUser,
-    handleGuestPhoneInvite,
+    handleReshareInvitation,
     handleGuestMerge,
     handleAcceptInvitation(invitationId) {
       handleInvitationAction(acceptInvitation, invitationId, {

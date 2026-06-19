@@ -82,7 +82,6 @@ async function getProfileOverviewPageDataCached(input: {
           firstName: user.firstName,
           lastName: user.lastName,
           color: user.color,
-          phoneNumber: user.phoneNumber,
           createdAt: user.createdAt,
         },
         profile: publicProfile.profile,

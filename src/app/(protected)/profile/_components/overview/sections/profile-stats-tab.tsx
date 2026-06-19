@@ -2,6 +2,7 @@
 
 import { useProfileOverview } from "../profile-overview-provider";
 import { ProfileStatsSections } from "../../profile-stats-sections";
+import { ProfileHeroCard } from "./profile-hero-card";
 
 export function ProfileStatsTab() {
   const { data } = useProfileOverview();
@@ -26,6 +27,7 @@ export function ProfileStatsTab() {
         comparisonSummariesByUserId: data.comparisonSummariesByUserId,
         defaultComparisonUserId: data.defaultComparisonUserId,
       }}
+      hero={<ProfileHeroCard />}
     />
   );
 }

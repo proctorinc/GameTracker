@@ -9,7 +9,7 @@ import {
 import { createId } from "@paralleldrive/cuid2";
 import { relations, sql } from "drizzle-orm";
 
-export const invitationTargetTypes = ["user", "phone", "link"] as const;
+export const invitationTargetTypes = ["user", "link"] as const;
 export type InvitationTargetType = (typeof invitationTargetTypes)[number];
 export const invitationKinds = ["friend", "claim_guest"] as const;
 export type InvitationKind = (typeof invitationKinds)[number];
@@ -62,7 +62,6 @@ export const users = sqliteTable("users", {
   profileCardId: text("profile_card_id"),
   color: text("color").notNull().default("#FFFFFF"),
   role: text("role").$type<UserRole>().notNull().default("user"),
-  phoneNumber: text("phone_number", { length: 20 }).unique(),
   email: text("email", { length: 320 }).unique(),
   avatarUrl: text("avatar_url"),
   firstName: text("first_name"),
@@ -161,7 +160,6 @@ export const invitations = sqliteTable(
     inviteeUserId: text("invitee_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
-    inviteePhoneNumber: text("invitee_phone_number", { length: 20 }),
     inviteToken: text("invite_token").unique(),
     guestUserId: text("guest_user_id").references(() => users.id, {
       onDelete: "set null",
@@ -187,9 +185,8 @@ export const invitations = sqliteTable(
     check(
       "invitations_target_fields_check",
       sql`(
-      (${table.targetType} = 'user' AND ${table.inviteeUserId} IS NOT NULL AND ${table.inviteePhoneNumber} IS NULL AND ${table.inviteToken} IS NULL) OR
-      (${table.targetType} = 'phone' AND ${table.inviteeUserId} IS NULL AND ${table.inviteePhoneNumber} IS NOT NULL AND ${table.inviteToken} IS NULL) OR
-      (${table.targetType} = 'link' AND ${table.inviteePhoneNumber} IS NULL AND ${table.inviteToken} IS NOT NULL)
+      (${table.targetType} = 'user' AND ${table.inviteeUserId} IS NOT NULL AND ${table.inviteToken} IS NULL) OR
+      (${table.targetType} = 'link' AND ${table.inviteToken} IS NOT NULL)
     )`,
     ),
   ],

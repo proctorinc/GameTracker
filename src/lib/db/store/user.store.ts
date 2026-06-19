@@ -136,16 +136,6 @@ export async function getUserWithProfileCard(
   };
 }
 
-export async function getUserByPhoneNumber(
-  phoneNumber: string,
-): Promise<UserBase | null> {
-  const user = await db.query.users.findFirst({
-    where: eq(users.phoneNumber, phoneNumber),
-  });
-
-  return user ?? null;
-}
-
 export async function getUserByEmail(email: string): Promise<UserBase | null> {
   const user = await db.query.users.findFirst({
     where: eq(users.email, email),
@@ -171,12 +161,6 @@ export async function getUserFullById(id: string): Promise<UserBase | null> {
   });
 
   return user ?? null;
-}
-
-export async function findUserByPhone(
-  phoneNumber: string,
-): Promise<UserBase | null> {
-  return getUserByPhoneNumber(phoneNumber);
 }
 
 export async function findUserById(id: string): Promise<UserBase | null> {
