@@ -10,8 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatResolvedEndingSummary } from "@/lib/game/title-defaults";
 import type { GameForPlayPage } from "@/lib/db/store/game.store";
-import { ArrowLeft, ChevronDown, LoaderCircle } from "lucide-react";
-import Link from "next/link";
+import { ChevronDown, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -138,13 +137,6 @@ export default function GameSettingsPage({ game }: { game: GameForPlayPage }) {
           variant="hero"
         >
           <div className="flex flex-col gap-4">
-            <Link
-              className="inline-flex w-fit items-center gap-2 rounded-full bg-white/15 px-3 py-2 text-sm font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/20"
-              href={`/game/${game.id}/play`}
-            >
-              <ArrowLeft className="size-4" />
-              Back to game
-            </Link>
             <div className="space-y-3">
               <div className="space-y-1">
                 <h1 className="text-4xl font-black tracking-tight">

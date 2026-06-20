@@ -52,13 +52,13 @@ export function PlayerRankSummaryCard({
   const resolvedWindowLabel = windowLabel ?? "6-month rolling rank";
   const recentIncrease = recentChangeSummary?.recentIncrease ?? null;
   const recentDecrease = recentChangeSummary?.recentDecrease ?? null;
-  const fallbackDisplayName =
-    [highlightedUser?.firstName, highlightedUser?.lastName]
-      .filter(Boolean)
-      .join(" ")
-      .trim() || null;
   const displayName =
-    highlightedUser?.displayName ?? fallbackDisplayName;
+    (highlightedUser?.displayName ??
+      [highlightedUser?.firstName, highlightedUser?.lastName]
+        .filter(Boolean)
+        .join(" ")
+        .trim()) ||
+    null;
   const rankTotalLabel = rankTotal ? Number(rankTotal).toFixed(0) : "0";
   const detailCopy = displayName
     ? `${displayName}'s Player Rank reflects their top 3 finishes within the last ${resolvedWindowLabel.replace(" rolling rank", "")} period.`

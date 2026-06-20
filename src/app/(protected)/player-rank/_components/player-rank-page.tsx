@@ -67,7 +67,7 @@ export function PlayerRankPageView({ data }: { data: PlayerRankPageData }) {
   }
 
   return (
-    <div className="h-[calc(100dvh-5.5rem)] overflow-hidden px-4 pb-6">
+    <div className="h-[calc(100dvh-5.5rem)] overflow-hidden px-4 pb-0">
       <div className="mx-auto flex h-full w-full max-w-md flex-col gap-4">
         <PlayerRankSummaryCard
           title="Highlighted Player Rank"
@@ -84,7 +84,6 @@ export function PlayerRankPageView({ data }: { data: PlayerRankPageData }) {
           }
           rankGamesCount={highlightedSummary?.rankGamesCount ?? null}
           rankPosition={highlightedSummary?.rankPosition ?? null}
-          rankPositionLabel="Global"
           rankTotal={highlightedSummary?.rankTotal ?? null}
           recentChangeSummary={highlightedSummary?.recentChangeSummary ?? null}
           topThreeFinishes={highlightedSummary?.topThreeFinishes ?? null}
@@ -279,7 +278,7 @@ export function PlayerRankPageView({ data }: { data: PlayerRankPageData }) {
           </div>
 
           <PlayerRankPageChart
-            className="min-h-0 flex-1"
+            className="min-h-0 flex-1 pb-[5.5rem]"
             highlightedUserId={resolvedHighlightedUserId}
             onHighlightChange={setHighlightedUserId}
             renderMissingAsBaseline

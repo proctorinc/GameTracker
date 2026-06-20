@@ -8,7 +8,6 @@ import { UserFull } from "@/lib/db/store/user.store";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "../ui/card";

@@ -4,7 +4,7 @@ import { useRef, useState, useEffect } from "react";
 import { gsap } from "gsap";
 import { Button } from "../ui/button";
 import Link from "next/link";
-import { pullCard, pullPack } from "@/app/actions/card";
+import { pullPack } from "@/app/actions/card";
 import { CardRow } from "@/lib/db/store/cards.store";
 import { limitSigFigs } from "../utils";
 import CardBack from "./CardBack";
@@ -311,7 +311,7 @@ export default function CardOpening({ user }: { user: UserFull }) {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen w-full py-4 relative">
+    <div className="relative flex h-screen w-full flex-col items-center justify-center py-4">
       {/* Dynamic Header Information */}
       {cards.length > 0 && hasAnimated && !isAnimating && (
         <div className="absolute top-10 text-center text-wrap space-y-2 z-30">
@@ -334,7 +334,8 @@ export default function CardOpening({ user }: { user: UserFull }) {
                 {cards[0].value !== 0 && (
                   <h2>
                     {limitSigFigs(cards[0].probability * 100, 5)}% chance for{" "}
-                    {cards[0].modifier} {cards[0].value}'s
+                    {cards[0].modifier} {cards[0].value}
+                    &apos;s
                   </h2>
                 )}
               </div>

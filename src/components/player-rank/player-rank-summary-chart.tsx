@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useTheme } from "next-themes";
 import { Chart } from "react-charts";
 import type { AxisOptions, ChartOptions } from "react-charts";
 import ProfilePicture from "@/components/profile/profile-picture";
@@ -77,6 +78,8 @@ export function PlayerRankSummaryChart({
   points,
   user,
 }: PlayerRankSummaryChartProps) {
+  const { resolvedTheme } = useTheme();
+  const isDarkMode = resolvedTheme === "dark";
   const series = useMemo(
     () => [
       {
@@ -146,6 +149,7 @@ export function PlayerRankSummaryChart({
         initialHeight: CHART_HEIGHT,
         initialWidth: 320,
         useIntersectionObserver: false,
+        dark: isDarkMode,
         padding: CHART_PADDING,
         tooltip: false,
         primaryCursor: false,
@@ -161,7 +165,7 @@ export function PlayerRankSummaryChart({
           },
         }),
       }) satisfies ChartOptions<PlayerRankChartDatum>,
-    [chartData, color, primaryAxis, secondaryAxes],
+    [chartData, color, isDarkMode, primaryAxis, secondaryAxes],
   );
 
   if (!hasAnyData) {

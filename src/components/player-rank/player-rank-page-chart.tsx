@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useTheme } from "next-themes";
 import { Chart } from "react-charts";
-import type { AxisOptions, ChartOptions, Datum } from "react-charts";
+import type { AxisOptions, ChartOptions } from "react-charts";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { cn } from "@/lib/utils";
 import {
@@ -26,12 +27,18 @@ type PlayerRankPageChartProps = {
   showYAxis?: boolean;
 };
 
-const CHART_HEIGHT = 256;
+const CHART_HEIGHT = 240;
 const CHART_PADDING = {
   left: 24,
   right: 34,
   top: 18,
   bottom: 14,
+};
+const AVATAR_OVERLAY_PADDING = {
+  ...CHART_PADDING,
+  // The chart library reserves extra room for the bottom axis labels, so the
+  // plotted line sits slightly higher than the raw chart padding suggests.
+  bottom: CHART_PADDING.bottom + 20,
 };
 
 function getScoreYPercent(input: { value: number; maxValue: number }) {
@@ -51,9 +58,8 @@ export function PlayerRankPageChart({
   series,
   showYAxis = false,
 }: PlayerRankPageChartProps) {
-  const [hoveredDatum, setHoveredDatum] = useState<PlayerRankChartDatum | null>(
-    null,
-  );
+  const { resolvedTheme } = useTheme();
+  const isDarkMode = resolvedTheme === "dark";
   const orderedSeries = useMemo(
     () =>
       orderSeriesByHighlightedUser({
@@ -106,7 +112,7 @@ export function PlayerRankPageChart({
                     value: latestPoint.value,
                     maxValue,
                   }),
-                  padding: CHART_PADDING,
+                  padding: AVATAR_OVERLAY_PADDING,
                 })
               : null,
           ];
@@ -114,19 +120,6 @@ export function PlayerRankPageChart({
       ),
     [maxValue, orderedSeries, renderMissingAsBaseline],
   );
-
-  const activeDatum =
-    hoveredDatum?.userId && hoveredDatum.userId !== highlightedUserId
-      ? hoveredDatum
-      : null;
-  const activeUserId = activeDatum?.userId ?? null;
-  const activeSeries = activeUserId
-    ? (orderedSeries.find((entry) => entry.userId === activeUserId) ?? null)
-    : null;
-  const activeValue =
-    activeDatum?.userId === activeUserId ? activeDatum : null;
-
-  const scoreAxisLabels = [maxValue, Math.round(maxValue / 2), 0];
 
   const primaryAxis = useMemo(
     () =>
@@ -183,6 +176,25 @@ export function PlayerRankPageChart({
         initialHeight: CHART_HEIGHT,
         initialWidth: 320,
         useIntersectionObserver: false,
+        dark: isDarkMode,
+        getSeriesOrder: (chartSeries) => {
+          if (!highlightedUserId) {
+            return chartSeries;
+          }
+
+          const highlightedSeries = chartSeries.find(
+            (entry) => entry.id === highlightedUserId,
+          );
+
+          if (!highlightedSeries) {
+            return chartSeries;
+          }
+
+          return [
+            ...chartSeries.filter((entry) => entry.id !== highlightedUserId),
+            highlightedSeries,
+          ];
+        },
         padding: CHART_PADDING,
         tooltip: false,
         primaryCursor: false,
@@ -214,12 +226,8 @@ export function PlayerRankPageChart({
             },
           };
         },
-        onFocusDatum: (datum: Datum<PlayerRankChartDatum> | null) => {
-          setHoveredDatum(datum?.originalDatum ?? null);
-        },
-        onClickDatum: (datum: Datum<PlayerRankChartDatum> | null) => {
+        onClickDatum: (datum) => {
           const nextUserId = datum?.seriesId ?? null;
-          setHoveredDatum(datum?.originalDatum ?? null);
 
           if (nextUserId) {
             onHighlightChange?.(nextUserId);
@@ -228,6 +236,7 @@ export function PlayerRankPageChart({
       }) satisfies ChartOptions<PlayerRankChartDatum>,
     [
       chartData,
+      isDarkMode,
       highlightedUserId,
       onHighlightChange,
       orderedSeries,
@@ -256,21 +265,6 @@ export function PlayerRankPageChart({
         className,
       )}
     >
-      {activeSeries && activeValue ? (
-        <div className="absolute top-2 left-2 z-20 rounded-2xl border border-border/70 bg-background/95 px-3 py-2 text-sm shadow-lg backdrop-blur-sm">
-          <p className="font-semibold">{activeSeries.label}</p>
-          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-            <span
-              className="size-2.5 rounded-full"
-              style={{ backgroundColor: activeSeries.color }}
-            />
-            <span>
-              {formatScoreValue(activeValue.point.playerRankTotalMinor ?? 0)}
-            </span>
-          </div>
-        </div>
-      ) : null}
-
       <div className="relative h-full w-full">
         <Chart
           options={chartOptions}
@@ -299,7 +293,7 @@ export function PlayerRankPageChart({
               style={{
                 ...latestPointStyle,
                 filter: avatarFilter,
-                transform: "translate(-50%, -50%)",
+                transform: "translate(-0%, -50%)",
                 zIndex: isHighlighted ? 15 : 10,
                 transition: "filter 180ms ease",
               }}
@@ -307,7 +301,7 @@ export function PlayerRankPageChart({
             >
               <ProfilePicture
                 user={entry.profileUser}
-                size="sm"
+                size="xs"
                 className={cn(
                   "ring-2 ring-background shadow-md transition-transform",
                   isHighlighted && "scale-105",
@@ -316,14 +310,6 @@ export function PlayerRankPageChart({
             </button>
           );
         })}
-
-        {showYAxis ? (
-          <div className="pointer-events-none absolute inset-y-4 left-0 flex w-12 flex-col justify-between pr-2 text-right text-xs font-medium text-muted-foreground">
-            {scoreAxisLabels.map((label, index) => (
-              <span key={`${label}-${index}`}>{formatScoreValue(label)}</span>
-            ))}
-          </div>
-        ) : null}
       </div>
 
       {orderedSeries.map((entry) => (
@@ -339,9 +325,8 @@ export function PlayerRankPageChart({
       ))}
 
       {firstHistoryDate && lastHistoryDate ? (
-        <div className="mt-3 flex items-center justify-between text-xs font-medium text-muted-foreground">
+        <div className="mt-3 flex items-center justify-between px-2 text-xs font-medium text-muted-foreground">
           <span>{formatChartDate(firstHistoryDate)}</span>
-          <span>Score</span>
           <span>{formatChartDate(lastHistoryDate)}</span>
         </div>
       ) : null}
