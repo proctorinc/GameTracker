@@ -1,12 +1,11 @@
 import { AdminPlayerRanks } from "@/components/admin/admin-player-ranks";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { loadUser } from "@/lib/auth/protected-session";
 import {
   getActivePlayerRankConfig,
   listPlayerRankStandings,
   type PlayerRankPreviewRow,
 } from "@/lib/db/store/player-rank.store";
-import { redirect } from "next/navigation";
+import { requireAdminPageUser } from "../admin-guard";
 
 function toInitialPreviewRows(
   standings: Awaited<ReturnType<typeof listPlayerRankStandings>>,
@@ -29,11 +28,7 @@ function toInitialPreviewRows(
 }
 
 export default async function AdminPlayerRanksPage() {
-  const { user } = await loadUser();
-
-  if (!user || user.role !== "admin") {
-    redirect("/profile");
-  }
+  await requireAdminPageUser();
 
   const [activeConfig, standings] = await Promise.all([
     getActivePlayerRankConfig(),
@@ -68,7 +63,7 @@ export default async function AdminPlayerRanksPage() {
     <div className="min-h-screen overflow-y-auto px-4 pb-40">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
         <div className="space-y-1">
-          <h1 className="text-4xl font-black">Player Rank</h1>
+          <h1 className="text-4xl font-black">Player Rank Settings</h1>
           <p className="text-sm text-muted-foreground">
             Tune payout weights and preview how the current platform standings move.
           </p>

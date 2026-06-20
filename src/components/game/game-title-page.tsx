@@ -1,12 +1,35 @@
+"use client";
+
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useMemo, useState } from "react";
+import {
+  ArrowRight,
+  BarChart3,
+  ChevronDown,
+  ChevronUp,
+  Clock3,
+  Settings,
+} from "lucide-react";
 import GameTitleDefaultsEditor from "@/components/game/game-title-defaults-editor";
+import { GameTitleHistoryList } from "@/components/game/game-title-history-list";
 import GameTitleImage from "@/components/game/game-title-image";
 import GameTitleImageEditor from "@/components/game/game-title-image-editor";
-import GameHistoryList from "@/components/game/game-history-list";
-import type { GameTitleStatsPageData } from "@/lib/db/store/game.store";
-import { ArrowRight, Clock3 } from "lucide-react";
+import { GameTitleRankChart } from "@/components/game/game-title-rank-chart";
+import { ProfileMatchupSelector } from "@/components/profile/profile-matchup-selector";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type {
+  GameTitleComparisonSummary,
+  GameTitleStatsPageData,
+  GameTitleStatsSummary,
+} from "@/lib/db/store/game.store";
+import { useRememberedPageTabState } from "@/lib/use-remembered-page-tab-state";
+
+type GameTitlePageTab = "stats" | "admin";
+
+const TITLE_PAGE_TABS = ["stats", "admin"] as const;
+const DEFAULT_VISIBLE_COMPARISON_METRICS = 5;
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -32,34 +55,297 @@ function formatScore(value: number | null) {
   return value.toFixed(1).replace(".0", "");
 }
 
-function StatCard(props: { label: string; value: string | number }) {
+function ComparisonMetricRow(props: {
+  label: string;
+  currentValue: string | number;
+  comparisonValue: string | number;
+  currentWins: boolean;
+  comparisonWins: boolean;
+}) {
   return (
-    <Card
-      size="sm"
-      className="min-h-36 border border-border/80 bg-card/95 sm:min-h-40"
-    >
-      <CardHeader className="pb-0">
-        <CardTitle className="pl-0 text-center text-[11px] leading-tight font-medium text-muted-foreground sm:text-xs">
+    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-border/70 bg-muted/30 px-4 py-3 text-sm">
+      <div className={props.currentWins ? "font-bold text-foreground" : "text-muted-foreground"}>
+        {props.currentValue}
+      </div>
+      <div className="text-center">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           {props.label}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-1 items-center justify-center pt-0 text-center text-4xl font-black tracking-tight sm:text-5xl">
-        {props.value}
-      </CardContent>
-    </Card>
+        </p>
+      </div>
+      <div
+        className={`text-right ${props.comparisonWins ? "font-bold text-foreground" : "text-muted-foreground"}`}
+      >
+        {props.comparisonValue}
+      </div>
+    </div>
+  );
+}
+
+function compareMetric(input: {
+  current: number | null;
+  comparison: number | null;
+  higherIsBetter?: boolean;
+  lowerIsBetter?: boolean;
+}) {
+  if (input.current === null || input.comparison === null) {
+    return { currentWins: false, comparisonWins: false };
+  }
+
+  if (input.current === input.comparison) {
+    return { currentWins: true, comparisonWins: true };
+  }
+
+  if (input.lowerIsBetter) {
+    return {
+      currentWins: input.current < input.comparison,
+      comparisonWins: input.comparison < input.current,
+    };
+  }
+
+  return {
+    currentWins: input.current > input.comparison,
+    comparisonWins: input.comparison > input.current,
+  };
+}
+
+function buildComparisonMetrics(
+  current: GameTitleStatsSummary,
+  comparison: GameTitleStatsSummary,
+) {
+  const rankWindowLabel = current.rankWindowLabel ?? "Window rank gain";
+
+  return [
+    {
+      label: "Games played",
+      currentValue: current.totalGames,
+      comparisonValue: comparison.totalGames,
+      ...compareMetric({ current: current.totalGames, comparison: comparison.totalGames }),
+    },
+    {
+      label: "Completed",
+      currentValue: current.completedGames,
+      comparisonValue: comparison.completedGames,
+      ...compareMetric({ current: current.completedGames, comparison: comparison.completedGames }),
+    },
+    {
+      label: "Active games",
+      currentValue: current.activeGames,
+      comparisonValue: comparison.activeGames,
+      ...compareMetric({ current: current.activeGames, comparison: comparison.activeGames }),
+    },
+    {
+      label: "Wins",
+      currentValue: current.wins,
+      comparisonValue: comparison.wins,
+      ...compareMetric({ current: current.wins, comparison: comparison.wins }),
+    },
+    {
+      label: "Win rate",
+      currentValue: formatPercent(current.winRate),
+      comparisonValue: formatPercent(comparison.winRate),
+      ...compareMetric({ current: current.winRate, comparison: comparison.winRate }),
+    },
+    {
+      label: "Avg score",
+      currentValue: formatScore(current.averageScore),
+      comparisonValue: formatScore(comparison.averageScore),
+      ...compareMetric({
+        current: current.averageScore,
+        comparison: comparison.averageScore,
+        lowerIsBetter: true,
+      }),
+    },
+    {
+      label: "Best score",
+      currentValue: formatScore(current.bestScore),
+      comparisonValue: formatScore(comparison.bestScore),
+      ...compareMetric({
+        current: current.bestScore,
+        comparison: comparison.bestScore,
+        lowerIsBetter: true,
+      }),
+    },
+    {
+      label: rankWindowLabel,
+      currentValue: current.rankGainInWindow.formatted,
+      comparisonValue: comparison.rankGainInWindow.formatted,
+      ...compareMetric({
+        current: current.rankGainInWindow.minor,
+        comparison: comparison.rankGainInWindow.minor,
+      }),
+    },
+    {
+      label: "All-time rank gain",
+      currentValue: current.rankGainAllTime.formatted,
+      comparisonValue: comparison.rankGainAllTime.formatted,
+      ...compareMetric({
+        current: current.rankGainAllTime.minor,
+        comparison: comparison.rankGainAllTime.minor,
+      }),
+    },
+    {
+      label: "Best rank game",
+      currentValue: current.bestRankGain?.formatted ?? "--",
+      comparisonValue: comparison.bestRankGain?.formatted ?? "--",
+      ...compareMetric({
+        current: current.bestRankGain?.minor ?? null,
+        comparison: comparison.bestRankGain?.minor ?? null,
+      }),
+    },
+    {
+      label: "Avg rank per game",
+      currentValue: current.averageRankGain?.formatted ?? "--",
+      comparisonValue: comparison.averageRankGain?.formatted ?? "--",
+      ...compareMetric({
+        current: current.averageRankGain?.minor ?? null,
+        comparison: comparison.averageRankGain?.minor ?? null,
+      }),
+    },
+    {
+      label: "1st places",
+      currentValue: current.placements.first,
+      comparisonValue: comparison.placements.first,
+      ...compareMetric({
+        current: current.placements.first,
+        comparison: comparison.placements.first,
+      }),
+    },
+    {
+      label: "2nd places",
+      currentValue: current.placements.second,
+      comparisonValue: comparison.placements.second,
+      ...compareMetric({
+        current: current.placements.second,
+        comparison: comparison.placements.second,
+      }),
+    },
+    {
+      label: "3rd places",
+      currentValue: current.placements.third,
+      comparisonValue: comparison.placements.third,
+      ...compareMetric({
+        current: current.placements.third,
+        comparison: comparison.placements.third,
+      }),
+    },
+    {
+      label: "Global rank total",
+      currentValue: current.currentGlobalRankTotal ?? "--",
+      comparisonValue: comparison.currentGlobalRankTotal ?? "--",
+      ...compareMetric({
+        current: current.currentGlobalRankTotal
+          ? Number.parseInt(current.currentGlobalRankTotal, 10)
+          : null,
+        comparison: comparison.currentGlobalRankTotal
+          ? Number.parseInt(comparison.currentGlobalRankTotal, 10)
+          : null,
+      }),
+    },
+    {
+      label: "Global rank position",
+      currentValue: current.currentGlobalRankPosition ?? "--",
+      comparisonValue: comparison.currentGlobalRankPosition ?? "--",
+      ...compareMetric({
+        current: current.currentGlobalRankPosition,
+        comparison: comparison.currentGlobalRankPosition,
+        lowerIsBetter: true,
+      }),
+    },
+  ];
+}
+
+function ComparisonSection(props: {
+  currentStats: GameTitleStatsSummary;
+  comparison: GameTitleComparisonSummary | null;
+}) {
+  const [showAllMetrics, setShowAllMetrics] = useState(false);
+
+  if (!props.comparison) {
+    return (
+      <div className="rounded-[1.6rem] border border-dashed border-border/70 bg-muted/20 p-5 text-sm text-muted-foreground">
+        Select a player to compare title performance side by side.
+      </div>
+    );
+  }
+
+  const metrics = buildComparisonMetrics(props.currentStats, props.comparison.stats);
+  const visibleMetrics = showAllMetrics
+    ? metrics
+    : metrics.slice(0, DEFAULT_VISIBLE_COMPARISON_METRICS);
+  const hasHiddenMetrics = metrics.length > DEFAULT_VISIBLE_COMPARISON_METRICS;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-[1.6rem] border border-border/70 bg-card/95 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            You
+          </p>
+          <p className="mt-2 text-2xl font-black">
+            {props.currentStats.rankGainInWindow.formatted}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {props.currentStats.rankWindowLabel ?? "Window rank gain"}
+          </p>
+        </div>
+        <div className="rounded-[1.6rem] border border-border/70 bg-card/95 p-4">
+          <p className="truncate text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            {props.comparison.user.displayName}
+          </p>
+          <p className="mt-2 text-2xl font-black">
+            {props.comparison.stats.rankGainInWindow.formatted}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {props.comparison.stats.rankWindowLabel ?? "Window rank gain"}
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {visibleMetrics.map((metric) => (
+          <ComparisonMetricRow key={metric.label} {...metric} />
+        ))}
+      </div>
+
+      {hasHiddenMetrics ? (
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full rounded-2xl border border-border/70"
+          onClick={() => setShowAllMetrics((current) => !current)}
+        >
+          {showAllMetrics ? <ChevronUp /> : <ChevronDown />}
+          {showAllMetrics ? "Show fewer" : "Show all"}
+        </Button>
+      ) : null}
+    </div>
   );
 }
 
 export default function GameTitlePage({
   data,
-  currentUserId,
   canManageDefaults,
 }: {
   data: GameTitleStatsPageData;
-  currentUserId: string;
   canManageDefaults: boolean;
 }) {
-  const { title, recentHistory, stats } = data;
+  const [selectedComparisonUserId, setSelectedComparisonUserId] = useState(
+    data.defaultComparisonUserId,
+  );
+  const [activeTab, setActiveTab] =
+    useRememberedPageTabState<GameTitlePageTab>({
+      storageKey: `page-tab:/titles/${data.title.id}`,
+      initialValue: "stats",
+      validTabs: TITLE_PAGE_TABS,
+    });
+  const comparison = useMemo(
+    () =>
+      selectedComparisonUserId
+        ? data.comparisonSummariesByUserId[selectedComparisonUserId] ?? null
+        : null,
+    [data.comparisonSummariesByUserId, selectedComparisonUserId],
+  );
+  const { title, stats } = data;
   const gameHistoryHref = `/game/history?titleId=${encodeURIComponent(title.id)}`;
 
   return (
@@ -83,10 +369,6 @@ export default function GameTitlePage({
                 <h1 className="text-4xl font-black tracking-tight md:text-5xl">
                   {title.title}
                 </h1>
-                <p className="max-w-2xl text-sm text-white/80">
-                  History and performance across every game you&apos;ve played
-                  with this title.
-                </p>
               </div>
             </div>
             <Link
@@ -99,49 +381,84 @@ export default function GameTitlePage({
           </div>
         </GameTitleImage>
 
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <StatCard label="Games played" value={stats.totalGames} />
-          <StatCard label="Completed" value={stats.completedGames} />
-          <StatCard label="Wins" value={stats.wins} />
-          <StatCard label="Win rate" value={formatPercent(stats.winRate)} />
-          <StatCard label="Avg score" value={formatScore(stats.averageScore)} />
-          <StatCard label="Best score" value={formatScore(stats.bestScore)} />
-        </div>
+        <GameTitleRankChart
+          series={data.chartSeries}
+          selectedComparisonUserId={selectedComparisonUserId}
+        />
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-xl font-black">
-                  Game history
-                </CardTitle>
-                <Link
-                  href={gameHistoryHref}
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-primary transition-colors hover:text-primary/80"
-                >
-                  View all
-                  <ArrowRight className="size-4" />
-                </Link>
-              </div>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              <GameHistoryList
-                games={recentHistory}
-                currentUserId={currentUserId}
-                emptyMessage="No games played for this title yet."
-                emptyActionHref={`/game/create/settings?titleId=${title.id}`}
-                emptyActionLabel="Start the first game"
-              />
-            </CardContent>
-          </Card>
+        {canManageDefaults ? (
+          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-muted/70 p-1">
+            <Button
+              variant={activeTab === "stats" ? "default" : "ghost"}
+              className="rounded-xl"
+              size="sm"
+              onClick={() => setActiveTab("stats")}
+            >
+              <BarChart3 />
+              Stats
+            </Button>
+            <Button
+              variant={activeTab === "admin" ? "default" : "ghost"}
+              className="rounded-xl"
+              size="sm"
+              onClick={() => setActiveTab("admin")}
+            >
+              <Settings />
+              Admin
+            </Button>
+          </div>
+        ) : null}
 
+        {canManageDefaults && activeTab === "admin" ? (
           <div className="flex flex-col gap-6">
-            {canManageDefaults ? (
-              <>
-                <GameTitleImageEditor title={title} />
-                <GameTitleDefaultsEditor title={title} />
-              </>
-            ) : null}
+            <GameTitleImageEditor title={title} />
+            <GameTitleDefaultsEditor title={title} />
+          </div>
+        ) : null}
+
+        {!canManageDefaults || activeTab === "stats" ? (
+          <div className="grid gap-6">
+            <Card>
+              <CardHeader className="gap-4">
+                <CardTitle className="text-xl font-black">Compare</CardTitle>
+                <ProfileMatchupSelector
+                  options={data.comparisonOptions}
+                  selectedUserId={selectedComparisonUserId}
+                  onSelect={setSelectedComparisonUserId}
+                  defaultBestFriendId={data.defaultComparisonUserId}
+                  title="Compare player"
+                  description="Search players to compare this title."
+                  emptyLabel="Choose a player"
+                />
+              </CardHeader>
+              <CardContent>
+                <ComparisonSection currentStats={stats} comparison={comparison} />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle className="text-xl font-black">
+                    History
+                  </CardTitle>
+                  <Link
+                    href={gameHistoryHref}
+                    className="inline-flex items-center gap-2 text-sm font-semibold text-primary transition-colors hover:text-primary/80"
+                  >
+                    View all
+                    <ArrowRight className="size-4" />
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                <GameTitleHistoryList
+                  games={data.history}
+                  comparisonUserId={selectedComparisonUserId}
+                />
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-xl font-black">Snapshot</CardTitle>
@@ -171,7 +488,7 @@ export default function GameTitlePage({
               </CardContent>
             </Card>
           </div>
-        </div>
+        ) : null}
       </div>
     </div>
   );

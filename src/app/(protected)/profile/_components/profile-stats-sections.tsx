@@ -2,10 +2,8 @@
 
 import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
 import {
-  BadgeCheck,
   Flame,
   Gamepad2,
-  Search,
   Target,
   Trophy,
   Users,
@@ -13,18 +11,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import GameTitleImage from "@/components/game/game-title-image";
+import { ProfileMatchupSelector } from "@/components/profile/profile-matchup-selector";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Command,
-  CommandDialog,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { ProfileStatsPageData } from "../profile-types";
@@ -113,99 +102,6 @@ function StatCard(props: {
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function MatchupSelector(props: {
-  options: ProfileStatsPageData["comparisonOptions"];
-  selectedUserId: string | null;
-  onSelect: (userId: string) => void;
-  defaultBestFriendId: string | null;
-}) {
-  const [open, setOpen] = useState(false);
-  const selected =
-    props.options.find((option) => option.id === props.selectedUserId) ?? null;
-
-  return (
-    <>
-      <Button
-        type="button"
-        variant="outline"
-        className="h-auto w-full justify-between rounded-[1.5rem] border-border/70 bg-background/80 px-4 py-3 shadow-none hover:bg-muted/60 dark:border-white/10 dark:bg-white/6 dark:hover:bg-white/10"
-        onClick={() => setOpen(true)}
-      >
-        <div className="flex min-w-0 items-center gap-3">
-          {selected ? <ProfilePicture user={selected} size="sm" /> : null}
-          <div className="min-w-0 text-left">
-            <p className="truncate text-base font-semibold text-foreground dark:text-white">
-              {selected
-                ? `${selected.displayName}${selected.isGuest ? " (Guest)" : ""}`
-                : "Choose a matchup"}
-            </p>
-            <p className="text-xs font-medium text-muted-foreground dark:text-white/60">
-              Search players
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {props.defaultBestFriendId &&
-          props.selectedUserId === props.defaultBestFriendId ? (
-            <Badge
-              variant="outline"
-              className="rounded-full dark:border-white/10 dark:bg-white/8 dark:text-white"
-            >
-              Best friend
-            </Badge>
-          ) : null}
-          <Search className="size-4 text-muted-foreground dark:text-white/60" />
-        </div>
-      </Button>
-
-      <CommandDialog
-        open={open}
-        onOpenChange={setOpen}
-        title="Choose a matchup"
-        description="Search recent players, friends, and guests to compare competition stats."
-        showCloseButton
-      >
-        <Command className="bg-popover">
-          <CommandInput placeholder="Search players" />
-          <CommandList className="max-h-96">
-            <CommandEmpty>No players found.</CommandEmpty>
-            <CommandGroup heading="Players">
-              {props.options.map((option) => {
-                const isSelected = option.id === props.selectedUserId;
-                const label = option.isGuest
-                  ? `${option.displayName} (Guest)`
-                  : option.displayName;
-
-                return (
-                  <CommandItem
-                    key={option.id}
-                    value={`${label} ${option.id}`}
-                    data-checked={isSelected ? "true" : undefined}
-                    onSelect={() => {
-                      props.onSelect(option.id);
-                      setOpen(false);
-                    }}
-                  >
-                    <ProfilePicture user={option} size="xs" />
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <span className="truncate font-medium">{label}</span>
-                      {props.defaultBestFriendId === option.id ? (
-                        <Badge variant="outline" className="rounded-full">
-                          Best friend
-                        </Badge>
-                      ) : null}
-                    </div>
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </CommandDialog>
-    </>
   );
 }
 
@@ -397,7 +293,7 @@ export function ProfileStatsSections({
 
             {data.comparisonOptions.length > 0 ? (
               <div className="mt-5">
-                <MatchupSelector
+                <ProfileMatchupSelector
                   options={data.comparisonOptions}
                   selectedUserId={selectedComparisonUserId}
                   onSelect={setSelectedComparisonUserId}

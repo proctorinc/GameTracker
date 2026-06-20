@@ -1,4 +1,5 @@
 export * from "../index";
+export * from "./admin.store";
 export * from "./cards.store";
 export * from "./card-drops.store";
 export * from "./decks.store";

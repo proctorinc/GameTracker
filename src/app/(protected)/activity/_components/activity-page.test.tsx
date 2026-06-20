@@ -1,5 +1,5 @@
 import { fireEvent, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../../tests/helpers/render";
 import { ActivityPageView } from "./activity-page";
 import type { ActivityPageData } from "./page-data";
@@ -9,6 +9,57 @@ vi.mock("next/navigation", () => ({
     refresh: vi.fn(),
   }),
 }));
+
+function createFriendActivityGame(dayOffset: number) {
+  const date = new Date(Date.UTC(2026, 5, 20 - dayOffset, 10, 0, 0));
+  const isoDate = date.toISOString();
+
+  return {
+    id: `game-${dayOffset}`,
+    createdAt: isoDate,
+    completedAt: isoDate,
+    gameTitle: {
+      id: `title-${dayOffset}`,
+      title: `Game ${dayOffset}`,
+      color: "#123456",
+      imageUrl: null,
+    },
+    players: [
+      {
+        id: `player-${dayOffset}`,
+        gameId: `game-${dayOffset}`,
+        userId: "viewer",
+        score: 14,
+        user: {
+          id: "viewer",
+          firstName: "Maya",
+          lastName: "Viewer",
+          color: "#ffffff",
+        },
+      },
+    ],
+    winners: [],
+    rounds: [],
+    creator: {
+      id: "viewer",
+      firstName: "Maya",
+      lastName: "Viewer",
+      color: "#ffffff",
+    },
+    cardDrops: [],
+    scoringMode: "lowest_wins" as const,
+    creatorId: "viewer",
+    gameTitleId: `title-${dayOffset}`,
+    version: "v1",
+    endingMode: "none" as const,
+    trackRounds: false,
+    targetRounds: null,
+    scoreThreshold: null,
+    scoreThresholdDirection: null,
+    completedRounds: 1,
+    currentUserRankDelta: null,
+  };
+}
 
 function createActivityPageData(
   leaderboardFriends: ActivityPageData["leaderboardFriends"],
@@ -115,9 +166,14 @@ function createActivityPageData(
 }
 
 describe("ActivityPageView", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it("renders a podium in 3rd, 1st, 2nd visual order with avatar-only profile links", () => {
     renderWithProviders(
       <ActivityPageView
+        initialTab="activity"
         data={createActivityPageData([
           {
             user: {
@@ -245,7 +301,7 @@ describe("ActivityPageView", () => {
     fireEvent.click(screen.getByRole("button", { name: /leaderboard/i }));
 
     expect(screen.getByRole("heading", { name: "Player Rank" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /your player rank/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /your rank 180 #3 compare mv/i })).toHaveAttribute(
       "href",
       "/player-rank",
     );
@@ -281,6 +337,7 @@ describe("ActivityPageView", () => {
   it("renders a centered gold podium card when only one leaderboard user exists", () => {
     renderWithProviders(
       <ActivityPageView
+        initialTab="activity"
         data={createActivityPageData([
           {
             user: {
@@ -319,6 +376,7 @@ describe("ActivityPageView", () => {
   it("renders gold and silver podium cards when exactly two leaderboard users exist", () => {
     renderWithProviders(
       <ActivityPageView
+        initialTab="activity"
         data={createActivityPageData([
           {
             user: {
@@ -378,5 +436,33 @@ describe("ActivityPageView", () => {
         .getAllByLabelText(/place /i)
         .map((card) => card.getAttribute("aria-label")),
     ).toEqual(["1st place Goldie F.", "2nd place Silver S."]);
+  });
+
+  it("loads activity history in 7-day chunks until more items are requested", () => {
+    const data = createActivityPageData([]);
+    data.friendActivity = Array.from({ length: 10 }, (_, index) =>
+      createFriendActivityGame(index),
+    );
+
+    renderWithProviders(<ActivityPageView data={data} initialTab="activity" />);
+
+    expect(screen.getByText("Game 0")).toBeInTheDocument();
+    expect(screen.getByText("Game 6")).toBeInTheDocument();
+    expect(screen.queryByText("Game 7")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: /show more/i,
+      }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /show more/i }));
+
+    expect(screen.getByText("Game 7")).toBeInTheDocument();
+    expect(screen.getByText("Game 9")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: /show more/i,
+      }),
+    ).not.toBeInTheDocument();
   });
 });

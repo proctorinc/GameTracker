@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import {
   db,
+  friendships,
   gamePlayers,
   gameRounds,
   gameRoundScores,
@@ -11,6 +12,23 @@ import {
   users,
 } from "../index";
 import type { GameTitleDefaultSettings } from "@/lib/game/title-defaults";
+import { buildRecentlyPlayedWithList } from "@/lib/recently-played-with";
+import {
+  getActivePlayerRankConfig,
+  getUserPlayerRankSummary,
+  listPlayerRankGameDeltasByGameIds,
+} from "./player-rank.store";
+import {
+  listGuestsCreatedByUser,
+  listRecentlyPlayedWithForUser,
+} from "./user.store";
+import { formatPlayerRankTotal, getPlayerRankWindowStart } from "@/lib/player-rank";
+import {
+  buildComparisonOptions,
+  formatProfileDisplayName,
+  type ProfileStatsComparisonOption,
+  type ProfileStatsUser,
+} from "@/lib/profile-stats";
 import { pickRandomProfileColor } from "@/lib/profile-colors";
 
 export type GameBase = typeof games.$inferSelect;
@@ -33,18 +51,87 @@ export type AdminGameTitleEntry = GameTitleBase & {
 };
 export type GameTitleStatsPageData = {
   title: GameTitleBase;
-  recentHistory: GameFull[];
-  stats: {
-    totalGames: number;
-    completedGames: number;
-    activeGames: number;
-    wins: number;
-    winRate: number;
-    averageScore: number | null;
-    bestScore: number | null;
-    lastPlayedAt: string | null;
-    totalRounds: number;
-  };
+  currentUserId: string;
+  defaultComparisonUserId: string | null;
+  comparisonOptions: ProfileStatsComparisonOption[];
+  chartSeries: GameTitleRankChartSeries[];
+  stats: GameTitleStatsSummary;
+  comparisonSummariesByUserId: Record<string, GameTitleComparisonSummary>;
+  history: GameTitleHistoryRow[];
+};
+export type GameTitlePlacementBreakdown = {
+  first: number;
+  second: number;
+  third: number;
+};
+export type GameTitleRankValue = {
+  formatted: string;
+  minor: number;
+};
+export type GameTitleStatsSummary = {
+  rankWindowLabel: string | null;
+  totalGames: number;
+  completedGames: number;
+  activeGames: number;
+  wins: number;
+  winRate: number;
+  averageScore: number | null;
+  bestScore: number | null;
+  lastPlayedAt: string | null;
+  totalRounds: number;
+  placements: GameTitlePlacementBreakdown;
+  rankGainInWindow: GameTitleRankValue;
+  rankGainAllTime: GameTitleRankValue;
+  bestRankGain: GameTitleRankValue | null;
+  averageRankGain: GameTitleRankValue | null;
+  currentGlobalRankTotal: string | null;
+  currentGlobalRankPosition: number | null;
+};
+export type GameTitleComparisonSummary = {
+  user: ProfileStatsComparisonOption;
+  stats: GameTitleStatsSummary;
+};
+export type GameTitleChartPoint = {
+  gameId: string;
+  completedAt: string;
+  deltaMinor: number;
+  deltaFormatted: string;
+};
+export type GameTitleRankChartSeries = {
+  userId: string;
+  label: string;
+  color: string;
+  isCurrentUser: boolean;
+  points: GameTitleChartPoint[];
+};
+export type GameTitleHistoryRowPlayer = {
+  userId: string;
+  displayName: string;
+  firstName: string | null;
+  lastName: string | null;
+  color: string;
+  isGuest: boolean;
+  score: number | null;
+  placement: number | null;
+  won: boolean;
+  rankDelta: GameTitleRankValue | null;
+};
+export type GameTitleHistoryRow = {
+  id: string;
+  status: "completed" | "active";
+  createdAt: string;
+  completedAt: string | null;
+  scoringMode: GameBase["scoringMode"];
+  completedRounds: number;
+  playerCount: number;
+  players: Array<{
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    color: string;
+  }>;
+  currentUser: GameTitleHistoryRowPlayer | null;
+  comparisonsByUserId: Record<string, GameTitleHistoryRowPlayer>;
 };
 export type GameHistoryFilters = {
   status?: "all" | "active" | "completed";
@@ -202,6 +289,158 @@ function mapGameTitleLibraryRow(row: GameTitleLibraryRow): GameTitleLibraryEntry
         .join(" ")
         .trim() || null,
     isOwned: Boolean(row.ownershipSource),
+  };
+}
+
+function getOrdinalPlacement(
+  input: Pick<GameFull, "players" | "scoringMode" | "completedRounds">,
+  userId: string,
+) {
+  if (input.scoringMode === "no_score") {
+    return null;
+  }
+
+  if (
+    input.completedRounds === 0 &&
+    input.players.every((player) => player.score === input.players[0]?.score)
+  ) {
+    return null;
+  }
+
+  const sortedPlayers = [...input.players].sort((left, right) =>
+    input.scoringMode === "highest_wins"
+      ? right.score - left.score
+      : left.score - right.score,
+  );
+
+  let placement = 0;
+  let lastScore: number | null = null;
+
+  for (const player of sortedPlayers) {
+    if (lastScore === null || player.score !== lastScore) {
+      placement += 1;
+      lastScore = player.score;
+    }
+
+    if (player.userId === userId) {
+      return placement;
+    }
+  }
+
+  return null;
+}
+
+function createEmptyPlacementBreakdown(): GameTitlePlacementBreakdown {
+  return { first: 0, second: 0, third: 0 };
+}
+
+function createRankValue(minor: number): GameTitleRankValue {
+  return {
+    minor,
+    formatted: formatPlayerRankTotal(minor),
+  };
+}
+
+function toHistoryRowPlayer(input: {
+  game: GameFull;
+  userId: string;
+  rankDeltaMinor: number | null;
+}): GameTitleHistoryRowPlayer | null {
+  const player = input.game.players.find((entry) => entry.userId === input.userId);
+
+  if (!player) {
+    return null;
+  }
+
+  return {
+    userId: player.userId,
+    displayName: formatProfileDisplayName(player.user),
+    firstName: player.user.firstName,
+    lastName: player.user.lastName,
+    color: player.user.color,
+    isGuest: player.user.isGuest,
+    score: input.game.scoringMode === "no_score" ? null : player.score,
+    placement: getOrdinalPlacement(input.game, player.userId),
+    won: input.game.winners.some((winner) => winner.userId === player.userId),
+    rankDelta:
+      input.rankDeltaMinor === null ? null : createRankValue(input.rankDeltaMinor),
+  };
+}
+
+function buildTitleStatsSummary(input: {
+  userId: string;
+  games: GameFull[];
+  rankDeltaMinorByGameId: Record<string, number>;
+  rankWindowStart: string | null;
+  rankWindowLabel: string | null;
+  currentGlobalRankTotal: string | null;
+  currentGlobalRankPosition: number | null;
+}): GameTitleStatsSummary {
+  const completedGames = input.games.filter((game) => Boolean(game.completedAt));
+  const wins = completedGames.filter((game) =>
+    game.winners.some((winner) => winner.userId === input.userId),
+  ).length;
+  const playedScores = completedGames
+    .map(
+      (game) =>
+        game.players.find((player) => player.userId === input.userId)?.score ?? null,
+    )
+    .filter((score): score is number => score !== null);
+  const totalScore = playedScores.reduce((sum, score) => sum + score, 0);
+  const placements = createEmptyPlacementBreakdown();
+  let rankGainInWindowMinor = 0;
+  let rankGainAllTimeMinor = 0;
+  let bestRankGainMinor: number | null = null;
+
+  for (const game of completedGames) {
+    const placement = getOrdinalPlacement(game, input.userId);
+    if (placement === 1) placements.first += 1;
+    if (placement === 2) placements.second += 1;
+    if (placement === 3) placements.third += 1;
+
+    const rankDeltaMinor = input.rankDeltaMinorByGameId[game.id] ?? 0;
+    rankGainAllTimeMinor += rankDeltaMinor;
+
+    if (
+      input.rankWindowStart &&
+      game.completedAt &&
+      game.completedAt >= input.rankWindowStart
+    ) {
+      rankGainInWindowMinor += rankDeltaMinor;
+    }
+
+    if (bestRankGainMinor === null || rankDeltaMinor > bestRankGainMinor) {
+      bestRankGainMinor = rankDeltaMinor;
+    }
+  }
+
+  return {
+    rankWindowLabel: input.rankWindowLabel,
+    totalGames: input.games.length,
+    completedGames: completedGames.length,
+    activeGames: input.games.length - completedGames.length,
+    wins,
+    winRate: completedGames.length > 0 ? wins / completedGames.length : 0,
+    averageScore:
+      playedScores.length > 0 ? totalScore / playedScores.length : null,
+    bestScore: playedScores.length > 0 ? Math.min(...playedScores) : null,
+    lastPlayedAt:
+      input.games[0]?.completedAt ?? input.games[0]?.createdAt ?? null,
+    totalRounds: input.games.reduce(
+      (sum, game) => sum + (game.completedRounds ?? 0),
+      0,
+    ),
+    placements,
+    rankGainInWindow: createRankValue(rankGainInWindowMinor),
+    rankGainAllTime: createRankValue(rankGainAllTimeMinor),
+    bestRankGain:
+      bestRankGainMinor === null ? null : createRankValue(bestRankGainMinor),
+    averageRankGain:
+      completedGames.length > 0
+        ? createRankValue(Math.round(rankGainAllTimeMinor / completedGames.length))
+        : null,
+    currentGlobalRankTotal: input.currentGlobalRankTotal,
+    currentGlobalRankPosition: input.currentGlobalRankPosition,
   };
 }
 
@@ -605,7 +844,8 @@ export async function getGameTitleStatsPageData(input: {
     return null;
   }
 
-  const [history, recentHistory] = await Promise.all([
+  const [history, friendshipsForUser, guests, recentlyPlayedWithRows, playerRankConfig] =
+    await Promise.all([
     db.query.games.findMany({
       where: (table, { and, eq, exists }) =>
         and(
@@ -628,62 +868,207 @@ export async function getGameTitleStatsPageData(input: {
       ],
       with: gameFullRelations,
     }),
-    db.query.games.findMany({
-      limit: 3,
-      where: (table, { and, eq, exists }) =>
-        and(
-          eq(table.gameTitleId, input.gameTitleId),
-          exists(
-            db
-              .select()
-              .from(gamePlayers)
-              .where(
-                and(
-                  eq(gamePlayers.gameId, table.id),
-                  eq(gamePlayers.userId, input.userId),
-                ),
-              ),
-          ),
-        ),
-      orderBy: (table, { desc }) => [
-        desc(table.completedAt),
-        desc(table.createdAt),
-      ],
-      with: gameFullRelations,
+    db.query.friendships.findMany({
+      where: or(eq(friendships.user1Id, input.userId), eq(friendships.user2Id, input.userId)),
+      with: {
+        user1: true,
+        user2: true,
+      },
     }),
+    listGuestsCreatedByUser(input.userId),
+    listRecentlyPlayedWithForUser({
+      userId: input.userId,
+      friendUserIds: [],
+    }),
+    getActivePlayerRankConfig(),
   ]);
 
+  const friendshipUsers = friendshipsForUser.map((friendship) =>
+    friendship.user1Id === input.userId ? friendship.user2 : friendship.user1,
+  );
+  const recentlyPlayedWith = buildRecentlyPlayedWithList({
+    createdGuests: guests,
+    recentlyPlayedWithRows,
+  }).map((entry) => entry.user);
+  const comparisonOptions = buildComparisonOptions({
+    profileUserId: input.userId,
+    friends: friendshipUsers as ProfileStatsUser[],
+    guests: guests as ProfileStatsUser[],
+    recentlyPlayedWith: recentlyPlayedWith as ProfileStatsUser[],
+    includeGuests: true,
+  });
   const completedGames = history.filter((game) => Boolean(game.completedAt));
-  const wins = completedGames.filter((game) =>
-    game.winners.some((winner) => winner.userId === input.userId),
-  ).length;
-  const playedScores = completedGames
-    .map(
-      (game) =>
-        game.players.find((player) => player.userId === input.userId)?.score ??
-        null,
-    )
-    .filter((score): score is number => score !== null);
-  const totalScore = playedScores.reduce((sum, score) => sum + score, 0);
+  const allRelevantUserIds = Array.from(
+    new Set([
+      input.userId,
+      ...comparisonOptions.map((option) => option.id),
+    ]),
+  );
+  const playerRankDeltasByGameId = await listPlayerRankGameDeltasByGameIds(
+    completedGames.map((game) => game.id),
+  );
+  const currentUserRankSummary = await getUserPlayerRankSummary(input.userId);
+  const rankWindowStart = playerRankConfig
+    ? getPlayerRankWindowStart(playerRankConfig.windowMonths)
+    : null;
+  const rankWindowLabel = playerRankConfig
+    ? `${playerRankConfig.windowMonths}-month rank gain`
+    : "Window rank gain";
+  const rankDeltaMinorByGameIdByUserId = Object.fromEntries(
+    allRelevantUserIds.map((userId) => [
+      userId,
+      Object.fromEntries(
+        completedGames.map((game) => [
+          game.id,
+          playerRankDeltasByGameId[game.id]?.find((delta) => delta.userId === userId)
+            ?.deltaMinor ?? 0,
+        ]),
+      ) as Record<string, number>,
+    ]),
+  ) as Record<string, Record<string, number>>;
+
+  const stats = buildTitleStatsSummary({
+    userId: input.userId,
+    games: history,
+    rankDeltaMinorByGameId: rankDeltaMinorByGameIdByUserId[input.userId] ?? {},
+    rankWindowStart,
+    rankWindowLabel,
+    currentGlobalRankTotal: currentUserRankSummary?.playerRankTotal ?? null,
+    currentGlobalRankPosition: currentUserRankSummary?.playerRankPosition ?? null,
+  });
+  const comparisonSummariesByUserId = Object.fromEntries(
+    comparisonOptions.map((option) => [
+      option.id,
+      {
+        user: option,
+        stats: buildTitleStatsSummary({
+          userId: option.id,
+          games: history.filter((game) =>
+            game.players.some((player) => player.userId === option.id),
+          ),
+          rankDeltaMinorByGameId: rankDeltaMinorByGameIdByUserId[option.id] ?? {},
+          rankWindowStart,
+          rankWindowLabel,
+          currentGlobalRankTotal: null,
+          currentGlobalRankPosition: null,
+        }),
+      } satisfies GameTitleComparisonSummary,
+    ]),
+  ) as Record<string, GameTitleComparisonSummary>;
+  const comparisonGamesByUserId = Object.fromEntries(
+    comparisonOptions.map((option) => [
+      option.id,
+      completedGames.filter((game) =>
+        game.players.some((player) => player.userId === option.id),
+      ).length,
+    ]),
+  ) as Record<string, number>;
+  const defaultComparisonUserId =
+    comparisonOptions
+      .sort((left, right) => {
+        const gameDiff =
+          (comparisonGamesByUserId[right.id] ?? 0) -
+          (comparisonGamesByUserId[left.id] ?? 0);
+        if (gameDiff !== 0) {
+          return gameDiff;
+        }
+        return left.displayName.localeCompare(right.displayName);
+      })[0]?.id ?? null;
+
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const chartCutoff = thirtyDaysAgo.toISOString();
+  const chartSeries = [
+    {
+      userId: input.userId,
+      label: "You",
+      color:
+        history.find((game) =>
+          game.players.some((player) => player.userId === input.userId),
+        )?.players.find((player) => player.userId === input.userId)?.user.color ?? title.color,
+      isCurrentUser: true,
+      points: completedGames
+        .filter((game) => game.completedAt && game.completedAt >= chartCutoff)
+        .map((game) => ({
+          gameId: game.id,
+          completedAt: game.completedAt!,
+          deltaMinor:
+            playerRankDeltasByGameId[game.id]?.find((delta) => delta.userId === input.userId)
+              ?.deltaMinor ?? 0,
+          deltaFormatted:
+            playerRankDeltasByGameId[game.id]?.find((delta) => delta.userId === input.userId)
+              ?.deltaFormatted ?? formatPlayerRankTotal(0),
+        })),
+    },
+    ...comparisonOptions.map((option) => ({
+      userId: option.id,
+      label: option.displayName,
+      color: option.color,
+      isCurrentUser: false,
+      points: completedGames
+        .filter(
+          (game) =>
+            game.completedAt &&
+            game.completedAt >= chartCutoff &&
+            game.players.some((player) => player.userId === option.id),
+        )
+        .map((game) => {
+          const delta =
+            playerRankDeltasByGameId[game.id]?.find((entry) => entry.userId === option.id) ??
+            null;
+          return {
+            gameId: game.id,
+            completedAt: game.completedAt!,
+            deltaMinor: delta?.deltaMinor ?? 0,
+            deltaFormatted: delta?.deltaFormatted ?? formatPlayerRankTotal(0),
+          };
+        }),
+    })),
+  ] satisfies GameTitleRankChartSeries[];
+  const historyRows = history.map((game) => ({
+    id: game.id,
+    status: game.completedAt ? "completed" : "active",
+    createdAt: game.createdAt,
+    completedAt: game.completedAt,
+    scoringMode: game.scoringMode,
+    completedRounds: game.completedRounds ?? 0,
+    playerCount: game.players.length,
+    players: game.players.map((player) => ({
+      id: player.user.id,
+      firstName: player.user.firstName,
+      lastName: player.user.lastName,
+      color: player.user.color,
+    })),
+    currentUser: toHistoryRowPlayer({
+      game,
+      userId: input.userId,
+      rankDeltaMinor:
+        playerRankDeltasByGameId[game.id]?.find((delta) => delta.userId === input.userId)
+          ?.deltaMinor ?? null,
+    }),
+    comparisonsByUserId: Object.fromEntries(
+      comparisonOptions.flatMap((option) => {
+        const result = toHistoryRowPlayer({
+          game,
+          userId: option.id,
+          rankDeltaMinor:
+            playerRankDeltasByGameId[game.id]?.find((delta) => delta.userId === option.id)
+              ?.deltaMinor ?? null,
+        });
+        return result ? [[option.id, result] as const] : [];
+      }),
+    ),
+  })) satisfies GameTitleHistoryRow[];
 
   return {
     title,
-    recentHistory,
-    stats: {
-      totalGames: history.length,
-      completedGames: completedGames.length,
-      activeGames: history.length - completedGames.length,
-      wins,
-      winRate: completedGames.length > 0 ? wins / completedGames.length : 0,
-      averageScore:
-        playedScores.length > 0 ? totalScore / playedScores.length : null,
-      bestScore: playedScores.length > 0 ? Math.min(...playedScores) : null,
-      lastPlayedAt: history[0]?.completedAt ?? history[0]?.createdAt ?? null,
-      totalRounds: history.reduce(
-        (sum, game) => sum + (game.completedRounds ?? 0),
-        0,
-      ),
-    },
+    currentUserId: input.userId,
+    defaultComparisonUserId,
+    comparisonOptions,
+    chartSeries,
+    stats,
+    comparisonSummariesByUserId,
+    history: historyRows,
   };
 }
 

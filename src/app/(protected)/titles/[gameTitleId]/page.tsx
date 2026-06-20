@@ -28,7 +28,6 @@ export default async function TitleDetailsPage({ params }: PageProps) {
   return (
     <GameTitlePage
       canManageDefaults={canManageDefaults}
-      currentUserId={user.id}
       data={data}
     />
   );
