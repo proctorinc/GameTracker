@@ -6,10 +6,12 @@ import { AdminPlayerRanks } from "./admin-player-ranks";
 
 const {
   forceRefreshAllPlayerRankHistory,
+  recalculatePlayerRankHealthIssues,
   refresh,
   setPlayerRankLeaderboardDisabled,
 } = vi.hoisted(() => ({
   forceRefreshAllPlayerRankHistory: vi.fn(),
+  recalculatePlayerRankHealthIssues: vi.fn(),
   refresh: vi.fn(),
   setPlayerRankLeaderboardDisabled: vi.fn(),
 }));
@@ -32,6 +34,7 @@ vi.mock("@/app/actions/player-rank", () => ({
   forceRefreshAllPlayerRankHistory,
   generatePlayerRankPreview: vi.fn(),
   publishPlayerRankSettings: vi.fn(),
+  recalculatePlayerRankHealthIssues,
   setPlayerRankLeaderboardDisabled,
 }));
 
@@ -62,6 +65,14 @@ describe("AdminPlayerRanks", () => {
             3: [10000, 0, 0],
           },
           largeGameDistribution: [6000, 3000, 1000],
+        }}
+        healthCheck={{
+          status: "good",
+          label: "Good",
+          message: "All completed games have the expected Player Rank coverage.",
+          affectedGameCount: 0,
+          totalCheckedGameCount: 4,
+          affectedGameIds: [],
         }}
         standings={[]}
       />,
@@ -99,6 +110,14 @@ describe("AdminPlayerRanks", () => {
           },
           largeGameDistribution: [6000, 3000, 1000],
         }}
+        healthCheck={{
+          status: "review",
+          label: "Needs review",
+          message: "2 completed games need Player Rank recalculation.",
+          affectedGameCount: 2,
+          totalCheckedGameCount: 7,
+          affectedGameIds: ["game-a", "game-b"],
+        }}
         standings={[
           {
             userId: "live-user",
@@ -135,6 +154,11 @@ describe("AdminPlayerRanks", () => {
     );
 
     expect(screen.getByText("Leaderboard users")).toBeInTheDocument();
+    expect(screen.getByText("Health check")).toBeInTheDocument();
+    expect(screen.getByText("Needs review")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Recalculate affected games" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Alex Active")).toBeInTheDocument();
     expect(screen.getByText("Casey Excluded")).toBeInTheDocument();
     expect(screen.getAllByText("Excluded").length).toBeGreaterThan(0);
@@ -150,5 +174,60 @@ describe("AdminPlayerRanks", () => {
     );
     expect(refresh).toHaveBeenCalled();
     expect(screen.getAllByText("Enable").length).toBeGreaterThan(0);
+  });
+
+  it("lets admins recalculate affected games from the health check", async () => {
+    recalculatePlayerRankHealthIssues.mockResolvedValue({
+      processedGameCount: 2,
+      changed: true,
+      healthCheck: {
+        status: "good",
+        label: "Good",
+        message: "All completed games have the expected Player Rank coverage.",
+        affectedGameCount: 0,
+        totalCheckedGameCount: 3,
+        affectedGameIds: [],
+      },
+    });
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <AdminPlayerRanks
+        activeConfig={{
+          id: "config-1",
+          windowMonths: 6,
+          defaultMaxPrizePool: 40000,
+          prizePoolByPlayerCount: {
+            2: 5000,
+            3: 10000,
+            4: 20000,
+            5: 30000,
+          },
+          smallGameDistribution: {
+            2: [10000, 0, 0],
+            3: [10000, 0, 0],
+          },
+          largeGameDistribution: [6000, 3000, 1000],
+        }}
+        healthCheck={{
+          status: "review",
+          label: "Needs review",
+          message: "2 completed games need Player Rank recalculation.",
+          affectedGameCount: 2,
+          totalCheckedGameCount: 3,
+          affectedGameIds: ["game-a", "game-b"],
+        }}
+        standings={[]}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Recalculate affected games" }),
+    );
+
+    await waitFor(() =>
+      expect(recalculatePlayerRankHealthIssues).toHaveBeenCalled(),
+    );
+    expect(refresh).toHaveBeenCalled();
   });
 });

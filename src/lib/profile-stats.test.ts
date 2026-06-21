@@ -27,8 +27,14 @@ function createGame(
     title: {
       id: "title-1",
       title: "Skyjo",
+      color: "#0f766e",
       imageUrl: "/images/skyjo.png",
     },
+    scoringMode: "lowest_wins",
+    participants: [
+      { userId: "user-1", score: 10 },
+      { userId: "user-2", score: 20 },
+    ],
     participantUserIds: ["user-1", "user-2"],
     winnerUserIds: ["user-1"],
     ...overrides,
@@ -176,6 +182,62 @@ describe("buildProfileStats", () => {
       winRate: 67,
       recentWins: 2,
       recentGamesCount: 3,
+    });
+  });
+
+  it("builds overall comparison stats from the compared player's full history", () => {
+    const options = buildComparisonOptions({
+      profileUserId: "user-1",
+      friends: [createUser({ id: "user-2", firstName: "Ben" })],
+      includeGuests: false,
+    });
+
+    const result = buildProfileStats({
+      profileUserId: "user-1",
+      comparisonOptions: options,
+      friendCount: 1,
+      completedGames: [
+        createGame({
+          id: "shared-1",
+          completedAt: "2025-01-03T00:00:00.000Z",
+          winnerUserIds: ["user-1"],
+        }),
+      ],
+      comparisonCompletedGamesByUserId: {
+        "user-2": [
+          createGame({
+            id: "user-2-game-1",
+            completedAt: "2025-01-05T00:00:00.000Z",
+            winnerUserIds: ["user-2"],
+          }),
+          createGame({
+            id: "user-2-game-2",
+            completedAt: "2025-01-04T00:00:00.000Z",
+            winnerUserIds: ["user-1"],
+          }),
+          createGame({
+            id: "user-2-game-3",
+            completedAt: "2025-01-02T00:00:00.000Z",
+            winnerUserIds: ["user-2"],
+          }),
+        ],
+      },
+    });
+
+    expect(result.comparisonSummariesByUserId["user-2"]).toMatchObject({
+      overallStats: {
+        completedGames: 3,
+        wins: 2,
+        winRate: 67,
+        bestWinStreak: 1,
+        currentStreak: { type: "win", count: 1 },
+        signatureTitle: {
+          id: "title-1",
+          title: "Skyjo",
+          completedCount: 3,
+          winRate: 67,
+        },
+      },
     });
   });
 

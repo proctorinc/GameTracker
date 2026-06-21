@@ -7,6 +7,7 @@ import {
 } from "@/app/actions/pages/titles";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
 import { getTitlesGlobalTag, getTitlesTag } from "@/lib/cache-tags";
+import { isNextRedirectError } from "@/lib/next-navigation-errors";
 import { logError, logInfo } from "@/lib/server-log";
 import { getServerRequestContext } from "@/lib/server-request-context";
 
@@ -16,7 +17,10 @@ export async function getTitlesOverviewPageData(searchParams: SearchParamsInput)
   const requestContext = await getServerRequestContext();
 
   try {
-    const user = await loadCurrentUser();
+    const user = await loadCurrentUser({
+      onMissingAuth: "redirect",
+      returnPath: "/titles",
+    });
     const data = await getTitlesOverviewPageDataCached(user.id, searchParams);
 
     logInfo("titles.page_data.read.succeeded", {
@@ -36,6 +40,10 @@ export async function getTitlesOverviewPageData(searchParams: SearchParamsInput)
       ...data,
     };
   } catch (error) {
+    if (isNextRedirectError(error)) {
+      throw error;
+    }
+
     logError("titles.page_data.read.failed", error, {
       ...requestContext,
     });

@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { getOrdinalLabel } from "@/app/(protected)/dashboard/_components/utils";
 import { PlayerRankDeltaBadge } from "@/components/player-rank/player-rank-delta-badge";
 import ProfilePicture from "@/components/profile/profile-picture";
+import { Button } from "@/components/ui/button";
 import {
   sectionItemClassName,
   sectionItemMetaClassName,
@@ -13,6 +15,8 @@ import {
 import { CardEmpty } from "@/components/ui/card";
 import type { GameTitleHistoryRow } from "@/lib/db/store/game.store";
 import { cn } from "@/lib/utils";
+
+const PAGE_SIZE = 3;
 
 function formatDate(value: string | null, prefix: string) {
   if (!value) {
@@ -67,6 +71,12 @@ export function GameTitleHistoryList({
   games: GameTitleHistoryRow[];
   comparisonUserId: string | null;
 }) {
+  const [page, setPage] = useState(0);
+
+  useEffect(() => {
+    setPage(0);
+  }, [comparisonUserId, games.length]);
+
   if (games.length === 0) {
     return (
       <CardEmpty className="flex flex-col items-center gap-3 p-6">
@@ -75,9 +85,16 @@ export function GameTitleHistoryList({
     );
   }
 
+  const totalPages = Math.ceil(games.length / PAGE_SIZE);
+  const currentPage = Math.min(page, Math.max(totalPages - 1, 0));
+  const visibleGames = games.slice(
+    currentPage * PAGE_SIZE,
+    currentPage * PAGE_SIZE + PAGE_SIZE,
+  );
+
   return (
     <div className="flex flex-col gap-3">
-      {games.map((game) => {
+      {visibleGames.map((game) => {
         const comparisonPlayer = comparisonUserId
           ? game.comparisonsByUserId[comparisonUserId] ?? null
           : null;
@@ -191,6 +208,34 @@ export function GameTitleHistoryList({
           </Link>
         );
       })}
+
+      {totalPages > 1 ? (
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-full"
+            disabled={currentPage === 0}
+            onClick={() => setPage((value) => Math.max(value - 1, 0))}
+          >
+            Previous
+          </Button>
+          <p className="text-sm text-muted-foreground">
+            {currentPage + 1} / {totalPages}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-full"
+            disabled={currentPage >= totalPages - 1}
+            onClick={() =>
+              setPage((value) => Math.min(value + 1, totalPages - 1))
+            }
+          >
+            Next
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -121,6 +121,17 @@ export type PublishPlayerRankConfigInput = {
   largeGameDistribution: [number, number, number];
 };
 
+export type PlayerRankHealthStatus = "good" | "review" | "error";
+
+export type PlayerRankHealthCheck = {
+  status: PlayerRankHealthStatus;
+  label: string;
+  message: string;
+  affectedGameCount: number;
+  totalCheckedGameCount: number;
+  affectedGameIds: string[];
+};
+
 type UserRow = Pick<
   typeof users.$inferSelect,
   "id" | "firstName" | "lastName" | "playerRankLeaderboardDisabled" | "createdAt"
@@ -1241,6 +1252,122 @@ export async function listGamesMissingPlayerRankResults() {
   );
 }
 
+async function listCompletedGamesForPlayerRankHealthCheck() {
+  return withPlayerRankSchemaFallback(
+    () =>
+      db.query.games.findMany({
+        where: isNotNull(games.completedAt),
+        columns: {
+          id: true,
+          completedAt: true,
+        },
+        with: {
+          players: {
+            columns: {
+              userId: true,
+            },
+          },
+        },
+        orderBy: (table, { desc }) => [desc(table.completedAt), desc(table.createdAt)],
+      }),
+    () =>
+      [] as Array<{
+        id: string;
+        completedAt: string | null;
+        players: Array<{ userId: string }>;
+      }>,
+    "list_completed_games_for_health_check",
+  );
+}
+
+function getExpectedRankedPlayerCount(playerCount: number) {
+  if (playerCount === 2) {
+    return 2;
+  }
+
+  if (playerCount >= 3) {
+    return 3;
+  }
+
+  return 0;
+}
+
+export async function getPlayerRankHealthCheck(): Promise<PlayerRankHealthCheck> {
+  const activeConfig = await getActivePlayerRankConfig();
+
+  if (!activeConfig) {
+    return {
+      status: "error",
+      label: "Unavailable",
+      message: "Player Rank config or schema is unavailable.",
+      affectedGameCount: 0,
+      totalCheckedGameCount: 0,
+      affectedGameIds: [],
+    };
+  }
+
+  const completedGames = await listCompletedGamesForPlayerRankHealthCheck();
+  const gameIds = completedGames.map((game) => game.id);
+  const resultRows =
+    gameIds.length === 0
+      ? []
+      : await withPlayerRankSchemaFallback(
+          () =>
+            db.query.gamePlayerRankResults.findMany({
+              where: inArray(gamePlayerRankResults.gameId, gameIds),
+              columns: {
+                gameId: true,
+                userId: true,
+              },
+            }),
+          () => [] as Array<Pick<GamePlayerRankResultRecord, "gameId" | "userId">>,
+          "list_game_results_for_health_check",
+        );
+
+  const rankedUserIdsByGameId = new Map<string, Set<string>>();
+
+  for (const row of resultRows) {
+    const rankedUserIds = rankedUserIdsByGameId.get(row.gameId) ?? new Set<string>();
+    rankedUserIds.add(row.userId);
+    rankedUserIdsByGameId.set(row.gameId, rankedUserIds);
+  }
+
+  const affectedGameIds = completedGames
+    .filter((game) => {
+      const expectedRankedPlayerCount = getExpectedRankedPlayerCount(game.players.length);
+
+      if (expectedRankedPlayerCount === 0) {
+        return false;
+      }
+
+      const actualRankedPlayerCount =
+        rankedUserIdsByGameId.get(game.id)?.size ?? 0;
+
+      return actualRankedPlayerCount !== expectedRankedPlayerCount;
+    })
+    .map((game) => game.id);
+
+  if (affectedGameIds.length > 0) {
+    return {
+      status: "review",
+      label: "Needs review",
+      message: `${affectedGameIds.length} completed game${affectedGameIds.length === 1 ? "" : "s"} need Player Rank recalculation.`,
+      affectedGameCount: affectedGameIds.length,
+      totalCheckedGameCount: completedGames.length,
+      affectedGameIds,
+    };
+  }
+
+  return {
+    status: "good",
+    label: "Good",
+    message: "All completed games have the expected Player Rank coverage.",
+    affectedGameCount: 0,
+    totalCheckedGameCount: completedGames.length,
+    affectedGameIds: [],
+  };
+}
+
 export async function getCompletedGameForPlayerRank(gameId: string) {
   return db.query.games.findFirst({
     where: eq(games.id, gameId),
@@ -1293,5 +1420,47 @@ export async function backfillMissingPlayerRankResults() {
 
   return {
     processedGameCount,
+  };
+}
+
+export async function recalculateAffectedPlayerRankGames() {
+  const healthCheck = await getPlayerRankHealthCheck();
+
+  if (healthCheck.status !== "review") {
+    return {
+      processedGameCount: 0,
+      changed: false,
+      healthCheck,
+    };
+  }
+
+  let processedGameCount = 0;
+
+  for (const gameId of healthCheck.affectedGameIds) {
+    const game = await getCompletedGameForPlayerRank(gameId);
+
+    if (!game?.completedAt) {
+      continue;
+    }
+
+    await writePlayerRankResultsForCompletedGame({
+      gameId: game.id,
+      game: {
+        completedAt: game.completedAt,
+        scoringMode: game.scoringMode,
+        players: game.players.map((player) => ({
+          userId: player.userId,
+          score: player.score,
+        })),
+        winnerUserIds: game.winners.map((winner) => winner.userId),
+      },
+    });
+    processedGameCount += 1;
+  }
+
+  return {
+    processedGameCount,
+    changed: processedGameCount > 0,
+    healthCheck: await getPlayerRankHealthCheck(),
   };
 }

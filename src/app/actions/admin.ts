@@ -16,6 +16,7 @@ import {
   createFriendship,
   getFriendshipByUsers,
   getInvitationById,
+  mergeUserIntoUser,
   getUserById,
   listPendingInvitationsForGuest,
   mergeGuestUserIntoUser,
@@ -161,39 +162,44 @@ export async function mergeUsersAsAdmin(input: {
     throw new Error("Source user has already been merged");
   }
 
-  if (!sourceUser.isGuest) {
-    throw new Error("Only guest users can be merged as the source account");
-  }
-
   if (!targetUser || targetUser.mergedIntoUserId) {
     throw new Error("Target user not found");
   }
 
-  const mergeResult = await mergeGuestUserIntoUser({
-    guestUserId: sourceUserId,
-    recipientUserId: targetUserId,
-    inviterUserId: admin.id,
-  });
+  const mergeResult = sourceUser.isGuest
+    ? await mergeGuestUserIntoUser({
+        guestUserId: sourceUserId,
+        recipientUserId: targetUserId,
+        inviterUserId: admin.id,
+      })
+    : await mergeUserIntoUser({
+        sourceUserId,
+        targetUserId,
+        mergeActorUserId: admin.id,
+        sourceUserType: "registered",
+      });
 
-  const invitationIdsToRevoke = pendingGuestInvitations.map(
-    (invitation) => invitation.id,
-  );
-
-  if (invitationIdsToRevoke.length > 0) {
-    await Promise.all(
-      invitationIdsToRevoke.map((invitationId) =>
-        updateInvitation(invitationId, {
-          status: "revoked",
-          guestUserId: targetUserId,
-          acceptedByUserId: null,
-          acceptedAt: null,
-          updatedAt: nowIso(),
-        }),
-      ),
+  if (sourceUser.isGuest) {
+    const invitationIdsToRevoke = pendingGuestInvitations.map(
+      (invitation) => invitation.id,
     );
-  }
 
-  await revokePendingInvitationsForGuest(sourceUserId);
+    if (invitationIdsToRevoke.length > 0) {
+      await Promise.all(
+        invitationIdsToRevoke.map((invitationId) =>
+          updateInvitation(invitationId, {
+            status: "revoked",
+            guestUserId: targetUserId,
+            acceptedByUserId: null,
+            acceptedAt: null,
+            updatedAt: nowIso(),
+          }),
+        ),
+      );
+    }
+
+    await revokePendingInvitationsForGuest(sourceUserId);
+  }
 
   revalidateUserViews(targetUserId);
   revalidatePlayerRankStandings();

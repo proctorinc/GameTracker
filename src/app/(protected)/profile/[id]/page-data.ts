@@ -18,12 +18,14 @@ import {
   getActivePlayerRankConfig,
   getPlayerRankRecentChangeSummary,
   getUserPlayerRankSummary,
+  listPlayerRankGameDeltasByGameIds,
 } from "@/lib/db/store/player-rank.store";
 import { formatPlayerRankTotal } from "@/lib/player-rank";
 import {
   buildComparisonOptions,
   buildProfileStats,
   formatProfileDisplayName,
+  type ProfileStatsCompletedGame,
 } from "@/lib/profile-stats";
 import type { ProfileStatsPageData, PublicProfileSummaryData } from "../profile-types";
 
@@ -180,6 +182,7 @@ async function getProfileStatsPageData(input: {
                 id: true,
                 createdAt: true,
                 completedAt: true,
+                scoringMode: true,
               },
               with: {
                 gameTitle: {
@@ -193,6 +196,7 @@ async function getProfileStatsPageData(input: {
                 players: {
                   columns: {
                     userId: true,
+                    score: true,
                   },
                 },
                 winners: {
@@ -226,33 +230,128 @@ async function getProfileStatsPageData(input: {
         includeGuests: input.includeGuests,
       });
 
+      const comparisonCompletedParticipations =
+        comparisonOptions.length > 0
+          ? await db.query.gamePlayers.findMany({
+              where: (gamePlayers, { inArray }) =>
+                inArray(
+                  gamePlayers.userId,
+                  comparisonOptions.map((option) => option.id),
+                ),
+              with: {
+                game: {
+                  columns: {
+                    id: true,
+                    createdAt: true,
+                    completedAt: true,
+                    scoringMode: true,
+                  },
+                  with: {
+                    gameTitle: {
+                      columns: {
+                        id: true,
+                        title: true,
+                        color: true,
+                        imageUrl: true,
+                      },
+                    },
+                    players: {
+                      columns: {
+                        userId: true,
+                        score: true,
+                      },
+                    },
+                    winners: {
+                      columns: {
+                        userId: true,
+                      },
+                    },
+                  },
+                },
+              },
+            })
+          : [];
+      const allRelevantUserIds = Array.from(
+        new Set([input.profileId, ...comparisonOptions.map((option) => option.id)]),
+      );
+      const allCompletedGames = [
+        ...completedParticipations.flatMap((participation) => {
+          const game = mapParticipationToCompletedGame(participation);
+          return game ? [game] : [];
+        }),
+        ...comparisonCompletedParticipations.flatMap((participation) => {
+          const game = mapParticipationToCompletedGame(participation);
+          return game ? [game] : [];
+        }),
+      ];
+      const uniqueCompletedGames = Array.from(
+        new Map(allCompletedGames.map((game) => [game.id, game])).values(),
+      );
+      const [playerRankConfig, playerRankDeltasByGameId, currentGlobalRankSummaryByUserId] =
+        await Promise.all([
+          getActivePlayerRankConfig(),
+          listPlayerRankGameDeltasByGameIds(uniqueCompletedGames.map((game) => game.id)),
+          Promise.all(
+            allRelevantUserIds.map(async (userId) => [
+              userId,
+              await getUserPlayerRankSummary(userId),
+            ] as const),
+          ).then((entries) => Object.fromEntries(entries)),
+        ]);
+      const rankWindowStart = playerRankConfig
+        ? new Date(
+            new Date().setMonth(new Date().getMonth() - playerRankConfig.windowMonths),
+          ).toISOString()
+        : null;
+      const rankWindowLabel = playerRankConfig
+        ? `${playerRankConfig.windowMonths}-month rank gain`
+        : "Window rank gain";
+      const rankDeltaMinorByGameIdByUserId = Object.fromEntries(
+        allRelevantUserIds.map((userId) => [
+          userId,
+          Object.fromEntries(
+            uniqueCompletedGames.map((game) => [
+              game.id,
+              playerRankDeltasByGameId[game.id]?.find((delta) => delta.userId === userId)
+                ?.deltaMinor ?? 0,
+            ]),
+          ),
+        ]),
+      ) as Record<string, Record<string, number>>;
+      const comparisonCompletedGamesByUserId = comparisonCompletedParticipations.reduce<
+        Record<string, ProfileStatsCompletedGame[]>
+      >((accumulator, participation) => {
+        const game = mapParticipationToCompletedGame(participation);
+
+        if (!game) {
+          return accumulator;
+        }
+
+        accumulator[participation.userId] ??= [];
+        accumulator[participation.userId].push(game);
+        return accumulator;
+      }, {});
+
       const builtStats = buildProfileStats({
         profileUserId: input.profileId,
         friendCount: friendships.length,
         comparisonOptions,
-        completedGames: completedParticipations.flatMap((participation) => {
-          const game = participation.game;
-          if (!game?.completedAt) {
-            return [];
-          }
-
-          return [
+        comparisonCompletedGamesByUserId,
+        rankDeltaMinorByGameIdByUserId,
+        rankWindowStart,
+        rankWindowLabel,
+        currentGlobalRankSummaryByUserId: Object.fromEntries(
+          Object.entries(currentGlobalRankSummaryByUserId).map(([userId, summary]) => [
+            userId,
             {
-              id: game.id,
-              createdAt: game.createdAt,
-              completedAt: game.completedAt,
-              title: game.gameTitle
-                ? {
-                    id: game.gameTitle.id,
-                    title: game.gameTitle.title,
-                    color: game.gameTitle.color,
-                    imageUrl: game.gameTitle.imageUrl,
-                  }
-                : null,
-              participantUserIds: game.players.map((player) => player.userId),
-              winnerUserIds: game.winners.map((winner) => winner.userId),
+              playerRankTotal: summary?.playerRankTotal ?? null,
+              playerRankPosition: summary?.playerRankPosition ?? null,
             },
-          ];
+          ]),
+        ),
+        completedGames: completedParticipations.flatMap((participation) => {
+          const game = mapParticipationToCompletedGame(participation);
+          return game ? [game] : [];
         }),
       });
 
@@ -288,6 +387,50 @@ async function getProfileStatsPageData(input: {
       revalidate: PUBLIC_PROFILE_REVALIDATE_SECONDS,
     },
   )();
+}
+
+function mapParticipationToCompletedGame(participation: {
+    game: {
+      id: string;
+      createdAt: string;
+      completedAt: string | null;
+      scoringMode: "lowest_wins" | "highest_wins" | "no_score";
+      gameTitle: {
+        id: string;
+        title: string;
+        color: string;
+        imageUrl: string;
+      } | null;
+    players: Array<{ userId: string; score: number | null }>;
+    winners: Array<{ userId: string }>;
+  } | null;
+}): ProfileStatsCompletedGame | null {
+  const game = participation.game;
+
+  if (!game?.completedAt) {
+    return null;
+  }
+
+  return {
+    id: game.id,
+    createdAt: game.createdAt,
+    completedAt: game.completedAt,
+    title: game.gameTitle
+      ? {
+          id: game.gameTitle.id,
+          title: game.gameTitle.title,
+          color: game.gameTitle.color,
+          imageUrl: game.gameTitle.imageUrl,
+        }
+      : null,
+    scoringMode: game.scoringMode,
+    participants: game.players.map((player) => ({
+      userId: player.userId,
+      score: player.score,
+    })),
+    participantUserIds: game.players.map((player) => player.userId),
+    winnerUserIds: game.winners.map((winner) => winner.userId),
+  };
 }
 
 async function getPublicProfileViewerState(

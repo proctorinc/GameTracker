@@ -40,7 +40,10 @@ export async function getProfileOverviewPageData(input?: {
   tab?: string | null;
   invites?: string | null;
 }): Promise<ProfileOverviewPageData> {
-  const sessionUser = await loadCurrentUser();
+  const sessionUser = await loadCurrentUser({
+    onMissingAuth: "redirect",
+    returnPath: "/profile",
+  });
   const initialTab = selectProfileOverviewTab(input ?? {});
   const showInviteNotice = input?.invites === "1";
 

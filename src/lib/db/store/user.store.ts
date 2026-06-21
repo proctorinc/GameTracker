@@ -5,6 +5,7 @@ import {
   cards,
   friendships,
   gamePlayerRankResults,
+  playerRankHistory,
   gamePlayers,
   gameRoundScores,
   gameTitle,
@@ -16,6 +17,10 @@ import {
 } from "../index";
 import { GameFull } from "./game.store";
 import { getGamePlayersByUserId } from "./game-players.store";
+import {
+  getActivePlayerRankConfig,
+  rebuildPlayerRankHistoryFromDate,
+} from "./player-rank.store";
 
 export type UserBase = typeof users.$inferSelect;
 export type UserInsert = typeof users.$inferInsert;
@@ -65,6 +70,7 @@ export type UserReferenceSummary = {
   gameWinnersUser: number;
   gameRoundScoresUser: number;
   gamePlayerRankResultsUser: number;
+  playerRankHistoryUser: number;
   gamesCreator: number;
   gameTitlesCreatedBy: number;
   userGameTitlesOwned: number;
@@ -84,6 +90,20 @@ export type GuestMergeReferenceReport = {
   recipient: UserBase | null;
   guestReferences: UserReferenceSummary;
   recipientReferences: UserReferenceSummary | null;
+};
+
+export type MergeUserIntoUserSourceType = "guest" | "registered";
+
+export type MergeUserIntoUserInput = {
+  sourceUserId: string;
+  targetUserId: string;
+  mergeActorUserId: string;
+  sourceUserType: MergeUserIntoUserSourceType;
+};
+
+export type MergeUserIntoUserResult = {
+  mergedGamePlayerCount: number;
+  deletedDuplicateGamePlayerCount: number;
 };
 
 function nowIso() {
@@ -309,6 +329,7 @@ async function getUserReferenceSummary(userId: string): Promise<UserReferenceSum
     gameWinnersUserRows,
     gameRoundScoresUserRows,
     gamePlayerRankResultsUserRows,
+    playerRankHistoryUserRows,
     gamesCreatorRows,
     gameTitlesCreatedByRows,
     userGameTitlesOwnedRows,
@@ -344,6 +365,10 @@ async function getUserReferenceSummary(userId: string): Promise<UserReferenceSum
     db.query.gamePlayerRankResults.findMany({
       where: eq(gamePlayerRankResults.userId, userId),
       columns: { gameId: true },
+    }),
+    db.query.playerRankHistory.findMany({
+      where: eq(playerRankHistory.userId, userId),
+      columns: { historyDate: true },
     }),
     db.query.games.findMany({
       where: eq(games.creatorId, userId),
@@ -398,6 +423,7 @@ async function getUserReferenceSummary(userId: string): Promise<UserReferenceSum
     gameWinnersUser: gameWinnersUserRows.length,
     gameRoundScoresUser: gameRoundScoresUserRows.length,
     gamePlayerRankResultsUser: gamePlayerRankResultsUserRows.length,
+    playerRankHistoryUser: playerRankHistoryUserRows.length,
     gamesCreator: gamesCreatorRows.length,
     gameTitlesCreatedBy: gameTitlesCreatedByRows.length,
     userGameTitlesOwned: userGameTitlesOwnedRows.length,
@@ -439,52 +465,130 @@ export async function mergeGuestUserIntoUser(input: {
   guestUserId: string;
   recipientUserId: string;
   inviterUserId: string;
-}): Promise<{
-  mergedGamePlayerCount: number;
-  deletedDuplicateGamePlayerCount: number;
-}> {
-  const guest = await getUserById(input.guestUserId);
+}): Promise<MergeUserIntoUserResult> {
+  return mergeUserIntoUser({
+    sourceUserId: input.guestUserId,
+    targetUserId: input.recipientUserId,
+    mergeActorUserId: input.inviterUserId,
+    sourceUserType: "guest",
+  });
+}
 
-  if (!guest) {
-    throw new Error("Guest user not found");
+function toHistoryDateKey(value: string) {
+  return value.slice(0, 10);
+}
+
+function getEarlierHistoryDate(
+  current: string | null,
+  candidate: string | null,
+): string | null {
+  if (!candidate) {
+    return current;
   }
 
-  if (!guest.isGuest) {
+  if (!current || candidate < current) {
+    return candidate;
+  }
+
+  return current;
+}
+
+export async function mergeUserIntoUser(
+  input: MergeUserIntoUserInput,
+): Promise<MergeUserIntoUserResult> {
+  const source = await getUserById(input.sourceUserId);
+
+  if (!source) {
+    throw new Error("Source user not found");
+  }
+
+  const target = await getUserById(input.targetUserId);
+
+  if (!target || target.mergedIntoUserId) {
+    throw new Error("Target user not found");
+  }
+
+  if (source.mergedIntoUserId) {
+    throw new Error("Source user has already been merged");
+  }
+
+  if (source.id === target.id) {
+    throw new Error("Source and target cannot be the same user");
+  }
+
+  if (input.sourceUserType === "guest" && !source.isGuest) {
     throw new Error("Only guest users can be merged");
   }
 
-  if (guest.mergedIntoUserId) {
-    if (guest.mergedIntoUserId === input.recipientUserId) {
-      return {
-        mergedGamePlayerCount: 0,
-        deletedDuplicateGamePlayerCount: 0,
-      };
+  if (input.sourceUserType === "registered") {
+    if (source.isGuest) {
+      throw new Error("Registered-user merges require a non-guest source account");
     }
 
-    throw new Error("This guest has already been merged");
+    if (target.isGuest) {
+      throw new Error("Registered-user merges require a non-guest target account");
+    }
   }
 
-  if (guest.id === input.recipientUserId) {
-    throw new Error("Guest and recipient cannot be the same user");
-  }
-
-  const [guestPlayers, recipientPlayers] = await Promise.all([
-    getGamePlayersByUserId(guest.id),
-    getGamePlayersByUserId(input.recipientUserId),
+  const [
+    sourcePlayers,
+    targetPlayers,
+    earliestSourceRankResult,
+    earliestSourceRankHistory,
+    earliestTargetRankHistory,
+  ] = await Promise.all([
+    getGamePlayersByUserId(source.id),
+    getGamePlayersByUserId(target.id),
+    db.query.gamePlayerRankResults.findFirst({
+      where: eq(gamePlayerRankResults.userId, source.id),
+      orderBy: [asc(gamePlayerRankResults.gameCompletedAt), asc(gamePlayerRankResults.gameId)],
+      columns: {
+        gameCompletedAt: true,
+      },
+    }),
+    db.query.playerRankHistory.findFirst({
+      where: eq(playerRankHistory.userId, source.id),
+      orderBy: [asc(playerRankHistory.historyDate)],
+      columns: {
+        historyDate: true,
+      },
+    }),
+    db.query.playerRankHistory.findFirst({
+      where: eq(playerRankHistory.userId, target.id),
+      orderBy: [asc(playerRankHistory.historyDate)],
+      columns: {
+        historyDate: true,
+      },
+    }),
   ]);
 
-  const recipientGamePlayerByGameId = new Map(
-    recipientPlayers.map((player) => [player.gameId, player]),
+  let earliestRankRebuildDate = getEarlierHistoryDate(
+    null,
+    earliestSourceRankResult?.gameCompletedAt
+      ? toHistoryDateKey(earliestSourceRankResult.gameCompletedAt)
+      : null,
+  );
+  earliestRankRebuildDate = getEarlierHistoryDate(
+    earliestRankRebuildDate,
+    earliestSourceRankHistory?.historyDate ?? null,
+  );
+  earliestRankRebuildDate = getEarlierHistoryDate(
+    earliestRankRebuildDate,
+    earliestTargetRankHistory?.historyDate ?? null,
+  );
+
+  const targetGamePlayerByGameId = new Map(
+    targetPlayers.map((player) => [player.gameId, player]),
   );
 
   let mergedGamePlayerCount = 0;
   let deletedDuplicateGamePlayerCount = 0;
   await db.transaction(async (tx) => {
-    for (const guestPlayer of guestPlayers) {
-      const recipientPlayer = recipientGamePlayerByGameId.get(guestPlayer.gameId);
+    for (const sourcePlayer of sourcePlayers) {
+      const targetPlayer = targetGamePlayerByGameId.get(sourcePlayer.gameId);
 
-      if (recipientPlayer) {
-        await tx.delete(gamePlayers).where(eq(gamePlayers.id, guestPlayer.id));
+      if (targetPlayer) {
+        await tx.delete(gamePlayers).where(eq(gamePlayers.id, sourcePlayer.id));
         deletedDuplicateGamePlayerCount += 1;
         continue;
       }
@@ -492,33 +596,33 @@ export async function mergeGuestUserIntoUser(input: {
       await tx
         .update(gamePlayers)
         .set({
-          userId: input.recipientUserId,
+          userId: target.id,
         })
-        .where(eq(gamePlayers.id, guestPlayer.id));
+        .where(eq(gamePlayers.id, sourcePlayer.id));
       mergedGamePlayerCount += 1;
     }
 
-    const [guestWinnerRows, recipientWinnerRows] = await Promise.all([
+    const [sourceWinnerRows, targetWinnerRows] = await Promise.all([
       tx.query.gameWinners.findMany({
-        where: eq(gameWinners.userId, guest.id),
+        where: eq(gameWinners.userId, source.id),
       }),
       tx.query.gameWinners.findMany({
-        where: eq(gameWinners.userId, input.recipientUserId),
+        where: eq(gameWinners.userId, target.id),
       }),
     ]);
 
-    const recipientWinnerGameIds = new Set(
-      recipientWinnerRows.map((winner) => winner.gameId),
+    const targetWinnerGameIds = new Set(
+      targetWinnerRows.map((winner) => winner.gameId),
     );
 
-    for (const guestWinner of guestWinnerRows) {
-      if (recipientWinnerGameIds.has(guestWinner.gameId)) {
+    for (const sourceWinner of sourceWinnerRows) {
+      if (targetWinnerGameIds.has(sourceWinner.gameId)) {
         await tx
           .delete(gameWinners)
           .where(
             and(
-              eq(gameWinners.gameId, guestWinner.gameId),
-              eq(gameWinners.userId, guest.id),
+              eq(gameWinners.gameId, sourceWinner.gameId),
+              eq(gameWinners.userId, source.id),
             ),
           );
         continue;
@@ -527,37 +631,37 @@ export async function mergeGuestUserIntoUser(input: {
       await tx
         .update(gameWinners)
         .set({
-          userId: input.recipientUserId,
+          userId: target.id,
         })
         .where(
           and(
-            eq(gameWinners.gameId, guestWinner.gameId),
-            eq(gameWinners.userId, guest.id),
+            eq(gameWinners.gameId, sourceWinner.gameId),
+            eq(gameWinners.userId, source.id),
           ),
         );
     }
 
-    const [guestRankRows, recipientRankRows] = await Promise.all([
+    const [sourceRankRows, targetRankRows] = await Promise.all([
       tx.query.gamePlayerRankResults.findMany({
-        where: eq(gamePlayerRankResults.userId, guest.id),
+        where: eq(gamePlayerRankResults.userId, source.id),
       }),
       tx.query.gamePlayerRankResults.findMany({
-        where: eq(gamePlayerRankResults.userId, input.recipientUserId),
+        where: eq(gamePlayerRankResults.userId, target.id),
       }),
     ]);
 
-    const recipientRankGameIds = new Set(
-      recipientRankRows.map((result) => result.gameId),
+    const targetRankGameIds = new Set(
+      targetRankRows.map((result) => result.gameId),
     );
 
-    for (const guestRankRow of guestRankRows) {
-      if (recipientRankGameIds.has(guestRankRow.gameId)) {
+    for (const sourceRankRow of sourceRankRows) {
+      if (targetRankGameIds.has(sourceRankRow.gameId)) {
         await tx
           .delete(gamePlayerRankResults)
           .where(
             and(
-              eq(gamePlayerRankResults.gameId, guestRankRow.gameId),
-              eq(gamePlayerRankResults.userId, guest.id),
+              eq(gamePlayerRankResults.gameId, sourceRankRow.gameId),
+              eq(gamePlayerRankResults.userId, source.id),
             ),
           );
         continue;
@@ -566,12 +670,51 @@ export async function mergeGuestUserIntoUser(input: {
       await tx
         .update(gamePlayerRankResults)
         .set({
-          userId: input.recipientUserId,
+          userId: target.id,
         })
         .where(
           and(
-            eq(gamePlayerRankResults.gameId, guestRankRow.gameId),
-            eq(gamePlayerRankResults.userId, guest.id),
+            eq(gamePlayerRankResults.gameId, sourceRankRow.gameId),
+            eq(gamePlayerRankResults.userId, source.id),
+          ),
+        );
+    }
+
+    const [sourceRankHistoryRows, targetRankHistoryRows] = await Promise.all([
+      tx.query.playerRankHistory.findMany({
+        where: eq(playerRankHistory.userId, source.id),
+      }),
+      tx.query.playerRankHistory.findMany({
+        where: eq(playerRankHistory.userId, target.id),
+      }),
+    ]);
+
+    const targetHistoryDates = new Set(
+      targetRankHistoryRows.map((row) => row.historyDate),
+    );
+
+    for (const sourceHistoryRow of sourceRankHistoryRows) {
+      if (targetHistoryDates.has(sourceHistoryRow.historyDate)) {
+        await tx
+          .delete(playerRankHistory)
+          .where(
+            and(
+              eq(playerRankHistory.userId, source.id),
+              eq(playerRankHistory.historyDate, sourceHistoryRow.historyDate),
+            ),
+          );
+        continue;
+      }
+
+      await tx
+        .update(playerRankHistory)
+        .set({
+          userId: target.id,
+        })
+        .where(
+          and(
+            eq(playerRankHistory.userId, source.id),
+            eq(playerRankHistory.historyDate, sourceHistoryRow.historyDate),
           ),
         );
     }
@@ -579,31 +722,31 @@ export async function mergeGuestUserIntoUser(input: {
     await tx
       .update(gameRoundScores)
       .set({
-        userId: input.recipientUserId,
+        userId: target.id,
       })
-      .where(eq(gameRoundScores.userId, guest.id));
+      .where(eq(gameRoundScores.userId, source.id));
 
-    const [guestTitleOwnershipRows, recipientTitleOwnershipRows] = await Promise.all([
+    const [sourceTitleOwnershipRows, targetTitleOwnershipRows] = await Promise.all([
       tx.query.userGameTitle.findMany({
-        where: eq(userGameTitle.userId, guest.id),
+        where: eq(userGameTitle.userId, source.id),
       }),
       tx.query.userGameTitle.findMany({
-        where: eq(userGameTitle.userId, input.recipientUserId),
+        where: eq(userGameTitle.userId, target.id),
       }),
     ]);
 
-    const recipientOwnedTitleIds = new Set(
-      recipientTitleOwnershipRows.map((ownership) => ownership.gameTitleId),
+    const targetOwnedTitleIds = new Set(
+      targetTitleOwnershipRows.map((ownership) => ownership.gameTitleId),
     );
 
-    for (const guestOwnership of guestTitleOwnershipRows) {
-      if (recipientOwnedTitleIds.has(guestOwnership.gameTitleId)) {
+    for (const sourceOwnership of sourceTitleOwnershipRows) {
+      if (targetOwnedTitleIds.has(sourceOwnership.gameTitleId)) {
         await tx
           .delete(userGameTitle)
           .where(
             and(
-              eq(userGameTitle.userId, guest.id),
-              eq(userGameTitle.gameTitleId, guestOwnership.gameTitleId),
+              eq(userGameTitle.userId, source.id),
+              eq(userGameTitle.gameTitleId, sourceOwnership.gameTitleId),
             ),
           );
         continue;
@@ -612,30 +755,30 @@ export async function mergeGuestUserIntoUser(input: {
       await tx
         .update(userGameTitle)
         .set({
-          userId: input.recipientUserId,
+          userId: target.id,
         })
         .where(
           and(
-            eq(userGameTitle.userId, guest.id),
-            eq(userGameTitle.gameTitleId, guestOwnership.gameTitleId),
+            eq(userGameTitle.userId, source.id),
+            eq(userGameTitle.gameTitleId, sourceOwnership.gameTitleId),
           ),
         );
     }
 
-    const guestFriendships = await tx.query.friendships.findMany({
-      where: or(eq(friendships.user1Id, guest.id), eq(friendships.user2Id, guest.id)),
+    const sourceFriendships = await tx.query.friendships.findMany({
+      where: or(eq(friendships.user1Id, source.id), eq(friendships.user2Id, source.id)),
     });
 
-    for (const friendship of guestFriendships) {
+    for (const friendship of sourceFriendships) {
       const otherUserId =
-        friendship.user1Id === guest.id ? friendship.user2Id : friendship.user1Id;
+        friendship.user1Id === source.id ? friendship.user2Id : friendship.user1Id;
       const [nextUser1Id, nextUser2Id] =
-        otherUserId < input.recipientUserId
-          ? [otherUserId, input.recipientUserId]
-          : [input.recipientUserId, otherUserId];
+        otherUserId < target.id
+          ? [otherUserId, target.id]
+          : [target.id, otherUserId];
 
       if (
-        otherUserId === input.recipientUserId ||
+        otherUserId === target.id ||
         (await tx.query.friendships.findFirst({
           where: and(
             eq(friendships.user1Id, nextUser1Id),
@@ -667,8 +810,8 @@ export async function mergeGuestUserIntoUser(input: {
         user1Id: nextUser1Id,
         user2Id: nextUser2Id,
         inviterId:
-          friendship.inviterId === guest.id
-            ? input.recipientUserId
+          friendship.inviterId === source.id
+            ? target.id
             : friendship.inviterId,
         createdAt: friendship.createdAt,
       });
@@ -678,67 +821,81 @@ export async function mergeGuestUserIntoUser(input: {
       tx
         .update(cards)
         .set({
-          ownerId: input.recipientUserId,
+          ownerId: target.id,
         })
-        .where(eq(cards.ownerId, guest.id)),
+        .where(eq(cards.ownerId, source.id)),
       tx
         .update(cardDrops)
         .set({
-          userId: input.recipientUserId,
+          userId: target.id,
         })
-        .where(eq(cardDrops.userId, guest.id)),
+        .where(eq(cardDrops.userId, source.id)),
       tx
         .update(invitations)
         .set({
-          inviterUserId: input.recipientUserId,
+          inviterUserId: target.id,
         })
-        .where(eq(invitations.inviterUserId, guest.id)),
+        .where(eq(invitations.inviterUserId, source.id)),
       tx
         .update(invitations)
         .set({
-          inviteeUserId: input.recipientUserId,
+          inviteeUserId: target.id,
         })
-        .where(eq(invitations.inviteeUserId, guest.id)),
+        .where(eq(invitations.inviteeUserId, source.id)),
       tx
         .update(invitations)
         .set({
-          guestUserId: input.recipientUserId,
+          guestUserId: target.id,
         })
-        .where(eq(invitations.guestUserId, guest.id)),
+        .where(eq(invitations.guestUserId, source.id)),
       tx
         .update(invitations)
         .set({
-          acceptedByUserId: input.recipientUserId,
+          acceptedByUserId: target.id,
         })
-        .where(eq(invitations.acceptedByUserId, guest.id)),
+        .where(eq(invitations.acceptedByUserId, source.id)),
       tx
         .update(gameTitle)
         .set({
-          createdByUserId: input.recipientUserId,
+          createdByUserId: target.id,
         })
-        .where(eq(gameTitle.createdByUserId, guest.id)),
+        .where(eq(gameTitle.createdByUserId, source.id)),
       tx
         .update(userGameTitle)
         .set({
-          acquiredFromUserId: input.recipientUserId,
+          acquiredFromUserId: target.id,
         })
-        .where(eq(userGameTitle.acquiredFromUserId, guest.id)),
+        .where(eq(userGameTitle.acquiredFromUserId, source.id)),
       tx
         .update(games)
         .set({
-          creatorId: input.recipientUserId,
+          creatorId: target.id,
         })
-        .where(eq(games.creatorId, guest.id)),
+        .where(eq(games.creatorId, source.id)),
       tx
         .update(users)
         .set({
-          created_by_user_id: input.recipientUserId,
+          created_by_user_id: target.id,
         })
-        .where(eq(users.created_by_user_id, guest.id)),
+        .where(eq(users.created_by_user_id, source.id)),
+      tx
+        .update(users)
+        .set({
+          mergedIntoUserId: target.id,
+          mergedAt: nowIso(),
+          updatedAt: nowIso(),
+        })
+        .where(eq(users.id, source.id)),
     ]);
-
-    await tx.delete(users).where(eq(users.id, guest.id));
   });
+
+  if (earliestRankRebuildDate && (await getActivePlayerRankConfig())) {
+    await rebuildPlayerRankHistoryFromDate({
+      startDate: earliestRankRebuildDate,
+    });
+  }
+
+  await db.delete(users).where(eq(users.id, source.id));
 
   return {
     mergedGamePlayerCount,

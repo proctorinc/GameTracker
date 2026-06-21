@@ -7,7 +7,9 @@ export default async function ProtectedLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const user = await loadCurrentUser();
+  const user = await loadCurrentUser({
+    onMissingAuth: "redirect",
+  });
   const pendingInvitationCount = await countIncomingPendingInvitationsForUser({
     userId: user.id,
   });

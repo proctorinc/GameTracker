@@ -2,9 +2,7 @@ import type {
   ProfileStatsBestFriend,
   ProfileStatsComparisonOption,
   ProfileStatsComparisonSummary,
-  ProfileStatsSignatureTitle,
-  ProfileStatsStoryline,
-  ProfileStatsStreak,
+  ProfileStatsSummary,
 } from "@/lib/profile-stats";
 import type { PlayerRankRecentChangeSummary } from "@/lib/db/store/player-rank.store";
 
@@ -28,18 +26,7 @@ export type PublicProfileSummaryData = {
   threePlayerPrizePool: string | null;
   sixPlusPlayerPrizePool: string | null;
   defaultBestFriend: ProfileStatsBestFriend | null;
-  stats: {
-    friendCount: number;
-    completedGames: number;
-    wins: number;
-    winRate: number | null;
-    bestFriendGames: number;
-    bestWinStreak: number;
-    currentStreak: ProfileStatsStreak;
-    storyline: ProfileStatsStoryline;
-    signatureTitle: ProfileStatsSignatureTitle | null;
-    lastPlayedAt: string | null;
-  };
+  stats: ProfileStatsSummary;
 };
 
 export type ProfileStatsPageData = PublicProfileSummaryData & {

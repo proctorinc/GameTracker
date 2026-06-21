@@ -1,25 +1,43 @@
 import { auth, clerkClient, currentUser } from "@clerk/nextjs/server";
 import { cache } from "react";
+import { redirect } from "next/navigation";
 import { UnauthorizedError, type AuthUser } from "./session";
+import { DEFAULT_RETURN_PATH } from "./return-path";
 import { type UserBase } from "../db/store/user.store";
 import { getAcceptedFriendshipsByUserId } from "../db/store/friendship.store";
 import { upsertLocalUserFromClerkUser } from "./clerk-user";
 import { logError, logInfo, logWarn } from "../server-log";
 import { getServerRequestContext } from "../server-request-context";
 
+type LoadCurrentUserOptions = {
+  onMissingAuth?: "throw" | "redirect";
+  returnPath?: string;
+};
+
 /**
  * Load the current authenticated user from session cookie.
  * Use this in server actions to get the authenticated user without passing userId.
  */
-export async function loadCurrentUser(): Promise<AuthUser> {
+export async function loadCurrentUser(
+  options?: LoadCurrentUserOptions,
+): Promise<AuthUser> {
   const user = await loadOptionalCurrentUser();
   const requestContext = await getServerRequestContext();
+  const onMissingAuth = options?.onMissingAuth ?? "throw";
+  const returnPath = options?.returnPath ?? DEFAULT_RETURN_PATH;
 
   if (!user) {
     logWarn("auth.current_user.rejected", {
       ...requestContext,
       reason: "missing_authenticated_user",
+      onMissingAuth,
+      returnPath,
     });
+
+    if (onMissingAuth === "redirect") {
+      redirect(`/login?from=${encodeURIComponent(returnPath)}`);
+    }
+
     throw new UnauthorizedError("No session cookie found in actions");
   }
 

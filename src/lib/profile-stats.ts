@@ -28,6 +28,11 @@ export type ProfileStatsCompletedGame = {
   createdAt: string;
   completedAt: string;
   title: ProfileStatsTitle | null;
+  scoringMode?: "lowest_wins" | "highest_wins" | "no_score";
+  participants: Array<{
+    userId: string;
+    score: number | null;
+  }>;
   participantUserIds: string[];
   winnerUserIds: string[];
 };
@@ -53,6 +58,35 @@ export type ProfileStatsSignatureTitle = {
   lastPlayedAt: string;
 };
 
+export type ProfileStatsPlacementBreakdown = {
+  first: number;
+  second: number;
+  third: number;
+};
+
+export type ProfileStatsRankValue = {
+  formatted: string;
+  minor: number;
+};
+
+export type ProfileStatsOverallComparisonStats = {
+  completedGames: number;
+  wins: number;
+  winRate: number | null;
+  currentStreak: ProfileStatsStreak;
+  bestWinStreak: number;
+  signatureTitle: ProfileStatsSignatureTitle | null;
+  lastPlayedAt: string | null;
+  placements: ProfileStatsPlacementBreakdown;
+  rankWindowLabel: string | null;
+  rankGainInWindow: ProfileStatsRankValue;
+  rankGainAllTime: ProfileStatsRankValue;
+  bestRankGain: ProfileStatsRankValue | null;
+  averageRankGain: ProfileStatsRankValue | null;
+  currentGlobalRankTotal: string | null;
+  currentGlobalRankPosition: number | null;
+};
+
 export type ProfileStatsBestFriend = ProfileStatsComparisonOption & {
   completedGamesTogether: number;
   lastPlayedAt: string | null;
@@ -69,6 +103,7 @@ export type ProfileStatsComparisonSummary = {
   lastPlayedAt: string | null;
   recentWins: number;
   recentGamesCount: number;
+  overallStats: ProfileStatsOverallComparisonStats;
 };
 
 export type ProfileStatsSummary = {
@@ -82,6 +117,12 @@ export type ProfileStatsSummary = {
   bestFriendGames: number;
   storyline: ProfileStatsStoryline;
   signatureTitle: ProfileStatsSignatureTitle | null;
+  placements: ProfileStatsPlacementBreakdown;
+  rankWindowLabel: string | null;
+  rankGainInWindow: ProfileStatsRankValue;
+  rankGainAllTime: ProfileStatsRankValue;
+  bestRankGain: ProfileStatsRankValue | null;
+  averageRankGain: ProfileStatsRankValue | null;
 };
 
 export type BuiltProfileStats = {
@@ -148,10 +189,35 @@ export function buildProfileStats(input: {
   completedGames: ProfileStatsCompletedGame[];
   comparisonOptions: ProfileStatsComparisonOption[];
   friendCount: number;
+  comparisonCompletedGamesByUserId?: Record<string, ProfileStatsCompletedGame[]>;
+  rankDeltaMinorByGameIdByUserId?: Record<string, Record<string, number>>;
+  rankWindowStart?: string | null;
+  rankWindowLabel?: string | null;
+  currentGlobalRankSummaryByUserId?: Record<
+    string,
+    {
+      playerRankTotal: string | null;
+      playerRankPosition: number | null;
+    }
+  >;
 }): BuiltProfileStats {
   const sortedGames = [...input.completedGames].sort((left, right) =>
     right.completedAt.localeCompare(left.completedAt),
   );
+  const baseStats = summarizeOverallComparisonStats({
+    profileUserId: input.profileUserId,
+    completedGames: sortedGames,
+    rankDeltaMinorByGameId:
+      input.rankDeltaMinorByGameIdByUserId?.[input.profileUserId] ?? {},
+    rankWindowStart: input.rankWindowStart ?? null,
+    rankWindowLabel: input.rankWindowLabel ?? null,
+    currentGlobalRankTotal:
+      input.currentGlobalRankSummaryByUserId?.[input.profileUserId]?.playerRankTotal ??
+      null,
+    currentGlobalRankPosition:
+      input.currentGlobalRankSummaryByUserId?.[input.profileUserId]
+        ?.playerRankPosition ?? null,
+  });
   const optionById = new Map(
     input.comparisonOptions.map((option) => [option.id, option] as const),
   );
@@ -169,6 +235,21 @@ export function buildProfileStats(input: {
         lastPlayedAt: null,
         recentWins: 0,
         recentGamesCount: 0,
+        overallStats: summarizeOverallComparisonStats({
+          profileUserId: option.id,
+          completedGames:
+            input.comparisonCompletedGamesByUserId?.[option.id] ?? [],
+          rankDeltaMinorByGameId:
+            input.rankDeltaMinorByGameIdByUserId?.[option.id] ?? {},
+          rankWindowStart: input.rankWindowStart ?? null,
+          rankWindowLabel: input.rankWindowLabel ?? null,
+          currentGlobalRankTotal:
+            input.currentGlobalRankSummaryByUserId?.[option.id]?.playerRankTotal ??
+            null,
+          currentGlobalRankPosition:
+            input.currentGlobalRankSummaryByUserId?.[option.id]?.playerRankPosition ??
+            null,
+        }),
       } satisfies ProfileStatsComparisonSummary,
     ]),
   ) as Record<string, ProfileStatsComparisonSummary>;
@@ -186,17 +267,8 @@ export function buildProfileStats(input: {
     Array<"win" | "loss">
   >();
 
-  let completedWins = 0;
-  let bestWinStreak = 0;
-  let currentWinStreak = 0;
-  const lastPlayedAt: string | null = sortedGames[0]?.completedAt ?? null;
-
   for (const game of sortedGames) {
     const profileWon = didUserWin(game.winnerUserIds, input.profileUserId);
-
-    if (profileWon) {
-      completedWins += 1;
-    }
 
     if (game.title) {
       const existing = titleStats.get(game.title.id);
@@ -270,19 +342,6 @@ export function buildProfileStats(input: {
       }
     }
   }
-
-  const ascendingGames = [...sortedGames].reverse();
-  for (const game of ascendingGames) {
-    if (didUserWin(game.winnerUserIds, input.profileUserId)) {
-      currentWinStreak += 1;
-      bestWinStreak = Math.max(bestWinStreak, currentWinStreak);
-      continue;
-    }
-
-    currentWinStreak = 0;
-  }
-
-  const currentStreak = getCurrentUserStreak(sortedGames, input.profileUserId);
   const signatureTitle = Array.from(titleStats.values())
     .map((entry) => ({
       ...entry,
@@ -383,7 +442,7 @@ export function buildProfileStats(input: {
   const completedGamesCount = sortedGames.length;
   const storyline = buildStoryline({
     completedGamesCount,
-    currentStreak,
+    currentStreak: baseStats.currentStreak,
     recentGames: sortedGames.slice(0, 6),
     profileUserId: input.profileUserId,
   });
@@ -395,18 +454,21 @@ export function buildProfileStats(input: {
     defaultBestFriend,
     stats: {
       completedGames: completedGamesCount,
-      wins: completedWins,
-      winRate:
-        completedGamesCount > 0
-          ? Math.round((completedWins / completedGamesCount) * 100)
-          : null,
+      wins: baseStats.wins,
+      winRate: baseStats.winRate,
       friendCount: input.friendCount,
-      lastPlayedAt,
-      currentStreak,
-      bestWinStreak,
+      lastPlayedAt: baseStats.lastPlayedAt,
+      currentStreak: baseStats.currentStreak,
+      bestWinStreak: baseStats.bestWinStreak,
       bestFriendGames: defaultBestFriend?.completedGamesTogether ?? 0,
       storyline,
-      signatureTitle,
+      signatureTitle: signatureTitle ?? baseStats.signatureTitle,
+      placements: baseStats.placements,
+      rankWindowLabel: baseStats.rankWindowLabel,
+      rankGainInWindow: baseStats.rankGainInWindow,
+      rankGainAllTime: baseStats.rankGainAllTime,
+      bestRankGain: baseStats.bestRankGain,
+      averageRankGain: baseStats.averageRankGain,
     },
   };
 }
@@ -476,6 +538,187 @@ function getCurrentComparisonStreak(results: Array<"win" | "loss">): ProfileStat
     type: first,
     count,
   };
+}
+
+function summarizeOverallComparisonStats(input: {
+  profileUserId: string;
+  completedGames: ProfileStatsCompletedGame[];
+  rankDeltaMinorByGameId: Record<string, number>;
+  rankWindowStart: string | null;
+  rankWindowLabel: string | null;
+  currentGlobalRankTotal: string | null;
+  currentGlobalRankPosition: number | null;
+}): ProfileStatsOverallComparisonStats {
+  const sortedGames = [...input.completedGames].sort((left, right) =>
+    right.completedAt.localeCompare(left.completedAt),
+  );
+  const titleStats = new Map<
+    string,
+    ProfileStatsSignatureTitle & { wins: number }
+  >();
+  let wins = 0;
+  let bestWinStreak = 0;
+  let currentWinStreak = 0;
+  const placements = createEmptyPlacementBreakdown();
+  let rankGainInWindowMinor = 0;
+  let rankGainAllTimeMinor = 0;
+  let bestRankGainMinor: number | null = null;
+
+  for (const game of sortedGames) {
+    const profileWon = didUserWin(game.winnerUserIds, input.profileUserId);
+    const placement = getOrdinalPlacement(game, input.profileUserId);
+    if (placement === 1) placements.first += 1;
+    if (placement === 2) placements.second += 1;
+    if (placement === 3) placements.third += 1;
+
+    if (profileWon) {
+      wins += 1;
+    }
+
+    const rankDeltaMinor = input.rankDeltaMinorByGameId[game.id] ?? 0;
+    rankGainAllTimeMinor += rankDeltaMinor;
+    if (
+      input.rankWindowStart &&
+      game.completedAt >= input.rankWindowStart
+    ) {
+      rankGainInWindowMinor += rankDeltaMinor;
+    }
+    if (bestRankGainMinor === null || rankDeltaMinor > bestRankGainMinor) {
+      bestRankGainMinor = rankDeltaMinor;
+    }
+
+    if (!game.title) {
+      continue;
+    }
+
+    const existing = titleStats.get(game.title.id);
+    titleStats.set(game.title.id, {
+      id: game.title.id,
+      title: game.title.title,
+      color: game.title.color,
+      imageUrl: game.title.imageUrl,
+      completedCount: (existing?.completedCount ?? 0) + 1,
+      wins: (existing?.wins ?? 0) + (profileWon ? 1 : 0),
+      lastPlayedAt:
+        !existing || game.completedAt > existing.lastPlayedAt
+          ? game.completedAt
+          : existing.lastPlayedAt,
+      winRate: 0,
+    });
+  }
+
+  const ascendingGames = [...sortedGames].reverse();
+  for (const game of ascendingGames) {
+    if (didUserWin(game.winnerUserIds, input.profileUserId)) {
+      currentWinStreak += 1;
+      bestWinStreak = Math.max(bestWinStreak, currentWinStreak);
+      continue;
+    }
+
+    currentWinStreak = 0;
+  }
+
+  const signatureTitle = Array.from(titleStats.values())
+    .map((entry) => ({
+      ...entry,
+      winRate: Math.round((entry.wins / entry.completedCount) * 100),
+    }))
+    .sort((left, right) => {
+      if (right.completedCount !== left.completedCount) {
+        return right.completedCount - left.completedCount;
+      }
+
+      if (right.lastPlayedAt !== left.lastPlayedAt) {
+        return right.lastPlayedAt.localeCompare(left.lastPlayedAt);
+      }
+
+      return left.title.localeCompare(right.title);
+    })[0] ?? null;
+  const completedGamesCount = sortedGames.length;
+
+  return {
+    completedGames: completedGamesCount,
+    wins,
+    winRate:
+      completedGamesCount > 0
+        ? Math.round((wins / completedGamesCount) * 100)
+        : null,
+    currentStreak: getCurrentUserStreak(sortedGames, input.profileUserId),
+    bestWinStreak,
+    signatureTitle,
+    lastPlayedAt: sortedGames[0]?.completedAt ?? null,
+    placements,
+    rankWindowLabel: input.rankWindowLabel,
+    rankGainInWindow: createRankValue(rankGainInWindowMinor),
+    rankGainAllTime: createRankValue(rankGainAllTimeMinor),
+    bestRankGain:
+      bestRankGainMinor === null ? null : createRankValue(bestRankGainMinor),
+    averageRankGain:
+      completedGamesCount > 0
+        ? createRankValue(Math.round(rankGainAllTimeMinor / completedGamesCount))
+        : null,
+    currentGlobalRankTotal: input.currentGlobalRankTotal,
+    currentGlobalRankPosition: input.currentGlobalRankPosition,
+  };
+}
+
+function createEmptyPlacementBreakdown(): ProfileStatsPlacementBreakdown {
+  return { first: 0, second: 0, third: 0 };
+}
+
+function createRankValue(minor: number): ProfileStatsRankValue {
+  return {
+    minor,
+    formatted: formatSignedRankValue(minor),
+  };
+}
+
+function formatSignedRankValue(minor: number) {
+  const absolute = Math.abs(minor);
+  const whole = (absolute / 100).toFixed(2).replace(/\.?0+$/, "");
+  if (minor > 0) {
+    return `+${whole}`;
+  }
+  if (minor < 0) {
+    return `-${whole}`;
+  }
+  return "0";
+}
+
+function getOrdinalPlacement(
+  game: ProfileStatsCompletedGame,
+  userId: string,
+): number | null {
+  if (game.scoringMode === "no_score") {
+    return game.winnerUserIds.includes(userId) ? 1 : null;
+  }
+
+  const sortedPlayers = [...game.participants].sort((left, right) => {
+    const leftScore = left.score ?? Number.POSITIVE_INFINITY;
+    const rightScore = right.score ?? Number.POSITIVE_INFINITY;
+    return game.scoringMode === "highest_wins"
+      ? rightScore - leftScore
+      : leftScore - rightScore;
+  });
+  let placement = 0;
+  let lastScore: number | null = null;
+
+  for (const player of sortedPlayers) {
+    if (player.score === null) {
+      continue;
+    }
+
+    if (lastScore === null || player.score !== lastScore) {
+      placement += 1;
+      lastScore = player.score;
+    }
+
+    if (player.userId === userId) {
+      return placement;
+    }
+  }
+
+  return null;
 }
 
 function buildStoryline(input: {

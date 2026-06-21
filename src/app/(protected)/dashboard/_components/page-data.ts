@@ -11,6 +11,7 @@ import {
   getUserPlayerRankSummary,
 } from "@/lib/db/store/player-rank.store";
 import { formatPlayerRankTotal } from "@/lib/player-rank";
+import { isNextRedirectError } from "@/lib/next-navigation-errors";
 import { logError, logInfo } from "@/lib/server-log";
 import { getServerRequestContext } from "@/lib/server-request-context";
 
@@ -20,7 +21,10 @@ export async function getDashboardOverviewPageData() {
   const requestContext = await getServerRequestContext();
 
   try {
-    const user = await loadCurrentUser();
+    const user = await loadCurrentUser({
+      onMissingAuth: "redirect",
+      returnPath: "/dashboard",
+    });
     const data = await getDashboardOverviewPageDataCached(user.id);
     const [playerRankSummary, playerRankConfig, playerRankRecentChangeSummary] =
       await Promise.all([
@@ -72,6 +76,10 @@ export async function getDashboardOverviewPageData() {
         : null,
     };
   } catch (error) {
+    if (isNextRedirectError(error)) {
+      throw error;
+    }
+
     logError("dashboard.page_data.read.failed", error, {
       ...requestContext,
     });

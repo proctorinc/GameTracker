@@ -40,8 +40,14 @@ export type PlayerRankChartHighlightSummary = {
   topThreeFinishes: number;
 };
 
+export function parseChartDate(historyDate: string) {
+  const [year, month, day] = historyDate.split("-").map(Number);
+
+  return new Date(year ?? 0, (month ?? 1) - 1, day ?? 1, 12);
+}
+
 export function formatChartDate(historyDate: string) {
-  return new Date(`${historyDate}T00:00:00.000Z`).toLocaleDateString("en-US", {
+  return parseChartDate(historyDate).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
   });
@@ -83,7 +89,7 @@ export function buildChartData(input: {
           userId: entry.userId,
           historyDate: point.historyDate,
           historyDateLabel: formatChartDate(point.historyDate),
-          date: new Date(`${point.historyDate}T00:00:00.000Z`),
+          date: parseChartDate(point.historyDate),
           value: value ?? 0,
           rawValue: value,
           point,
@@ -100,10 +106,9 @@ export function buildChartData(input: {
   });
 }
 
-export function orderSeriesByHighlightedUser<T extends { userId: string }>(input: {
-  series: T[];
-  highlightedUserId: string | null;
-}) {
+export function orderSeriesByHighlightedUser<
+  T extends { userId: string },
+>(input: { series: T[]; highlightedUserId: string | null }) {
   if (!input.highlightedUserId) {
     return input.series;
   }

@@ -7,6 +7,7 @@ import {
 } from "@/app/actions/pages/game-history";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
 import { getGameHistoryTag, getTitlesGlobalTag } from "@/lib/cache-tags";
+import { isNextRedirectError } from "@/lib/next-navigation-errors";
 import { logError, logInfo } from "@/lib/server-log";
 import { getServerRequestContext } from "@/lib/server-request-context";
 
@@ -18,7 +19,10 @@ export async function getGameHistoryOverviewPageData(
   const requestContext = await getServerRequestContext();
 
   try {
-    const user = await loadCurrentUser();
+    const user = await loadCurrentUser({
+      onMissingAuth: "redirect",
+      returnPath: "/game/history",
+    });
     const data = await getGameHistoryOverviewPageDataCached(user.id, searchParams);
 
     logInfo("game_history.page_data.read.succeeded", {
@@ -40,6 +44,10 @@ export async function getGameHistoryOverviewPageData(
       ...data,
     };
   } catch (error) {
+    if (isNextRedirectError(error)) {
+      throw error;
+    }
+
     logError("game_history.page_data.read.failed", error, {
       ...requestContext,
     });

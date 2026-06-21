@@ -829,4 +829,272 @@ describe("server action integration", () => {
       });
     }, "guest-merge-non-creator");
   });
+
+  it("rebuilds player rank history onto the recipient during a guest merge", async () => {
+    await withTestDatabase(async () => {
+      const dayOne = "2026-06-10T12:00:00.000Z";
+      const dayTwo = "2026-06-11T12:00:00.000Z";
+      const inviter = await createUserFixture({ createdAt: dayOne });
+      const recipient = await createUserFixture({
+        firstName: "Recipient",
+        createdAt: dayOne,
+      });
+      const guest = await createUserFixture({
+        firstName: "Guest",
+        isGuest: true,
+        created_by_user_id: inviter.id,
+        createdAt: dayOne,
+      });
+
+      const { db, games, gamePlayerRankResults, playerRankConfigs, playerRankHistory } =
+        await import("../../../src/lib/db");
+      const {
+        getGuestMergeReferenceReport,
+        getUserById,
+        mergeGuestUserIntoUser,
+      } = await import("../../../src/lib/db/store/user.store");
+      const {
+        getUserPlayerRankSummary,
+        listPlayerRankHistorySeries,
+        rebuildPlayerRankHistoryFromDate,
+      } = await import("../../../src/lib/db/store/player-rank.store");
+
+      const [config] = await db
+        .insert(playerRankConfigs)
+        .values({
+          version: "v1",
+          isActive: true,
+          windowMonths: 6,
+          defaultMaxPrizePool: 40000,
+          prizePoolByPlayerCountJson: JSON.stringify({
+            2: 5000,
+            3: 10000,
+            4: 20000,
+          }),
+          smallGameDistributionJson: JSON.stringify({
+            2: [10000, 0, 0],
+            3: [10000, 0, 0],
+          }),
+          largeGameDistributionJson: JSON.stringify([6000, 3000, 1000]),
+          createdByUserId: inviter.id,
+          createdAt: dayOne,
+        })
+        .returning();
+
+      if (!config) {
+        throw new Error("Missing player rank config");
+      }
+
+      await db.insert(games).values([
+        {
+          id: "guest-rank-game",
+          creatorId: guest.id,
+          scoringMode: "highest_wins",
+          completedAt: dayOne,
+        },
+        {
+          id: "recipient-rank-game",
+          creatorId: recipient.id,
+          scoringMode: "highest_wins",
+          completedAt: dayTwo,
+        },
+      ]);
+
+      await db.insert(gamePlayerRankResults).values([
+        {
+          gameId: "guest-rank-game",
+          userId: guest.id,
+          gameCompletedAt: dayOne,
+          playerCount: 2,
+          placement: 1,
+          tieSize: 1,
+          rankConfigId: config.id,
+          prizePoolMinor: 5000,
+          payoutPercentBps: 10000,
+          pointsAwardedMinor: 5000,
+          createdAt: dayOne,
+        },
+        {
+          gameId: "recipient-rank-game",
+          userId: recipient.id,
+          gameCompletedAt: dayTwo,
+          playerCount: 2,
+          placement: 1,
+          tieSize: 1,
+          rankConfigId: config.id,
+          prizePoolMinor: 2000,
+          payoutPercentBps: 10000,
+          pointsAwardedMinor: 2000,
+          createdAt: dayTwo,
+        },
+      ]);
+
+      await rebuildPlayerRankHistoryFromDate({
+        startDate: dayOne,
+        now: new Date(dayTwo),
+      });
+
+      await db.insert(playerRankHistory).values({
+        userId: guest.id,
+        historyDate: "2026-06-10",
+        playerRankPosition: 1,
+        playerRankTotalMinor: 5000,
+        playerRankGamesCount: 1,
+        topThreeFinishes: 1,
+        createdAt: dayOne,
+        updatedAt: dayOne,
+      });
+
+      const beforeReport = await getGuestMergeReferenceReport({
+        guestUserId: guest.id,
+        recipientUserId: recipient.id,
+      });
+      expect(beforeReport.guestReferences.playerRankHistoryUser).toBe(1);
+
+      await mergeGuestUserIntoUser({
+        guestUserId: guest.id,
+        recipientUserId: recipient.id,
+        inviterUserId: inviter.id,
+      });
+
+      expect(await getUserById(guest.id)).toBeNull();
+
+      const [historyRows, rankSummary, historySeries] = await Promise.all([
+        db.query.playerRankHistory.findMany({
+          orderBy: (table, { asc }) => [asc(table.historyDate), asc(table.userId)],
+        }),
+        getUserPlayerRankSummary(recipient.id),
+        listPlayerRankHistorySeries({
+          userIds: [recipient.id],
+          days: 2,
+          now: new Date(dayTwo),
+        }),
+      ]);
+
+      expect(historyRows.some((row) => row.userId === guest.id)).toBe(false);
+      expect(
+        historyRows.filter((row) => row.userId === recipient.id).map((row) => row.historyDate),
+      ).toEqual(["2026-06-10", "2026-06-11"]);
+      expect(rankSummary?.playerRankTotalMinor).toBe(7000);
+      expect(
+        historySeries.pointsByUserId[recipient.id]?.map(
+          (point) => point.playerRankTotalMinor,
+        ),
+      ).toEqual([5000, 7000]);
+    }, "guest-merge-rank-history");
+  });
+
+  it("deduplicates overlapping ranked-game rows during guest merge rebuilds", async () => {
+    await withTestDatabase(async () => {
+      const rankedAt = "2026-06-10T12:00:00.000Z";
+      const inviter = await createUserFixture({ createdAt: rankedAt });
+      const recipient = await createUserFixture({
+        firstName: "Recipient",
+        createdAt: rankedAt,
+      });
+      const guest = await createUserFixture({
+        firstName: "Guest",
+        isGuest: true,
+        created_by_user_id: inviter.id,
+        createdAt: rankedAt,
+      });
+
+      const { db, games, gamePlayerRankResults, playerRankConfigs } = await import(
+        "../../../src/lib/db"
+      );
+      const { mergeGuestUserIntoUser } = await import(
+        "../../../src/lib/db/store/user.store"
+      );
+      const {
+        getUserPlayerRankSummary,
+        rebuildPlayerRankHistoryFromDate,
+      } = await import("../../../src/lib/db/store/player-rank.store");
+
+      const [config] = await db
+        .insert(playerRankConfigs)
+        .values({
+          version: "v1",
+          isActive: true,
+          windowMonths: 6,
+          defaultMaxPrizePool: 40000,
+          prizePoolByPlayerCountJson: JSON.stringify({
+            2: 5000,
+            3: 10000,
+          }),
+          smallGameDistributionJson: JSON.stringify({
+            2: [10000, 0, 0],
+            3: [10000, 0, 0],
+          }),
+          largeGameDistributionJson: JSON.stringify([6000, 3000, 1000]),
+          createdByUserId: inviter.id,
+          createdAt: rankedAt,
+        })
+        .returning();
+
+      if (!config) {
+        throw new Error("Missing player rank config");
+      }
+
+      await db.insert(games).values({
+        id: "shared-rank-game",
+        creatorId: inviter.id,
+        scoringMode: "highest_wins",
+        completedAt: rankedAt,
+      });
+
+      await db.insert(gamePlayerRankResults).values([
+        {
+          gameId: "shared-rank-game",
+          userId: recipient.id,
+          gameCompletedAt: rankedAt,
+          playerCount: 2,
+          placement: 1,
+          tieSize: 1,
+          rankConfigId: config.id,
+          prizePoolMinor: 5000,
+          payoutPercentBps: 10000,
+          pointsAwardedMinor: 5000,
+          createdAt: rankedAt,
+        },
+        {
+          gameId: "shared-rank-game",
+          userId: guest.id,
+          gameCompletedAt: rankedAt,
+          playerCount: 2,
+          placement: 2,
+          tieSize: 1,
+          rankConfigId: config.id,
+          prizePoolMinor: 5000,
+          payoutPercentBps: 0,
+          pointsAwardedMinor: 0,
+          createdAt: rankedAt,
+        },
+      ]);
+
+      await rebuildPlayerRankHistoryFromDate({
+        startDate: rankedAt,
+        now: new Date(rankedAt),
+      });
+
+      const mergeResult = await mergeGuestUserIntoUser({
+        guestUserId: guest.id,
+        recipientUserId: recipient.id,
+        inviterUserId: inviter.id,
+      });
+
+      const [rankRows, summary, historyRows] = await Promise.all([
+        db.query.gamePlayerRankResults.findMany({
+          where: eq(gamePlayerRankResults.gameId, "shared-rank-game"),
+        }),
+        getUserPlayerRankSummary(recipient.id),
+        db.query.playerRankHistory.findMany(),
+      ]);
+
+      expect(mergeResult.deletedDuplicateGamePlayerCount).toBe(0);
+      expect(rankRows).toHaveLength(1);
+      expect(rankRows[0]?.userId).toBe(recipient.id);
+      expect(summary?.playerRankTotalMinor).toBe(5000);
+      expect(historyRows.some((row) => row.userId === guest.id)).toBe(false);
+    }, "guest-merge-rank-duplicates");
+  });
 });

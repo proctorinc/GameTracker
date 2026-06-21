@@ -23,7 +23,10 @@ const PLAYER_RANK_PAGE_REVALIDATE_SECONDS = 15;
 export type PlayerRankPageData = Awaited<ReturnType<typeof getPlayerRankPageData>>;
 
 export async function getPlayerRankPageData() {
-  const user = await loadCurrentUser();
+  const user = await loadCurrentUser({
+    onMissingAuth: "redirect",
+    returnPath: "/player-rank",
+  });
   return getPlayerRankPageDataCached(user.id);
 }
 
@@ -37,7 +40,10 @@ async function getPlayerRankPageDataCached(userId: string) {
         standings,
       ] = await Promise.all([
           getActivePlayerRankConfig(),
-          loadCurrentUser(),
+          loadCurrentUser({
+            onMissingAuth: "redirect",
+            returnPath: "/player-rank",
+          }),
           getFriendsPageCollections({ userId }),
           listPlayerRankStandings(),
         ]);

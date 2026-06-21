@@ -293,7 +293,7 @@ export function PlayerRankPageChart({
               style={{
                 ...latestPointStyle,
                 filter: avatarFilter,
-                transform: "translate(-0%, -50%)",
+                transform: "translate(0%, -50%)",
                 zIndex: isHighlighted ? 15 : 10,
                 transition: "filter 180ms ease",
               }}

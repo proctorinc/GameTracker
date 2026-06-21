@@ -130,15 +130,7 @@ export function AdminUsersPage({ data }: { data: AdminUsersPageData }) {
       return {
         canSubmit: false,
         title: "Choose a source account",
-        description: "The source account must be a guest that will be merged away.",
-      };
-    }
-
-    if (!sourceUser.isGuest) {
-      return {
-        canSubmit: false,
-        title: "Source must be a guest",
-        description: "User -> user and user -> guest merges are not allowed.",
+        description: "Pick the account that will be merged away.",
       };
     }
 
@@ -166,13 +158,26 @@ export function AdminUsersPage({ data }: { data: AdminUsersPageData }) {
       };
     }
 
+    if (!sourceUser.isGuest && targetUser.isGuest) {
+      return {
+        canSubmit: false,
+        title: "Registered merges need an account target",
+        description:
+          "When merging a full account, the target must be an active non-guest user so profile and auth fields stay canonical.",
+      };
+    }
+
     return {
       canSubmit: true,
-      title: "Ready to merge guest into target",
+      title: sourceUser.isGuest
+        ? "Ready to merge guest into target"
+        : "Ready to merge source into target",
       description:
-        targetUser.isGuest
-          ? "This will merge one guest into another guest account."
-          : "This will merge the guest into a full user account.",
+        sourceUser.isGuest
+          ? targetUser.isGuest
+            ? "This will merge one guest into another guest account."
+            : "This will merge the guest into a full user account."
+          : "This will move the source account's relational game, invite, and rank data under the target user while keeping the target profile canonical.",
     };
   }, [sourceUser, targetUser]);
 

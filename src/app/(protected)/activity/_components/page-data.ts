@@ -22,6 +22,7 @@ import {
   buildActivityLeaderboard,
   type ActivityLeaderboardFriend,
 } from "./leaderboard-utils";
+import { isNextRedirectError } from "@/lib/next-navigation-errors";
 
 const ACTIVITY_PAGE_REVALIDATE_SECONDS = 15;
 
@@ -50,7 +51,10 @@ export async function getActivityPageData(): Promise<ActivityPageData> {
   const requestContext = await getServerRequestContext();
 
   try {
-    const user = await loadCurrentUser();
+    const user = await loadCurrentUser({
+      onMissingAuth: "redirect",
+      returnPath: "/activity",
+    });
     const data = await getActivityPageDataCached(
       user.id,
       {
@@ -81,6 +85,10 @@ export async function getActivityPageData(): Promise<ActivityPageData> {
       ...data,
     };
   } catch (error) {
+    if (isNextRedirectError(error)) {
+      throw error;
+    }
+
     logError("activity.page_data.read.failed", error, requestContext);
     throw error;
   }

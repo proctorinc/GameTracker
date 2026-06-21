@@ -8,6 +8,8 @@ const HIDE_NAV_PATHS = ["/game/create/settings", "/play"];
 
 function shouldHideNav(pathname: string) {
   return (
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/") ||
     HIDE_NAV_EXACT_PATHS.includes(pathname) ||
     HIDE_NAV_PATHS.some(
       (prefix) =>

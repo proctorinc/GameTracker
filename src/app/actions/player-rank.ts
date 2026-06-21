@@ -2,8 +2,10 @@
 
 import {
   backfillMissingPlayerRankResults,
+  getPlayerRankHealthCheck,
   publishPlayerRankConfig,
   previewPlayerRankStandings,
+  recalculateAffectedPlayerRankGames,
   rebuildAllPlayerRankHistory,
   type PublishPlayerRankConfigInput,
 } from "@/lib/db/store/player-rank.store";
@@ -75,6 +77,18 @@ export async function forceRefreshAllPlayerRankHistory() {
   await revalidatePlayerRankForActiveUsers();
 
   return result;
+}
+
+export async function recalculatePlayerRankHealthIssues() {
+  await requireAdminUser();
+  const result = await recalculateAffectedPlayerRankGames();
+  await rebuildAllPlayerRankHistory();
+  await revalidatePlayerRankForActiveUsers();
+
+  return {
+    ...result,
+    healthCheck: await getPlayerRankHealthCheck(),
+  };
 }
 
 export async function setPlayerRankLeaderboardDisabled(input: {

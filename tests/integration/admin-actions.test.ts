@@ -122,4 +122,123 @@ describe("admin actions", () => {
       expect(await getUserById(guest.id)).toBeNull();
     }, "admin-merge-guest");
   });
+
+  it("merges a registered user into another registered user while keeping target profile fields", async () => {
+    await withTestDatabase(async () => {
+      const rankedAt = "2026-06-10T12:00:00.000Z";
+      const admin = await createUserFixture({ role: "admin", createdAt: rankedAt });
+      const target = await createUserFixture({
+        clerkUserId: "clerk-target",
+        email: "target@example.com",
+        firstName: "Target",
+        lastName: "Account",
+        createdAt: rankedAt,
+      });
+      const source = await createUserFixture({
+        clerkUserId: "clerk-source",
+        email: "source@example.com",
+        firstName: "Source",
+        lastName: "Account",
+        createdAt: rankedAt,
+      });
+      mockProtectedSessionUser(admin.id);
+      mockRevalidateTag();
+
+      const { db, gamePlayers, games, gamePlayerRankResults, playerRankConfigs } =
+        await import("../../src/lib/db");
+      const { mergeUsersAsAdmin } = await import("../../src/app/actions/admin");
+      const {
+        getUserById,
+      } = await import("../../src/lib/db/store/user.store");
+      const {
+        getUserPlayerRankSummary,
+        rebuildPlayerRankHistoryFromDate,
+      } = await import("../../src/lib/db/store/player-rank.store");
+
+      const [config] = await db
+        .insert(playerRankConfigs)
+        .values({
+          version: "v1",
+          isActive: true,
+          windowMonths: 6,
+          defaultMaxPrizePool: 40000,
+          prizePoolByPlayerCountJson: JSON.stringify({
+            2: 5000,
+            3: 10000,
+          }),
+          smallGameDistributionJson: JSON.stringify({
+            2: [10000, 0, 0],
+            3: [10000, 0, 0],
+          }),
+          largeGameDistributionJson: JSON.stringify([6000, 3000, 1000]),
+          createdByUserId: admin.id,
+          createdAt: rankedAt,
+        })
+        .returning();
+
+      if (!config) {
+        throw new Error("Missing player rank config");
+      }
+
+      const [game] = await db
+        .insert(games)
+        .values({
+          creatorId: source.id,
+          scoringMode: "highest_wins",
+          endingMode: "none",
+          completedAt: rankedAt,
+        })
+        .returning();
+
+      await db.insert(gamePlayers).values({
+        gameId: game!.id,
+        userId: source.id,
+        score: 18,
+      });
+
+      await db.insert(gamePlayerRankResults).values({
+        gameId: game!.id,
+        userId: source.id,
+        gameCompletedAt: rankedAt,
+        playerCount: 2,
+        placement: 1,
+        tieSize: 1,
+        rankConfigId: config.id,
+        prizePoolMinor: 5000,
+        payoutPercentBps: 10000,
+        pointsAwardedMinor: 5000,
+        createdAt: rankedAt,
+      });
+
+      await rebuildPlayerRankHistoryFromDate({
+        startDate: rankedAt,
+        now: new Date(rankedAt),
+      });
+
+      const result = await mergeUsersAsAdmin({
+        sourceUserId: source.id,
+        targetUserId: target.id,
+      });
+
+      const [mergedSource, refreshedTarget, summary, playerRows] = await Promise.all([
+        getUserById(source.id),
+        getUserById(target.id),
+        getUserPlayerRankSummary(target.id),
+        db.query.gamePlayers.findMany(),
+      ]);
+
+      expect(result).toEqual({
+        mergedGamePlayerCount: 1,
+        deletedDuplicateGamePlayerCount: 0,
+      });
+      expect(mergedSource).toBeNull();
+      expect(refreshedTarget?.clerkUserId).toBe("clerk-target");
+      expect(refreshedTarget?.email).toBe("target@example.com");
+      expect(refreshedTarget?.firstName).toBe("Target");
+      expect(refreshedTarget?.lastName).toBe("Account");
+      expect(summary?.playerRankTotalMinor).toBe(5000);
+      expect(playerRows).toHaveLength(1);
+      expect(playerRows[0]?.userId).toBe(target.id);
+    }, "admin-merge-registered");
+  });
 });

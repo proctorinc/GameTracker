@@ -2,6 +2,8 @@
 
 import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
 import {
+  ChevronDown,
+  ChevronUp,
   Flame,
   Gamepad2,
   Target,
@@ -12,11 +14,13 @@ import {
 import Link from "next/link";
 import GameTitleImage from "@/components/game/game-title-image";
 import { ProfileMatchupSelector } from "@/components/profile/profile-matchup-selector";
-import ProfilePicture from "@/components/profile/profile-picture";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { ProfileStatsPageData } from "../profile-types";
+
+const DEFAULT_VISIBLE_COMPARISON_METRICS = 5;
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -40,6 +44,26 @@ function formatStreak(type: "win" | "loss" | null, count: number) {
   }
 
   return `${type === "win" ? "W" : "L"}${count}`;
+}
+
+function getComparableStreakValue(type: "win" | "loss" | null, count: number) {
+  if (!type || count === 0) {
+    return null;
+  }
+
+  return type === "win" ? count : -count;
+}
+
+function formatShortDate(value: string | null) {
+  if (!value) {
+    return "Not yet";
+  }
+
+  return new Date(value).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function alphaColor(hex: string, alpha: number) {
@@ -105,6 +129,208 @@ function StatCard(props: {
   );
 }
 
+function ComparisonMetricRow(props: {
+  label: string;
+  currentValue: string | number;
+  comparisonValue: string | number;
+  currentWins: boolean;
+  comparisonWins: boolean;
+  currentColor: string;
+  comparisonColor: string;
+}) {
+  return (
+    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-border/70 bg-muted/30 px-4 py-3 text-sm">
+      <div
+        className={cn(
+          "flex items-center",
+          props.currentWins ? "font-bold text-foreground" : "text-muted-foreground",
+        )}
+      >
+        <span
+          className={cn(
+            "inline-flex min-h-9 min-w-9 items-center justify-center rounded-full px-3 py-1",
+            props.currentWins ? "font-bold text-foreground" : "",
+          )}
+          style={
+            props.currentWins
+              ? {
+                  border: `2px solid ${props.currentColor}`,
+                }
+              : undefined
+          }
+        >
+          {props.currentValue}
+        </span>
+      </div>
+      <div className="text-center">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          {props.label}
+        </p>
+      </div>
+      <div
+        className={cn(
+          "flex items-center justify-end",
+          props.comparisonWins ? "font-bold text-foreground" : "text-muted-foreground",
+        )}
+      >
+        <span
+          className={cn(
+            "inline-flex min-h-9 min-w-9 items-center justify-center rounded-full px-3 py-1",
+            props.comparisonWins ? "font-bold text-foreground" : "",
+          )}
+          style={
+            props.comparisonWins
+              ? {
+                  border: `2px solid ${props.comparisonColor}`,
+                }
+              : undefined
+          }
+        >
+          {props.comparisonValue}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function compareMetric(input: {
+  current: number | null;
+  comparison: number | null;
+}) {
+  if (input.current === null || input.comparison === null) {
+    return { currentWins: false, comparisonWins: false };
+  }
+
+  if (input.current === input.comparison) {
+    return { currentWins: true, comparisonWins: true };
+  }
+
+  return {
+    currentWins: input.current > input.comparison,
+    comparisonWins: input.comparison > input.current,
+  };
+}
+
+function buildProfileComparisonMetrics(data: ProfileStatsPageData, comparisonUserId: string) {
+  const comparison = data.comparisonSummariesByUserId[comparisonUserId];
+
+  if (!comparison) {
+    return [];
+  }
+
+  const comparisonOverallStats = getComparisonOverallStats(comparison);
+
+  return [
+    {
+      label: data.stats.rankWindowLabel ?? "Window rank gain",
+      currentValue: data.stats.rankGainInWindow.formatted,
+      comparisonValue: comparisonOverallStats.rankGainInWindow.formatted,
+      ...compareMetric({
+        current: data.stats.rankGainInWindow.minor,
+        comparison: comparisonOverallStats.rankGainInWindow.minor,
+      }),
+    },
+    {
+      label: "All-time rank gain",
+      currentValue: data.stats.rankGainAllTime.formatted,
+      comparisonValue: comparisonOverallStats.rankGainAllTime.formatted,
+      ...compareMetric({
+        current: data.stats.rankGainAllTime.minor,
+        comparison: comparisonOverallStats.rankGainAllTime.minor,
+      }),
+    },
+    {
+      label: "Best rank game",
+      currentValue: data.stats.bestRankGain?.formatted ?? "--",
+      comparisonValue: comparisonOverallStats.bestRankGain?.formatted ?? "--",
+      ...compareMetric({
+        current: data.stats.bestRankGain?.minor ?? null,
+        comparison: comparisonOverallStats.bestRankGain?.minor ?? null,
+      }),
+    },
+    {
+      label: "Avg rank per game",
+      currentValue: data.stats.averageRankGain?.formatted ?? "--",
+      comparisonValue: comparisonOverallStats.averageRankGain?.formatted ?? "--",
+      ...compareMetric({
+        current: data.stats.averageRankGain?.minor ?? null,
+        comparison: comparisonOverallStats.averageRankGain?.minor ?? null,
+      }),
+    },
+    {
+      label: "Wins",
+      currentValue: data.stats.wins,
+      comparisonValue: comparisonOverallStats.wins,
+      ...compareMetric({
+        current: data.stats.wins,
+        comparison: comparisonOverallStats.wins,
+      }),
+    },
+    {
+      label: "Win rate",
+      currentValue: formatPercent(data.stats.winRate),
+      comparisonValue: formatPercent(comparisonOverallStats.winRate),
+      ...compareMetric({
+        current: data.stats.winRate,
+        comparison: comparisonOverallStats.winRate,
+      }),
+    },
+    {
+      label: "1st places",
+      currentValue: data.stats.placements.first,
+      comparisonValue: comparisonOverallStats.placements.first,
+      ...compareMetric({
+        current: data.stats.placements.first,
+        comparison: comparisonOverallStats.placements.first,
+      }),
+    },
+    {
+      label: "2nd places",
+      currentValue: data.stats.placements.second,
+      comparisonValue: comparisonOverallStats.placements.second,
+      ...compareMetric({
+        current: data.stats.placements.second,
+        comparison: comparisonOverallStats.placements.second,
+      }),
+    },
+    {
+      label: "3rd places",
+      currentValue: data.stats.placements.third,
+      comparisonValue: comparisonOverallStats.placements.third,
+      ...compareMetric({
+        current: data.stats.placements.third,
+        comparison: comparisonOverallStats.placements.third,
+      }),
+    },
+  ];
+}
+
+function getComparisonOverallStats(
+  comparison: ProfileStatsPageData["comparisonSummariesByUserId"][string],
+) {
+  return comparison.overallStats ?? {
+    completedGames: comparison.completedGamesTogether,
+    wins: comparison.wins,
+    winRate: comparison.winRate,
+    currentStreak: comparison.currentStreak,
+    bestWinStreak: 0,
+    signatureTitle: null,
+    lastPlayedAt: comparison.lastPlayedAt,
+    placements: {
+      first: comparison.wins,
+      second: 0,
+      third: 0,
+    },
+    rankWindowLabel: "Window rank gain",
+    rankGainInWindow: { formatted: "0", minor: 0 },
+    rankGainAllTime: { formatted: "0", minor: 0 },
+    bestRankGain: null,
+    averageRankGain: null,
+    currentGlobalRankTotal: null,
+    currentGlobalRankPosition: null,
+  };
+}
+
 export function ProfileStatsSections({
   data,
   hero,
@@ -115,6 +341,7 @@ export function ProfileStatsSections({
   const [selectedComparisonUserId, setSelectedComparisonUserId] = useState(
     data.defaultComparisonUserId,
   );
+  const [showAllComparisonMetrics, setShowAllComparisonMetrics] = useState(false);
   const accentStyles = useMemo(
     () => buildAccentStyles(data.profile.color),
     [data.profile.color],
@@ -127,15 +354,18 @@ export function ProfileStatsSections({
 
     return data.comparisonSummariesByUserId[selectedComparisonUserId] ?? null;
   }, [data.comparisonSummariesByUserId, selectedComparisonUserId]);
-  const selectedComparisonStyles = useMemo(
+  const comparisonMetrics = useMemo(
     () =>
-      buildAccentStyles(selectedComparison?.user.color ?? data.profile.color),
-    [data.profile.color, selectedComparison?.user.color],
+      selectedComparisonUserId
+        ? buildProfileComparisonMetrics(data, selectedComparisonUserId)
+        : [],
+    [data, selectedComparisonUserId],
   );
-
-  const isBestFriendSelected =
-    Boolean(data.defaultBestFriend) &&
-    selectedComparisonUserId === data.defaultBestFriend?.id;
+  const visibleComparisonMetrics = showAllComparisonMetrics
+    ? comparisonMetrics
+    : comparisonMetrics.slice(0, DEFAULT_VISIBLE_COMPARISON_METRICS);
+  const hasHiddenComparisonMetrics =
+    comparisonMetrics.length > DEFAULT_VISIBLE_COMPARISON_METRICS;
 
   return (
     <div className="space-y-4" style={accentStyles}>
@@ -281,105 +511,80 @@ export function ProfileStatsSections({
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-        <Card className="overflow-hidden rounded-[2rem] border border-border/70 shadow-xl shadow-black/5 dark:border-white/10 dark:bg-white/5 dark:shadow-black/20">
-          <CardContent className="px-5 py-2">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground dark:text-white/60">
-                  Matchup
-                </p>
-              </div>
-            </div>
-
-            {data.comparisonOptions.length > 0 ? (
-              <div className="mt-5">
-                <ProfileMatchupSelector
-                  options={data.comparisonOptions}
-                  selectedUserId={selectedComparisonUserId}
-                  onSelect={setSelectedComparisonUserId}
-                  defaultBestFriendId={data.defaultBestFriend?.id ?? null}
-                />
-              </div>
-            ) : null}
-
+        <Card>
+          <CardHeader className="gap-4">
+            <CardTitle className="text-xl font-black">Compare</CardTitle>
+            <ProfileMatchupSelector
+              options={data.comparisonOptions}
+              selectedUserId={selectedComparisonUserId}
+              onSelect={(userId) => {
+                setSelectedComparisonUserId(userId);
+                setShowAllComparisonMetrics(false);
+              }}
+              defaultBestFriendId={data.defaultBestFriend?.id ?? null}
+              title="Compare player"
+              description="Search players to compare full profile performance."
+              emptyLabel="Choose a player"
+            />
+          </CardHeader>
+          <CardContent>
             {selectedComparison ? (
-              <div className="mt-5 space-y-5">
-                <div
-                  className="overflow-hidden rounded-[1.75rem] border border-border/70 bg-[linear-gradient(135deg,var(--profile-accent-glow),var(--profile-accent-soft)_34%,rgba(255,255,255,0.96)_72%,rgba(248,250,252,0.92)_100%)] dark:border-white/10 dark:bg-[linear-gradient(135deg,var(--profile-accent-panel),rgba(255,255,255,0.08)_28%,rgba(20,24,34,0.9)_64%,rgba(10,14,24,0.96)_100%)]"
-                  style={{
-                    ...selectedComparisonStyles,
-                  }}
-                >
-                  <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-end sm:justify-between sm:p-6">
-                    <div className="flex min-w-0 items-center gap-4">
-                      <ProfilePicture
-                        user={selectedComparison.user}
-                        size="md"
-                        linkToProfile
-                      />
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="truncate text-2xl font-black text-foreground dark:text-white">
-                            {selectedComparison.user.displayName}
-                            {selectedComparison.user.isGuest ? " (Guest)" : ""}
-                          </p>
-                          {isBestFriendSelected ? (
-                            <Badge
-                              variant="outline"
-                              className="rounded-full dark:border-white/10 dark:bg-white/8 dark:text-white"
-                            >
-                              Best friend
-                            </Badge>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="rounded-[1.5rem] bg-slate-950 px-5 py-4 text-white shadow-lg dark:bg-white dark:text-slate-950">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55 dark:text-slate-500">
-                        Record
-                      </p>
-                      <p className="mt-2 text-4xl font-black tracking-tight">
-                        {selectedComparison.wins}-{selectedComparison.losses}
-                      </p>
-                    </div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-[1.6rem] border border-border/70 bg-card/95 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                      You
+                    </p>
+                    <p className="mt-2 text-2xl font-black">
+                      {data.stats.rankGainInWindow.formatted}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {data.stats.rankWindowLabel ?? "Window rank gain"}
+                    </p>
+                  </div>
+                  <div className="rounded-[1.6rem] border border-border/70 bg-card/95 p-4">
+                    <p className="truncate text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                      {selectedComparison.user.displayName}
+                    </p>
+                    <p className="mt-2 text-2xl font-black">
+                      {getComparisonOverallStats(selectedComparison).rankGainInWindow.formatted}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {getComparisonOverallStats(selectedComparison).rankWindowLabel ??
+                        "Window rank gain"}
+                    </p>
                   </div>
                 </div>
 
-                <div className="grid gap-3 grid-cols-3">
-                  <div className="flex flex-col justify-between rounded-[1.5rem] border border-border/70 bg-muted/50 p-4 text-center dark:border-white/10 dark:bg-white/6">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground dark:text-white/60">
-                      Win rate
-                    </p>
-                    <p className="mt-2 text-xl font-black text-foreground dark:text-white">
-                      {formatPercent(selectedComparison.winRate)}
-                    </p>
-                  </div>
-                  <div className="flex flex-col justify-between rounded-[1.5rem] border border-border/70 bg-muted/50 p-4 text-center dark:border-white/10 dark:bg-white/6">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground dark:text-white/60">
-                      Games
-                    </p>
-                    <p className="mt-2 text-xl font-black text-foreground dark:text-white">
-                      {selectedComparison.completedGamesTogether}
-                    </p>
-                  </div>
-                  <div className="flex flex-col justify-between rounded-[1.5rem] border border-border/70 bg-muted/50 p-4 text-center dark:border-white/10 dark:bg-white/6">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground dark:text-white/60">
-                      Streak against
-                    </p>
-                    <p className="mt-2 text-xl font-black text-foreground dark:text-white">
-                      {formatStreak(
-                        selectedComparison.currentStreak.type,
-                        selectedComparison.currentStreak.count,
-                      )}
-                    </p>
-                  </div>
+                <div className="space-y-2">
+                  {visibleComparisonMetrics.map((metric) => (
+                    <ComparisonMetricRow
+                      key={metric.label}
+                      {...metric}
+                      currentColor={data.profile.color}
+                      comparisonColor={selectedComparison.user.color}
+                    />
+                  ))}
                 </div>
+
+                {hasHiddenComparisonMetrics ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full rounded-2xl border border-border/70"
+                    onClick={() =>
+                      setShowAllComparisonMetrics((current) => !current)
+                    }
+                  >
+                    {showAllComparisonMetrics ? <ChevronUp /> : <ChevronDown />}
+                    {showAllComparisonMetrics ? "Show fewer" : "Show all"}
+                  </Button>
+                ) : null}
               </div>
             ) : (
-              <div className="mt-5 rounded-[1.5rem] border border-dashed border-border/70 bg-muted/35 p-5 text-sm text-muted-foreground dark:border-white/10 dark:bg-white/4 dark:text-white/68">
-                No matchup card yet. Finish a few games with friends and this
-                section will light up.
+              <div className="rounded-[1.6rem] border border-dashed border-border/70 bg-muted/20 p-5 text-sm text-muted-foreground">
+                Select a player to compare overall profile performance side by
+                side.
               </div>
             )}
           </CardContent>

@@ -5,10 +5,12 @@ import {
   forceRefreshAllPlayerRankHistory,
   generatePlayerRankPreview,
   publishPlayerRankSettings,
+  recalculatePlayerRankHealthIssues,
   setPlayerRankLeaderboardDisabled,
 } from "@/app/actions/player-rank";
 import type {
   PlayerRankConfig,
+  PlayerRankHealthCheck,
   PlayerRankPreviewRow,
 } from "@/lib/db/store/player-rank.store";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AlertTriangle, CheckCircle2, CircleX } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -104,6 +107,7 @@ function computeExactPayouts(
 
 export function AdminPlayerRanks(props: {
   activeConfig: PlayerRankConfig;
+  healthCheck: PlayerRankHealthCheck;
   standings: PlayerRankPreviewRow[];
 }) {
   const router = useRouter();
@@ -111,6 +115,26 @@ export function AdminPlayerRanks(props: {
   const [previewRows, setPreviewRows] = useState<PlayerRankPreviewRow[]>(props.standings);
   const [hasGeneratedPreview, setHasGeneratedPreview] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const healthIndicator = useMemo(() => {
+    if (props.healthCheck.status === "good") {
+      return {
+        icon: CheckCircle2,
+        badgeClassName: "border-emerald-300/70 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300",
+      };
+    }
+
+    if (props.healthCheck.status === "review") {
+      return {
+        icon: AlertTriangle,
+        badgeClassName: "border-amber-300/70 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300",
+      };
+    }
+
+    return {
+      icon: CircleX,
+      badgeClassName: "border-red-300/70 bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300",
+    };
+  }, [props.healthCheck.status]);
 
   const summaryCards = useMemo(
     () => [
@@ -319,8 +343,64 @@ export function AdminPlayerRanks(props: {
     });
   }
 
+  function handleRecalculateHealthIssues() {
+    startTransition(async () => {
+      try {
+        const result = await recalculatePlayerRankHealthIssues();
+        toast.success(
+          result.processedGameCount > 0
+            ? `Recalculated Player Rank for ${result.processedGameCount} game${result.processedGameCount === 1 ? "" : "s"}`
+            : "No Player Rank health issues needed remediation",
+        );
+        router.refresh();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Unable to recalculate affected Player Rank games",
+        );
+      }
+    });
+  }
+
   return (
     <div className="flex flex-col gap-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-lg font-black">Health check</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                2-player games should have 2 ranked players, and 3+ player games should have 3.
+              </p>
+            </div>
+            <Badge variant="outline" className={healthIndicator.badgeClassName}>
+              <healthIndicator.icon className="mr-1 size-3.5" />
+              {props.healthCheck.label}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1">
+            <p className="text-sm font-medium">{props.healthCheck.message}</p>
+            <p className="text-xs text-muted-foreground">
+              Checked {props.healthCheck.totalCheckedGameCount} completed game
+              {props.healthCheck.totalCheckedGameCount === 1 ? "" : "s"}.
+            </p>
+          </div>
+          {props.healthCheck.status === "review" ? (
+            <Button
+              type="button"
+              size="sm"
+              disabled={isPending}
+              onClick={handleRecalculateHealthIssues}
+            >
+              Recalculate affected games
+            </Button>
+          ) : null}
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-3 gap-2">
         {summaryCards.map((card) => (
           <Card key={card.label}>

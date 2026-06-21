@@ -24,6 +24,7 @@ import type {
   GameTitleStatsPageData,
   GameTitleStatsSummary,
 } from "@/lib/db/store/game.store";
+import { cn } from "@/lib/utils";
 import { useRememberedPageTabState } from "@/lib/use-remembered-page-tab-state";
 
 type GameTitlePageTab = "stats" | "admin";
@@ -61,11 +62,32 @@ function ComparisonMetricRow(props: {
   comparisonValue: string | number;
   currentWins: boolean;
   comparisonWins: boolean;
+  currentColor: string;
+  comparisonColor: string;
 }) {
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-border/70 bg-muted/30 px-4 py-3 text-sm">
-      <div className={props.currentWins ? "font-bold text-foreground" : "text-muted-foreground"}>
-        {props.currentValue}
+      <div
+        className={cn(
+          "flex items-center",
+          props.currentWins ? "font-bold text-foreground" : "text-muted-foreground",
+        )}
+      >
+        <span
+          className={cn(
+            "inline-flex min-h-9 min-w-9 items-center justify-center rounded-full px-3 py-1",
+            props.currentWins ? "font-bold text-foreground" : "",
+          )}
+          style={
+            props.currentWins
+              ? {
+                  border: `2px solid ${props.currentColor}`,
+                }
+              : undefined
+          }
+        >
+          {props.currentValue}
+        </span>
       </div>
       <div className="text-center">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -73,9 +95,26 @@ function ComparisonMetricRow(props: {
         </p>
       </div>
       <div
-        className={`text-right ${props.comparisonWins ? "font-bold text-foreground" : "text-muted-foreground"}`}
+        className={cn(
+          "flex items-center justify-end",
+          props.comparisonWins ? "font-bold text-foreground" : "text-muted-foreground",
+        )}
       >
-        {props.comparisonValue}
+        <span
+          className={cn(
+            "inline-flex min-h-9 min-w-9 items-center justify-center rounded-full px-3 py-1",
+            props.comparisonWins ? "font-bold text-foreground" : "",
+          )}
+          style={
+            props.comparisonWins
+              ? {
+                  border: `2px solid ${props.comparisonColor}`,
+                }
+              : undefined
+          }
+        >
+          {props.comparisonValue}
+        </span>
       </div>
     </div>
   );
@@ -228,35 +267,13 @@ function buildComparisonMetrics(
         comparison: comparison.placements.third,
       }),
     },
-    {
-      label: "Global rank total",
-      currentValue: current.currentGlobalRankTotal ?? "--",
-      comparisonValue: comparison.currentGlobalRankTotal ?? "--",
-      ...compareMetric({
-        current: current.currentGlobalRankTotal
-          ? Number.parseInt(current.currentGlobalRankTotal, 10)
-          : null,
-        comparison: comparison.currentGlobalRankTotal
-          ? Number.parseInt(comparison.currentGlobalRankTotal, 10)
-          : null,
-      }),
-    },
-    {
-      label: "Global rank position",
-      currentValue: current.currentGlobalRankPosition ?? "--",
-      comparisonValue: comparison.currentGlobalRankPosition ?? "--",
-      ...compareMetric({
-        current: current.currentGlobalRankPosition,
-        comparison: comparison.currentGlobalRankPosition,
-        lowerIsBetter: true,
-      }),
-    },
   ];
 }
 
 function ComparisonSection(props: {
   currentStats: GameTitleStatsSummary;
   comparison: GameTitleComparisonSummary | null;
+  currentColor: string;
 }) {
   const [showAllMetrics, setShowAllMetrics] = useState(false);
 
@@ -268,7 +285,8 @@ function ComparisonSection(props: {
     );
   }
 
-  const metrics = buildComparisonMetrics(props.currentStats, props.comparison.stats);
+  const comparison = props.comparison;
+  const metrics = buildComparisonMetrics(props.currentStats, comparison.stats);
   const visibleMetrics = showAllMetrics
     ? metrics
     : metrics.slice(0, DEFAULT_VISIBLE_COMPARISON_METRICS);
@@ -303,7 +321,12 @@ function ComparisonSection(props: {
 
       <div className="space-y-2">
         {visibleMetrics.map((metric) => (
-          <ComparisonMetricRow key={metric.label} {...metric} />
+          <ComparisonMetricRow
+            key={metric.label}
+            {...metric}
+            currentColor={props.currentColor}
+            comparisonColor={comparison.user.color}
+          />
         ))}
       </div>
 
@@ -346,6 +369,8 @@ export default function GameTitlePage({
     [data.comparisonSummariesByUserId, selectedComparisonUserId],
   );
   const { title, stats } = data;
+  const currentUserColor =
+    data.chartSeries.find((entry) => entry.isCurrentUser)?.color ?? title.color;
   const gameHistoryHref = `/game/history?titleId=${encodeURIComponent(title.id)}`;
 
   return (
@@ -432,7 +457,11 @@ export default function GameTitlePage({
                 />
               </CardHeader>
               <CardContent>
-                <ComparisonSection currentStats={stats} comparison={comparison} />
+                <ComparisonSection
+                  currentStats={stats}
+                  comparison={comparison}
+                  currentColor={currentUserColor}
+                />
               </CardContent>
             </Card>
 
