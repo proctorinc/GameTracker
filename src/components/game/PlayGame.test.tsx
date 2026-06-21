@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GameForPlayPage } from "@/lib/db/store/game.store";
 import type { PlayerRankGameDelta } from "@/lib/db/store/player-rank.store";
@@ -138,6 +138,7 @@ function createGameSnapshot(score = 0): GameForPlayPage {
       createdAt: "2025-01-01T00:00:00.000Z",
     },
     winners: [],
+    resultPlacements: [],
     players: [
       {
         id: "game-player-1",
@@ -177,6 +178,7 @@ function createCompletedGameSnapshot(): GameForPlayPage {
         user: game.players[0]!.user,
       },
     ],
+    resultPlacements: [],
     players: [
       {
         ...game.players[0]!,
@@ -225,6 +227,7 @@ function createCompletedTieGameSnapshot(): GameForPlayPage {
         user: game.players[0]!.user,
       },
     ],
+    resultPlacements: [],
     players: [
       {
         ...game.players[0]!,
@@ -367,6 +370,87 @@ function createNoScoreFinalPromptSnapshot(): GameForPlayPage {
   };
 }
 
+function createCompletedNoScoreWinnerOnlySnapshot(): GameForPlayPage {
+  const game = createNoScoreGameSnapshot();
+
+  return {
+    ...game,
+    completedRounds: 3,
+    completedAt: "2025-01-05T00:00:00.000Z",
+    winners: [
+      {
+        id: "winner-1",
+        gameId: game.id,
+        userId: "user-1",
+        user: game.players[0]!.user,
+      },
+    ],
+    resultPlacements: [
+      {
+        gameId: game.id,
+        userId: "user-1",
+        placement: 1,
+        createdAt: "2025-01-05T00:00:00.000Z",
+      },
+    ],
+  };
+}
+
+function createCompletedNoScorePodiumSnapshot(): GameForPlayPage {
+  const game = createNoScoreGameSnapshot();
+  const thirdPlayer = createUser({
+    id: "user-3",
+    firstName: "Noa",
+    color: "#cccccc",
+  });
+
+  return {
+    ...game,
+    completedRounds: 3,
+    completedAt: "2025-01-05T00:00:00.000Z",
+    winners: [
+      {
+        id: "winner-1",
+        gameId: game.id,
+        userId: "user-1",
+        user: game.players[0]!.user,
+      },
+    ],
+    resultPlacements: [
+      {
+        gameId: game.id,
+        userId: "user-1",
+        placement: 1,
+        createdAt: "2025-01-05T00:00:00.000Z",
+      },
+      {
+        gameId: game.id,
+        userId: "user-2",
+        placement: 2,
+        createdAt: "2025-01-05T00:00:00.000Z",
+      },
+      {
+        gameId: game.id,
+        userId: "user-3",
+        placement: 3,
+        createdAt: "2025-01-05T00:00:00.000Z",
+      },
+    ],
+    players: [
+      game.players[0]!,
+      game.players[1]!,
+      {
+        id: "game-player-3",
+        gameId: game.id,
+        isManager: false,
+        userId: thirdPlayer.id,
+        score: 0,
+        user: thirdPlayer,
+      },
+    ],
+  };
+}
+
 function renderComponent(input?: {
   canManageLiveGame?: boolean;
   currentUserId?: string;
@@ -503,6 +587,26 @@ describe("PlayGame", () => {
     fireEvent.click(screen.getByTestId("player-card-content-user-2"));
 
     expect(screen.getByTestId("score-drawer-entry")).toBeInTheDocument();
+  });
+
+  it("navigates to a player's profile when a completed player card is clicked", () => {
+    renderComponent({
+      game: createCompletedGameSnapshot(),
+      playerRankDeltas: [
+        {
+          gameId: "game-1",
+          userId: "user-2",
+          deltaMinor: 120,
+          deltaFormatted: "+12",
+          completedAt: "2025-01-05T00:00:00.000Z",
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByTestId("player-card-content-user-2"));
+
+    expect(routerPush).toHaveBeenCalledWith("/profile/user-2");
+    expect(screen.queryByTestId("score-drawer-entry")).not.toBeInTheDocument();
   });
 
   it("keeps avatar clicks on color editing when the profile picture is editable", () => {
@@ -780,7 +884,9 @@ describe("PlayGame", () => {
       game: createCompletedGameSnapshot(),
     });
 
-    expect(screen.getByText("Mia won!")).toBeInTheDocument();
+    const podium = screen.getByLabelText("Completed game podium");
+    expect(within(podium).getByLabelText("1st place Mia")).toBeInTheDocument();
+    expect(within(podium).getByLabelText("2nd place Kai")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Rematch" })).toBeInTheDocument();
     expect(screen.getByText("1st place")).toBeInTheDocument();
     expect(screen.getByText("2nd place")).toBeInTheDocument();
@@ -798,8 +904,33 @@ describe("PlayGame", () => {
       game: createCompletedTieGameSnapshot(),
     });
 
+    const podium = screen.getByLabelText("Completed game podium");
+    expect(within(podium).getByLabelText("1st place Mia")).toBeInTheDocument();
+    expect(within(podium).getByLabelText("2nd place Kai")).toBeInTheDocument();
+    expect(within(podium).getByLabelText("2nd place Noa")).toBeInTheDocument();
     expect(screen.getByText("1st place")).toBeInTheDocument();
     expect(screen.getAllByText("2nd place")).toHaveLength(2);
+    expect(screen.getByText("3rd place")).toBeInTheDocument();
+  });
+
+  it("shows winner-only labels for completed no-score games without optional podium picks", () => {
+    renderComponent({
+      game: createCompletedNoScoreWinnerOnlySnapshot(),
+    });
+
+    expect(screen.getByText("Winner")).toBeInTheDocument();
+    expect(screen.getByText("Player")).toBeInTheDocument();
+    expect(screen.queryByText("2nd place")).not.toBeInTheDocument();
+    expect(screen.queryByText("3rd place")).not.toBeInTheDocument();
+  });
+
+  it("shows explicit podium labels for completed no-score games when placements were recorded", () => {
+    renderComponent({
+      game: createCompletedNoScorePodiumSnapshot(),
+    });
+
+    expect(screen.getByText("1st place")).toBeInTheDocument();
+    expect(screen.getByText("2nd place")).toBeInTheDocument();
     expect(screen.getByText("3rd place")).toBeInTheDocument();
   });
 
@@ -825,7 +956,7 @@ describe("PlayGame", () => {
     });
 
     expect(screen.getByText("+50 Rank")).toBeInTheDocument();
-    expect(screen.getByText("No Rank change")).toBeInTheDocument();
+    expect(screen.queryByText("No Rank change")).not.toBeInTheDocument();
   });
 
   it("asks for confirmation before reopening a completed game from the settings drawer", async () => {
@@ -1077,7 +1208,7 @@ describe("PlayGame", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("lets the creator choose winners manually for no-score games", async () => {
+  it("lets the creator record winner-only no-score results", async () => {
     commitGameRound.mockResolvedValue(undefined);
 
     renderComponent({
@@ -1092,7 +1223,36 @@ describe("PlayGame", () => {
       expect(commitGameRound).toHaveBeenCalledWith({
         gameId: "game-1",
         completeGame: true,
+        placementSelections: [{ placement: 1, userIds: ["user-2"] }],
         winnerUserIds: ["user-2"],
+      });
+    });
+  });
+
+  it("lets the creator record optional 2nd and 3rd for no-score games", async () => {
+    commitGameRound.mockResolvedValue(undefined);
+
+    renderComponent({
+      game: createNoScoreFinalPromptSnapshot(),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Finish" }));
+    fireEvent.click(screen.getByRole("button", { name: /Mia/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm 1st" }));
+    fireEvent.click(screen.getByRole("button", { name: /Kai/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm 2nd" }));
+    fireEvent.click(screen.getByRole("button", { name: "Skip 3rd" }));
+    fireEvent.click(screen.getByRole("button", { name: "End game" }));
+
+    await waitFor(() => {
+      expect(commitGameRound).toHaveBeenCalledWith({
+        gameId: "game-1",
+        completeGame: true,
+        placementSelections: [
+          { placement: 1, userIds: ["user-1"] },
+          { placement: 2, userIds: ["user-2"] },
+        ],
+        winnerUserIds: ["user-1"],
       });
     });
   });
@@ -1228,6 +1388,59 @@ describe("PlayGame", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("does not show quick-start score options before the game has started", () => {
+    const friend = createUser({
+      id: "user-3",
+      firstName: "June",
+      color: "#cccccc",
+    });
+
+    renderComponent({
+      playerOptions: [
+        createUser({ id: "user-1", firstName: "Mia" }),
+        createUser({ id: "user-2", firstName: "Kai" }),
+        friend,
+      ],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
+    fireEvent.click(screen.getByRole("button", { name: "Player" }));
+    fireEvent.click(screen.getByText("June"));
+
+    expect(
+      screen.queryByText("Choose how this player should join the scoreboard."),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Manage users" })).toBeInTheDocument();
+  });
+
+  it("shows quick-start score options after selecting a midgame user", () => {
+    const friend = createUser({
+      id: "user-3",
+      firstName: "June",
+      color: "#cccccc",
+    });
+
+    renderComponent({
+      game: createRoundTrackedGameWithActiveScoresSnapshot(),
+      playerOptions: [
+        createUser({ id: "user-1", firstName: "Mia" }),
+        createUser({ id: "user-2", firstName: "Kai" }),
+        friend,
+      ],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
+    fireEvent.click(screen.getByRole("button", { name: "Player" }));
+    fireEvent.click(screen.getByText("June"));
+
+    expect(screen.getByText("Choose how this player should join the scoreboard.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Average score/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Highest score/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument();
+  });
+
   it("removes a player optimistically after confirmation", async () => {
     const deferred = createDeferred<void>();
     removeGamePlayer.mockReturnValue(deferred.promise);
@@ -1277,7 +1490,7 @@ describe("PlayGame", () => {
     expect(toastError).toHaveBeenCalledWith("Remove failed");
   });
 
-  it("returns to the player list after adding a user", async () => {
+  it("returns to the player list after adding a user before the game starts", async () => {
     const deferred = createDeferred<void>();
     addGamePlayer.mockReturnValue(deferred.promise);
 
@@ -1315,6 +1528,137 @@ describe("PlayGame", () => {
         userId: "user-3",
       });
     });
+  });
+
+  it("sends the average quick-start option when adding a player midgame", async () => {
+    addGamePlayer.mockResolvedValue(undefined);
+
+    const friend = createUser({
+      id: "user-3",
+      firstName: "June",
+      color: "#cccccc",
+    });
+
+    renderComponent({
+      game: createRoundTrackedGameWithActiveScoresSnapshot(),
+      playerOptions: [
+        createUser({ id: "user-1", firstName: "Mia" }),
+        createUser({ id: "user-2", firstName: "Kai" }),
+        friend,
+      ],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
+    fireEvent.click(screen.getByRole("button", { name: "Player" }));
+    fireEvent.click(screen.getByText("June"));
+    fireEvent.click(screen.getByRole("button", { name: /Average score/i }));
+
+    await waitFor(() => {
+      expect(addGamePlayer).toHaveBeenCalledWith({
+        gameId: "game-1",
+        userId: "user-3",
+        startingScoreMode: "average",
+      });
+    });
+  });
+
+  it("optimistically applies the scoring-aware quick-start score to a new player", () => {
+    const deferred = createDeferred<void>();
+    addGamePlayer.mockReturnValue(deferred.promise);
+
+    const friend = createUser({
+      id: "user-3",
+      firstName: "June",
+      color: "#cccccc",
+    });
+
+    renderComponent({
+      game: createRoundTrackedGameWithActiveScoresSnapshot(),
+      playerOptions: [
+        createUser({ id: "user-1", firstName: "Mia" }),
+        createUser({ id: "user-2", firstName: "Kai" }),
+        friend,
+      ],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
+    fireEvent.click(screen.getByRole("button", { name: "Player" }));
+    fireEvent.click(screen.getByText("June"));
+    fireEvent.click(screen.getByRole("button", { name: /Highest score/i }));
+
+    expect(screen.getByTestId("player-score-button-user-3")).toHaveTextContent(
+      "12",
+    );
+  });
+
+  it("sends a custom quick-start score when adding a player midgame", async () => {
+    addGamePlayer.mockResolvedValue(undefined);
+
+    const friend = createUser({
+      id: "user-3",
+      firstName: "June",
+      color: "#cccccc",
+    });
+
+    renderComponent({
+      game: createRoundTrackedGameWithActiveScoresSnapshot(),
+      playerOptions: [
+        createUser({ id: "user-1", firstName: "Mia" }),
+        createUser({ id: "user-2", firstName: "Kai" }),
+        friend,
+      ],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
+    fireEvent.click(screen.getByRole("button", { name: "Player" }));
+    fireEvent.click(screen.getByText("June"));
+    fireEvent.change(screen.getByPlaceholderText("0"), {
+      target: { value: "17" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+    await waitFor(() => {
+      expect(addGamePlayer).toHaveBeenCalledWith({
+        gameId: "game-1",
+        userId: "user-3",
+        startingScoreMode: "custom",
+        startingScoreValue: 17,
+      });
+    });
+  });
+
+  it("shows the backfilled previous-round score for a midgame join", () => {
+    const deferred = createDeferred<void>();
+    addGamePlayer.mockReturnValue(deferred.promise);
+
+    const friend = createUser({
+      id: "user-3",
+      firstName: "June",
+      color: "#cccccc",
+    });
+
+    renderComponent({
+      game: createRoundTrackedGameWithActiveScoresSnapshot(),
+      playerOptions: [
+        createUser({ id: "user-1", firstName: "Mia" }),
+        createUser({ id: "user-2", firstName: "Kai" }),
+        friend,
+      ],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
+    fireEvent.click(screen.getByRole("button", { name: "Player" }));
+    fireEvent.click(screen.getByText("June"));
+    fireEvent.click(screen.getByRole("button", { name: /Average score/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to game" }));
+    fireEvent.click(screen.getByRole("button", { name: "Score" }));
+
+    expect(screen.getByText("June")).toBeInTheDocument();
+    expect(screen.getByText("+10")).toBeInTheDocument();
   });
 
   it("edits a round score from the score breakdown modal", async () => {

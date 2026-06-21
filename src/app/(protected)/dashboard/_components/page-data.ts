@@ -39,6 +39,7 @@ export async function getDashboardOverviewPageData() {
     logInfo("dashboard.page_data.read.succeeded", {
       ...requestContext,
       userId: user.id,
+      incomingInvitationCount: data.incomingInvitations.length,
       recentActiveGameCount: data.recentActiveGames.length,
       recentCompletedGameCount: data.recentCompletedGames.length,
       recentGameTitleCount: data.recentGameTitles.length,

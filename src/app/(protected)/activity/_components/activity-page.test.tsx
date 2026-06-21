@@ -334,7 +334,7 @@ describe("ActivityPageView", () => {
     expect(within(podium).getAllByText("Amy A.").length).toBeGreaterThan(0);
   });
 
-  it("renders a centered gold podium card when only one leaderboard user exists", () => {
+  it("mutes the podium accent when only one leaderboard user exists", () => {
     renderWithProviders(
       <ActivityPageView
         initialTab="activity"
@@ -369,6 +369,7 @@ describe("ActivityPageView", () => {
     fireEvent.click(screen.getByRole("button", { name: /leaderboard/i }));
 
     const podium = screen.getByLabelText("Leaderboard podium");
+    expect(podium).toHaveAttribute("data-podium-single-entry-muted", "true");
     expect(within(podium).getAllByLabelText(/place /i)).toHaveLength(1);
     expect(within(podium).getByLabelText("1st place Solo S.")).toBeInTheDocument();
   });

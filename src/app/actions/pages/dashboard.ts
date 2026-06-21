@@ -2,6 +2,8 @@ import { AuthUser } from "@/lib/auth";
 import {
   GameFull,
   GameTitleBase,
+  InvitationFull,
+  listIncomingInvitationsForUser,
   listRecentCompletedGames,
   listRecentActiveGames,
   listRecentGameTitles,
@@ -17,6 +19,7 @@ export type DashboardCompletedGame = GameFull & {
 
 export type DashboardPageData = {
   user: AuthUser;
+  incomingInvitations: InvitationFull[];
   recentActiveGames: GameFull[];
   recentCompletedGames: DashboardCompletedGame[];
   recentGameTitles: GameTitleBase[];
@@ -35,24 +38,37 @@ export type DashboardPageData = {
 
 export type DashboardPageCollections = Pick<
   {
+    incomingInvitations: InvitationFull[];
     recentActiveGames: GameFull[];
     recentCompletedGames: GameFull[];
     recentGameTitles: GameTitleBase[];
   },
-  "recentActiveGames" | "recentCompletedGames" | "recentGameTitles"
+  | "incomingInvitations"
+  | "recentActiveGames"
+  | "recentCompletedGames"
+  | "recentGameTitles"
 >;
 
 export async function getDashboardPageCollections(input: {
   userId: string;
 }): Promise<DashboardPageCollections> {
-  const [recentActiveGames, recentCompletedGames, recentGameTitles] =
+  const [
+    incomingInvitations,
+    recentActiveGames,
+    recentCompletedGames,
+    recentGameTitles,
+  ] =
     await Promise.all([
+      listIncomingInvitationsForUser({
+        userId: input.userId,
+      }),
       listRecentActiveGames(input.userId),
       listRecentCompletedGames(input.userId),
       listRecentGameTitles(input.userId),
     ]);
 
   return {
+    incomingInvitations,
     recentActiveGames,
     recentCompletedGames,
     recentGameTitles,

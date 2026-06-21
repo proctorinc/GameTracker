@@ -1,4 +1,5 @@
 import type { GameScoringMode } from "./db/schema";
+import { deriveGamePlacementOutcome } from "./game-placement";
 
 export type PlayerRankConfig = {
   id: string;
@@ -19,6 +20,10 @@ export type PlayerRankGameLike = {
   scoringMode: GameScoringMode;
   players: PlayerRankPlayer[];
   winnerUserIds?: string[];
+  placementSelections?: Array<{
+    placement: 1 | 2 | 3;
+    userIds: string[];
+  }>;
 };
 
 export type PlayerRankPayout = {
@@ -45,6 +50,30 @@ function uniqueWinnerIds(winnerUserIds: string[] | undefined, players: PlayerRan
   return Array.from(
     new Set((winnerUserIds ?? []).filter((userId) => allowedUserIds.has(userId))),
   );
+}
+
+function normalizePlacementSelections(
+  placementSelections: PlayerRankGameLike["placementSelections"],
+  players: PlayerRankPlayer[],
+) {
+  const allowedUserIds = new Set(players.map((player) => player.userId));
+  const seenUserIds = new Set<string>();
+
+  return (placementSelections ?? [])
+    .filter((selection) => selection.placement >= 1 && selection.placement <= 3)
+    .sort((left, right) => left.placement - right.placement)
+    .map((selection) => ({
+      placement: selection.placement,
+      userIds: selection.userIds.filter((userId) => {
+        if (!allowedUserIds.has(userId) || seenUserIds.has(userId)) {
+          return false;
+        }
+
+        seenUserIds.add(userId);
+        return true;
+      }),
+    }))
+    .filter((selection) => selection.userIds.length > 0);
 }
 
 export function getPlayerRankWindowStart(windowMonths: number, now = new Date()) {
@@ -90,31 +119,43 @@ function buildTiedPlacementGroups(input: {
   scoringMode: GameScoringMode;
   players: PlayerRankPlayer[];
   winnerUserIds?: string[];
+  placementSelections?: PlayerRankGameLike["placementSelections"];
 }) {
   if (input.scoringMode === "no_score") {
-    const winnerIds = uniqueWinnerIds(input.winnerUserIds, input.players);
+    const normalizedSelections = normalizePlacementSelections(
+      input.placementSelections,
+      input.players,
+    );
+    const placementOutcome = deriveGamePlacementOutcome({
+      scoringMode: input.scoringMode,
+      participants: input.players,
+      resultPlacements: normalizedSelections.flatMap((selection) =>
+        selection.userIds.map((userId) => ({
+          userId,
+          placement: selection.placement,
+        })),
+      ),
+      winnerUserIds: uniqueWinnerIds(input.winnerUserIds, input.players),
+    });
+    const playerIdsByPlacement = new Map<number, string[]>();
 
-    if (winnerIds.length === 0) {
-      return input.players.map((player, index) => ({
-        placement: index + 1,
-        playerIds: [player.userId],
-      }));
+    for (const player of input.players) {
+      const placement = placementOutcome.placementByUserId[player.userId];
+
+      if (placement === undefined) {
+        continue;
+      }
+
+      const current = playerIdsByPlacement.get(placement) ?? [];
+      playerIdsByPlacement.set(placement, [...current, player.userId]);
     }
 
-    const remainingPlayers = input.players
-      .map((player) => player.userId)
-      .filter((userId) => !winnerIds.includes(userId));
-
-    return [
-      {
-        placement: 1,
-        playerIds: winnerIds,
-      },
-      ...remainingPlayers.map((userId, index) => ({
-        placement: winnerIds.length + index + 1,
-        playerIds: [userId],
-      })),
-    ];
+    return Array.from(playerIdsByPlacement.entries())
+      .sort((left, right) => left[0] - right[0])
+      .map(([placement, playerIds]) => ({
+        placement,
+        playerIds,
+      }));
   }
 
   const sortedPlayers = [...input.players].sort((left, right) =>
@@ -159,23 +200,47 @@ export function computePlayerRankPayouts(
   const distributionBps = getDistributionBps(playerCount, config);
 
   if (game.scoringMode === "no_score") {
-    const winnerIds = uniqueWinnerIds(game.winnerUserIds, game.players);
-    const firstPlaceBps = distributionBps[0] ?? 0;
-    const pointsAwardedMinor =
-      winnerIds.length === 0
-        ? 0
-        : Math.floor((prizePoolMinor * firstPlaceBps) / 10_000 / winnerIds.length);
+    const groups = buildTiedPlacementGroups(game);
+    const payoutByUserId = new Map<string, PlayerRankPayout>();
 
-    return game.players.map((player, index) => ({
-      gameCompletedAt: game.completedAt,
-      userId: player.userId,
-      playerCount,
-      placement: winnerIds.includes(player.userId) ? 1 : winnerIds.length + index + 1,
-      tieSize: winnerIds.includes(player.userId) ? winnerIds.length : 1,
-      prizePoolMinor,
-      payoutPercentBps: winnerIds.includes(player.userId) ? firstPlaceBps : 0,
-      pointsAwardedMinor: winnerIds.includes(player.userId) ? pointsAwardedMinor : 0,
-    }));
+    for (const group of groups) {
+      const payoutPercentBps =
+        group.placement >= 1 && group.placement <= 3
+          ? (distributionBps[group.placement - 1] ?? 0)
+          : 0;
+      const pointsAwardedMinor =
+        payoutPercentBps === 0
+          ? 0
+          : Math.floor(
+              (prizePoolMinor * payoutPercentBps) / 10_000 / group.playerIds.length,
+            );
+
+      for (const userId of group.playerIds) {
+        payoutByUserId.set(userId, {
+          gameCompletedAt: game.completedAt,
+          userId,
+          playerCount,
+          placement: group.placement,
+          tieSize: group.playerIds.length,
+          prizePoolMinor,
+          payoutPercentBps,
+          pointsAwardedMinor,
+        });
+      }
+    }
+
+    return game.players.map((player) =>
+      payoutByUserId.get(player.userId) ?? {
+        gameCompletedAt: game.completedAt,
+        userId: player.userId,
+        playerCount,
+        placement: playerCount,
+        tieSize: 1,
+        prizePoolMinor,
+        payoutPercentBps: 0,
+        pointsAwardedMinor: 0,
+      },
+    );
   }
 
   const maxPaidPlacement = distributionBps.reduce(

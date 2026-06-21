@@ -1,11 +1,10 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { randomBytes } from "node:crypto";
 import {
   getUserById,
-  getUserByFriendInviteToken,
   getUserFullById,
+  getOrCreateFriendInviteToken,
   updateUser,
 } from "@/lib/db/store/user.store";
 import { db, users } from "@/lib/db/store";
@@ -20,30 +19,9 @@ import {
 } from "@/lib/cache-invalidation";
 import { PROFILE_COMPLETION_BYPASS_COOKIE } from "@/lib/auth/profile-completion-cookie";
 import { logError, logInfo, type LogMeta } from "@/lib/server-log";
-import { getInvitationByToken } from "@/lib/db/store/invitation.store";
 
 function buildInvitePath(friendInviteToken: string) {
   return `/invite/${friendInviteToken}`;
-}
-
-function createInviteToken() {
-  return randomBytes(24).toString("base64url");
-}
-
-async function createUniqueFriendInviteToken() {
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const token = createInviteToken();
-    const [existingUser, existingInvitation] = await Promise.all([
-      getUserByFriendInviteToken(token),
-      getInvitationByToken(token),
-    ]);
-
-    if (!existingUser && !existingInvitation) {
-      return token;
-    }
-  }
-
-  throw new Error("Unable to generate a unique friend invite token");
 }
 
 function logUserActionSuccess(action: string, meta: LogMeta) {
@@ -226,14 +204,7 @@ export async function getOrCreateFriendInviteLink(): Promise<{
       };
     }
 
-    const friendInviteToken = await createUniqueFriendInviteToken();
-    const updatedUser = await updateUser(user.id, {
-      friendInviteToken,
-    });
-
-    if (!updatedUser?.friendInviteToken) {
-      throw new Error("Unable to create friend invite link");
-    }
+    const friendInviteToken = await getOrCreateFriendInviteToken(user.id);
 
     revalidateProfileOverviewPage(user.id);
     revalidatePublicProfilePage(user.id);
@@ -245,7 +216,7 @@ export async function getOrCreateFriendInviteLink(): Promise<{
     });
 
     return {
-      invitePath: buildInvitePath(updatedUser.friendInviteToken),
+      invitePath: buildInvitePath(friendInviteToken),
     };
   } catch (error) {
     logUserActionFailure("friend_invite_link.create", error, {

@@ -13,7 +13,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import GameTitleImage from "@/components/game/game-title-image";
-import { getProfileColorFillStyles } from "@/components/profile/profile-color-styles";
+import { getProfileColorSurfaceStyles } from "@/components/profile/profile-color-styles";
+import ProfilePicture from "@/components/profile/profile-picture";
 import { ProfileMatchupSelector } from "@/components/profile/profile-matchup-selector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -149,12 +150,23 @@ function ComparisonMetricRow(props: {
       >
         <span
           className={cn(
-            "inline-flex min-h-9 min-w-9 items-center justify-center rounded-full px-3 py-1",
+            "relative isolate inline-flex min-h-9 min-w-9 items-center justify-center overflow-hidden rounded-full px-3 py-1 ring-1 ring-black/6 dark:ring-white/12",
             props.currentWins && "font-bold",
           )}
-          style={getProfileColorFillStyles(props.currentColor)}
+          style={
+            props.currentWins
+              ? getProfileColorSurfaceStyles(props.currentColor)
+              : undefined
+          }
         >
-          {props.currentValue}
+          {props.currentWins ? (
+            <>
+              <span className="pointer-events-none absolute inset-[1px] rounded-full border border-[var(--profile-surface-ring)]" />
+              <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_28%,var(--profile-surface-highlight)_0%,transparent_58%)] dark:bg-[radial-gradient(circle_at_30%_28%,rgba(15,23,42,0.18)_0%,transparent_58%)]" />
+              <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,transparent_45%,var(--profile-surface-shade)_100%)] dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.06)_0%,rgba(15,23,42,0.22)_100%)]" />
+            </>
+          ) : null}
+          <span className="relative z-10">{props.currentValue}</span>
         </span>
       </div>
       <div className="text-center">
@@ -170,12 +182,23 @@ function ComparisonMetricRow(props: {
       >
         <span
           className={cn(
-            "inline-flex min-h-9 min-w-9 items-center justify-center rounded-full px-3 py-1",
+            "relative isolate inline-flex min-h-9 min-w-9 items-center justify-center overflow-hidden rounded-full px-3 py-1 ring-1 ring-black/6 dark:ring-white/12",
             props.comparisonWins && "font-bold",
           )}
-          style={getProfileColorFillStyles(props.comparisonColor)}
+          style={
+            props.comparisonWins
+              ? getProfileColorSurfaceStyles(props.comparisonColor)
+              : undefined
+          }
         >
-          {props.comparisonValue}
+          {props.comparisonWins ? (
+            <>
+              <span className="pointer-events-none absolute inset-[1px] rounded-full border border-[var(--profile-surface-ring)]" />
+              <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_28%,var(--profile-surface-highlight)_0%,transparent_58%)] dark:bg-[radial-gradient(circle_at_30%_28%,rgba(15,23,42,0.18)_0%,transparent_58%)]" />
+              <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,transparent_45%,var(--profile-surface-shade)_100%)] dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.06)_0%,rgba(15,23,42,0.22)_100%)]" />
+            </>
+          ) : null}
+          <span className="relative z-10">{props.comparisonValue}</span>
         </span>
       </div>
     </div>
@@ -561,9 +584,7 @@ export function ProfileStatsSections({
                 <div className="rounded-[1.6rem] border border-border/70 bg-card/95 p-4">
                   <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                        You
-                      </p>
+                      <ProfilePicture user={data.profile} size="sm" />
                     </div>
                     <div className="text-center">
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -574,9 +595,9 @@ export function ProfileStatsSections({
                       </p>
                     </div>
                     <div className="min-w-0 text-right">
-                      <p className="truncate text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                        {selectedComparison.user.displayName}
-                      </p>
+                      <div className="flex justify-end">
+                        <ProfilePicture user={selectedComparison.user} size="sm" />
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight } from "lucide-react";
-import { getOrdinalLabel } from "@/app/(protected)/dashboard/_components/utils";
 import { PlayerRankDeltaBadge } from "@/components/player-rank/player-rank-delta-badge";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Button } from "@/components/ui/button";
@@ -31,14 +30,6 @@ function formatDate(value: string | null, prefix: string) {
 
 function formatScore(value: number | null) {
   return value === null ? "--" : value.toString();
-}
-
-function formatPlacement(value: number | null, won: boolean) {
-  if (won && value === 1) {
-    return "Won";
-  }
-
-  return value ? getOrdinalLabel(value) : "--";
 }
 
 function PlayerStack({
@@ -167,7 +158,7 @@ export function GameTitleHistoryList({
                   </div>
                   <div className="mt-2 flex items-center gap-4 text-sm">
                     <span>
-                      <strong>{formatPlacement(game.currentUser.placement, game.currentUser.won)}</strong>
+                      <strong>{game.currentUser.placementLabel ?? "--"}</strong>
                     </span>
                     <span>Score {formatScore(game.currentUser.score)}</span>
                   </div>
@@ -194,7 +185,7 @@ export function GameTitleHistoryList({
                   </div>
                   <div className="mt-2 flex items-center gap-4 text-sm">
                     <span>
-                      <strong>{formatPlacement(comparisonPlayer.placement, comparisonPlayer.won)}</strong>
+                      <strong>{comparisonPlayer.placementLabel ?? "--"}</strong>
                     </span>
                     <span>Score {formatScore(comparisonPlayer.score)}</span>
                   </div>

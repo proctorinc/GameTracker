@@ -16,6 +16,7 @@ import GameTitleImage from "@/components/game/game-title-image";
 import GameTitleImageEditor from "@/components/game/game-title-image-editor";
 import { GameTitleRankChart } from "@/components/game/game-title-rank-chart";
 import { getProfileColorFillStyles } from "@/components/profile/profile-color-styles";
+import ProfilePicture from "@/components/profile/profile-picture";
 import { ProfileMatchupSelector } from "@/components/profile/profile-matchup-selector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,7 +80,11 @@ function ComparisonMetricRow(props: {
             "inline-flex min-h-9 min-w-9 items-center justify-center rounded-full px-3 py-1",
             props.currentWins && "font-bold",
           )}
-          style={getProfileColorFillStyles(props.currentColor)}
+          style={
+            props.currentWins
+              ? getProfileColorFillStyles(props.currentColor)
+              : undefined
+          }
         >
           {props.currentValue}
         </span>
@@ -100,7 +105,11 @@ function ComparisonMetricRow(props: {
             "inline-flex min-h-9 min-w-9 items-center justify-center rounded-full px-3 py-1",
             props.comparisonWins && "font-bold",
           )}
-          style={getProfileColorFillStyles(props.comparisonColor)}
+          style={
+            props.comparisonWins
+              ? getProfileColorFillStyles(props.comparisonColor)
+              : undefined
+          }
         >
           {props.comparisonValue}
         </span>
@@ -263,6 +272,12 @@ function ComparisonSection(props: {
   currentStats: GameTitleStatsSummary;
   comparison: GameTitleComparisonSummary | null;
   currentColor: string;
+  currentUser: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    color: string;
+  };
 }) {
   const [showAllMetrics, setShowAllMetrics] = useState(false);
 
@@ -285,9 +300,7 @@ function ComparisonSection(props: {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-[1.6rem] border border-border/70 bg-card/95 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            You
-          </p>
+          <ProfilePicture user={props.currentUser} size="sm" />
           <p className="mt-2 text-2xl font-black">
             {props.currentStats.rankGainInWindow.formatted}
           </p>
@@ -296,9 +309,7 @@ function ComparisonSection(props: {
           </p>
         </div>
         <div className="rounded-[1.6rem] border border-border/70 bg-card/95 p-4">
-          <p className="truncate text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            {props.comparison.user.displayName}
-          </p>
+          <ProfilePicture user={props.comparison.user} size="sm" />
           <p className="mt-2 text-2xl font-black">
             {props.comparison.stats.rankGainInWindow.formatted}
           </p>
@@ -450,6 +461,12 @@ export default function GameTitlePage({
                   currentStats={stats}
                   comparison={comparison}
                   currentColor={currentUserColor}
+                  currentUser={{
+                    id: data.currentUserId,
+                    firstName: null,
+                    lastName: null,
+                    color: currentUserColor,
+                  }}
                 />
               </CardContent>
             </Card>

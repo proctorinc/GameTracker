@@ -27,7 +27,6 @@ export function ProfileStatsTab() {
         comparisonSummariesByUserId: data.comparisonSummariesByUserId,
         defaultComparisonUserId: data.defaultComparisonUserId,
       }}
-      hero={<ProfileHeroCard />}
     />
   );
 }

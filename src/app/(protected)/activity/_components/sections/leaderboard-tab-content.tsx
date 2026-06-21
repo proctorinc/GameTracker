@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import type { CSSProperties } from "react";
-import { ChevronDown, Trophy } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { PlayerRankPodium } from "@/components/player-rank/player-rank-podium";
 import { PlayerRankTrendCard } from "@/components/player-rank/player-rank-trend-card";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { buttonVariants } from "@/components/ui/button";
@@ -30,108 +30,12 @@ function getDisplayName(friend: ActivityLeaderboardFriend) {
   return "Unnamed player";
 }
 
-function getOrdinalLabel(position: number) {
-  const mod100 = position % 100;
-  if (mod100 >= 11 && mod100 <= 13) {
-    return `${position}th`;
-  }
-
-  const mod10 = position % 10;
-  if (mod10 === 1) {
-    return `${position}st`;
-  }
-
-  if (mod10 === 2) {
-    return `${position}nd`;
-  }
-
-  if (mod10 === 3) {
-    return `${position}rd`;
-  }
-
-  return `${position}th`;
-}
-
 function hasNoActivity(friend: ActivityLeaderboardFriend) {
   return (
     friend.playerRankTotalMinor === 0 &&
     friend.playerRankGamesCount === 0 &&
     friend.recentActivityCount === 0
   );
-}
-
-function getPodiumPlacementBadge(position: number) {
-  if (position === 1) {
-    return {
-      className: "placement-badge",
-      style: {} satisfies CSSProperties,
-      trophyClassName: "",
-    };
-  }
-
-  if (position === 2) {
-    return {
-      className: "placement-badge",
-      style: {
-        ["--placement-surface-soft" as string]: "oklch(0.985 0.006 255)",
-        ["--placement-surface-strong" as string]: "oklch(0.84 0.02 255)",
-        ["--placement-border" as string]: "oklch(0.73 0.018 255)",
-        ["--placement-text" as string]: "oklch(0.39 0.02 255)",
-        ["--placement-shadow" as string]:
-          "0 18px 38px -24px rgba(100, 116, 139, 0.45)",
-        ["--placement-surface-soft-dark" as string]: "oklch(0.34 0.015 255)",
-        ["--placement-surface-strong-dark" as string]: "oklch(0.49 0.02 255)",
-        ["--placement-border-dark" as string]: "oklch(0.62 0.018 255)",
-        ["--placement-text-dark" as string]: "oklch(0.96 0.006 255)",
-        ["--placement-shadow-dark" as string]:
-          "0 18px 38px -24px rgba(15, 23, 42, 0.65)",
-      } satisfies CSSProperties,
-      trophyClassName: "",
-    };
-  }
-
-  return {
-    className: "placement-badge",
-    style: {
-      ["--placement-surface-soft" as string]: "oklch(0.985 0.018 60)",
-      ["--placement-surface-strong" as string]: "oklch(0.8 0.065 55)",
-      ["--placement-border" as string]: "oklch(0.69 0.075 53)",
-      ["--placement-text" as string]: "oklch(0.41 0.06 48)",
-      ["--placement-shadow" as string]:
-        "0 18px 38px -24px rgba(180, 103, 47, 0.48)",
-      ["--placement-surface-soft-dark" as string]: "oklch(0.34 0.03 55)",
-      ["--placement-surface-strong-dark" as string]: "oklch(0.48 0.06 52)",
-      ["--placement-border-dark" as string]: "oklch(0.63 0.07 52)",
-      ["--placement-text-dark" as string]: "oklch(0.95 0.02 70)",
-      ["--placement-shadow-dark" as string]:
-        "0 18px 38px -24px rgba(67, 20, 7, 0.62)",
-    } satisfies CSSProperties,
-    trophyClassName: "",
-  };
-}
-
-function getPodiumAccent(position: number) {
-  if (position === 1) {
-    return {
-      cardClassName:
-        "border-amber-300/70 bg-[linear-gradient(180deg,#fff8eb_0%,#fff1cf_100%)] shadow-amber-950/10 dark:border-amber-200/20 dark:bg-[linear-gradient(180deg,rgba(245,158,11,0.18)_0%,rgba(255,255,255,0.03)_100%)]",
-      heightClassName: "h-56",
-    };
-  }
-
-  if (position === 2) {
-    return {
-      cardClassName:
-        "border-slate-300/70 bg-[linear-gradient(180deg,#f8fafc_0%,#e2e8f0_100%)] shadow-slate-950/10 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(148,163,184,0.2)_0%,rgba(255,255,255,0.03)_100%)]",
-      heightClassName: "h-48",
-    };
-  }
-
-  return {
-    cardClassName:
-      "border-orange-300/70 bg-[linear-gradient(180deg,#fff7ed_0%,#ffedd5_100%)] shadow-orange-950/10 dark:border-orange-300/20 dark:bg-[linear-gradient(180deg,rgba(249,115,22,0.16)_0%,rgba(255,255,255,0.03)_100%)]",
-    heightClassName: "h-44",
-  };
 }
 
 function LeaderboardDetailPanel({
@@ -198,63 +102,6 @@ function LeaderboardDetailPanel({
           ))}
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function PodiumCard({
-  friend,
-}: {
-  friend: ActivityLeaderboardFriend;
-}) {
-  const accent = getPodiumAccent(friend.friendPosition);
-  const placementBadge = getPodiumPlacementBadge(friend.friendPosition);
-  const entryHasNoActivity = hasNoActivity(friend);
-
-  return (
-    <div
-      className={cn(
-        "flex min-w-0 flex-col items-center rounded-[1.4rem] border px-2 py-3 text-center shadow-lg",
-        accent.cardClassName,
-        accent.heightClassName,
-        entryHasNoActivity && "opacity-70 saturate-[0.85]",
-      )}
-      aria-label={`${getOrdinalLabel(friend.friendPosition)} place ${getDisplayName(friend)}`}
-    >
-      <div
-        className={cn(
-          "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold backdrop-blur-sm",
-          placementBadge.className,
-        )}
-        style={placementBadge.style}
-      >
-        <Trophy className={cn("size-3.5", placementBadge.trophyClassName)} />
-        <span>{getOrdinalLabel(friend.friendPosition)}</span>
-      </div>
-      <div className="mt-3">
-        <ProfilePicture
-          user={friend.user}
-          className="border-none"
-          linkToProfile
-          size={friend.friendPosition === 1 ? "md" : "sm"}
-        />
-      </div>
-      <p
-        className={cn(
-          "mt-2 line-clamp-2 font-black text-foreground",
-          friend.friendPosition === 1 ? "text-base" : "text-sm",
-        )}
-      >
-        {getDisplayName(friend)}
-      </p>
-      <p
-        className={cn(
-          "mt-2 font-black leading-none text-foreground",
-          friend.friendPosition === 1 ? "text-3xl" : "text-2xl",
-        )}
-      >
-        {entryHasNoActivity ? "--" : friend.playerRankTotal}
-      </p>
     </div>
   );
 }
@@ -356,11 +203,6 @@ function LeaderboardListRow({
 export function LeaderboardTabContent() {
   const { data, expandedFriendId, toggleExpandedFriendId } = useActivityPage();
   const podiumFriends = data.leaderboardFriends.slice(0, 3);
-  const podiumDisplayFriends = [
-    podiumFriends.find((friend) => friend.friendPosition === 3),
-    podiumFriends.find((friend) => friend.friendPosition === 1),
-    podiumFriends.find((friend) => friend.friendPosition === 2),
-  ].filter((friend): friend is ActivityLeaderboardFriend => Boolean(friend));
 
   return (
     <div className="pt-2">
@@ -380,21 +222,18 @@ export function LeaderboardTabContent() {
           <CardEmpty>No friends yet to rank</CardEmpty>
         ) : (
           <>
-            <section aria-label="Leaderboard podium" className="px-1">
-              <div
-                className={cn(
-                  "grid items-end gap-2",
-                  podiumDisplayFriends.length === 1 &&
-                    "mx-auto max-w-[12rem] grid-cols-1",
-                  podiumDisplayFriends.length === 2 && "grid-cols-2",
-                  podiumDisplayFriends.length >= 3 && "grid-cols-3",
-                )}
-              >
-                {podiumDisplayFriends.map((friend) => (
-                  <PodiumCard key={friend.user.id} friend={friend} />
-                ))}
-              </div>
-            </section>
+            <PlayerRankPodium
+              ariaLabel="Leaderboard podium"
+              entries={podiumFriends.map((friend) => ({
+                id: friend.user.id,
+                position: friend.friendPosition,
+                displayName: getDisplayName(friend),
+                value: hasNoActivity(friend) ? "--" : friend.playerRankTotal,
+                user: friend.user,
+                linkToProfile: true,
+                subdued: hasNoActivity(friend),
+              }))}
+            />
 
             {data.leaderboardFriends.map((friend, index) => {
               const showNoActivityLabel =

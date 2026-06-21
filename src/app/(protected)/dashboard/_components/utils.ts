@@ -1,11 +1,17 @@
 import type { CSSProperties } from "react";
 import type { DashboardPageData } from "@/app/actions/pages/dashboard";
+import {
+  deriveGamePlacementOutcome,
+  formatPlacementLabel,
+} from "@/lib/game-placement";
 
 type DashboardGamePlayers = DashboardPageData["recentActiveGames"][number]["players"];
 type DashboardGameLike = {
   players: DashboardGamePlayers;
   scoringMode: DashboardPageData["recentActiveGames"][number]["scoringMode"];
   completedRounds?: DashboardPageData["recentActiveGames"][number]["completedRounds"];
+  winners?: Array<{ userId: string }> | null;
+  resultPlacements?: Array<{ userId: string; placement: number }> | null;
 };
 
 export function formatGameDate(value: string | null | undefined) {
@@ -49,65 +55,47 @@ export function getPlayerPlacement(
   game: DashboardGameLike,
   currentUserId: string,
 ) {
-  if (game.scoringMode === "no_score") {
-    return null;
-  }
-
-  if (
-    game.completedRounds === 0 &&
-    game.players.every((player) => player.score === game.players[0]?.score)
-  ) {
-    return null;
-  }
-
-  const currentPlayer = game.players.find((player) => player.userId === currentUserId);
-
-  if (!currentPlayer) {
-    return null;
-  }
-
-  const sortedPlayers = [...game.players].sort((left, right) =>
-    game.scoringMode === "highest_wins"
-      ? right.score - left.score
-      : left.score - right.score,
-  );
-
-  let place = 0;
-  let lastScore: number | null = null;
-
-  for (const player of sortedPlayers) {
-    if (lastScore === null || player.score !== lastScore) {
-      place += 1;
-      lastScore = player.score;
-    }
-
-    if (player.userId === currentUserId) {
-      return place;
-    }
-  }
-
-  return null;
+  return getPlacementOutcome(game).placementByUserId[currentUserId] ?? null;
 }
 
 export function getPlayersOrderedByPlacement<T extends DashboardGamePlayers[number]>(
   game: DashboardGameLike & { players: T[] },
 ) {
-  if (game.scoringMode === "no_score") {
-    return game.players;
-  }
-
-  if (
-    game.completedRounds === 0 &&
-    game.players.every((player) => player.score === game.players[0]?.score)
-  ) {
-    return game.players;
-  }
-
-  return [...game.players].sort((left, right) =>
-    game.scoringMode === "highest_wins"
-      ? right.score - left.score
-      : left.score - right.score,
+  const placementOutcome = getPlacementOutcome(game);
+  const placedPlayers = game.players.filter(
+    (player) => placementOutcome.placementByUserId[player.userId] !== undefined,
   );
+
+  if (placedPlayers.length === 0) {
+    return game.players;
+  }
+
+  return [...game.players].sort((left, right) => {
+    const leftPlacement = placementOutcome.placementByUserId[left.userId];
+    const rightPlacement = placementOutcome.placementByUserId[right.userId];
+
+    if (leftPlacement === undefined && rightPlacement === undefined) {
+      return 0;
+    }
+
+    if (leftPlacement === undefined) {
+      return 1;
+    }
+
+    if (rightPlacement === undefined) {
+      return -1;
+    }
+
+    if (leftPlacement !== rightPlacement) {
+      return leftPlacement - rightPlacement;
+    }
+
+    return 0;
+  });
+}
+
+export function getWinnerUserIds(game: DashboardGameLike) {
+  return getPlacementOutcome(game).winnerUserIds;
 }
 
 export function getPlayerPlacementDisplay(
@@ -121,12 +109,20 @@ export function getPlayerPlacementDisplay(
     return null;
   }
 
-  const label = [prefix, getOrdinalLabel(place)].filter(Boolean).join(" ");
+  const placementOutcome = getPlacementOutcome(game);
+  const label =
+    game.scoringMode === "no_score" && prefix.length === 0
+      ? formatPlacementLabel({
+          placement: place,
+          won: placementOutcome.wonByUserId[currentUserId] ?? false,
+          hasExplicitPodium: placementOutcome.hasExplicitPodium,
+        })
+      : [prefix, getOrdinalLabel(place)].filter(Boolean).join(" ");
 
   if (place === 1) {
     return {
       place,
-      label,
+      label: label ?? getOrdinalLabel(place),
       className: "placement-badge",
       style: {} satisfies CSSProperties,
       trophyClassName: "",
@@ -137,7 +133,7 @@ export function getPlayerPlacementDisplay(
   if (place === 2) {
     return {
       place,
-      label,
+      label: label ?? getOrdinalLabel(place),
       className: "placement-badge",
       style: {
         ["--placement-surface-soft" as string]: "oklch(0.985 0.006 255)",
@@ -161,7 +157,7 @@ export function getPlayerPlacementDisplay(
   if (place === 3) {
     return {
       place,
-      label,
+      label: label ?? getOrdinalLabel(place),
       className: "placement-badge",
       style: {
         ["--placement-surface-soft" as string]: "oklch(0.985 0.018 60)",
@@ -184,11 +180,24 @@ export function getPlayerPlacementDisplay(
 
   return {
     place,
-    label,
+    label: label ?? getOrdinalLabel(place),
     className:
       "bg-background/60 text-foreground ring-1 ring-black/8 dark:ring-white/10",
     style: {} satisfies CSSProperties,
     trophyClassName: "",
     showTrophy: false,
   };
+}
+
+function getPlacementOutcome(game: DashboardGameLike) {
+  return deriveGamePlacementOutcome({
+    scoringMode: game.scoringMode,
+    participants: game.players.map((player) => ({
+      userId: player.userId,
+      score: player.score,
+    })),
+    resultPlacements: game.resultPlacements ?? [],
+    winnerUserIds: (game.winners ?? []).map((winner) => winner.userId),
+    suppressAllTiedPlacement: game.completedRounds === 0,
+  });
 }

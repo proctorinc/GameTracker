@@ -1,3 +1,5 @@
+import { deriveGamePlacementOutcome } from "./game-placement";
+
 export type ProfileStatsUser = {
   id: string;
   firstName: string | null;
@@ -35,6 +37,7 @@ export type ProfileStatsCompletedGame = {
   }>;
   participantUserIds: string[];
   winnerUserIds: string[];
+  placementByUserId: Record<string, number>;
 };
 
 export type ProfileStatsStreak = {
@@ -689,36 +692,19 @@ function getOrdinalPlacement(
   game: ProfileStatsCompletedGame,
   userId: string,
 ): number | null {
-  if (game.scoringMode === "no_score") {
-    return game.winnerUserIds.includes(userId) ? 1 : null;
-  }
-
-  const sortedPlayers = [...game.participants].sort((left, right) => {
-    const leftScore = left.score ?? Number.POSITIVE_INFINITY;
-    const rightScore = right.score ?? Number.POSITIVE_INFINITY;
-    return game.scoringMode === "highest_wins"
-      ? rightScore - leftScore
-      : leftScore - rightScore;
-  });
-  let placement = 0;
-  let lastScore: number | null = null;
-
-  for (const player of sortedPlayers) {
-    if (player.score === null) {
-      continue;
-    }
-
-    if (lastScore === null || player.score !== lastScore) {
-      placement += 1;
-      lastScore = player.score;
-    }
-
-    if (player.userId === userId) {
-      return placement;
-    }
-  }
-
-  return null;
+  return (
+    deriveGamePlacementOutcome({
+      scoringMode: game.scoringMode ?? "lowest_wins",
+      participants: game.participants,
+      resultPlacements: Object.entries(game.placementByUserId).map(
+        ([placementUserId, placement]) => ({
+          userId: placementUserId,
+          placement,
+        }),
+      ),
+      winnerUserIds: game.winnerUserIds,
+    }).placementByUserId[userId] ?? null
+  );
 }
 
 function buildStoryline(input: {

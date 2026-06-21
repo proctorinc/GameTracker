@@ -23,6 +23,7 @@ import { GamePlayerStack } from "../controls/game-player-stack";
 import { useDashboardPage } from "../dashboard-page-provider";
 import {
   getPlayerPlacementDisplay,
+  getWinnerUserIds,
   getPlayersOrderedByPlacement,
 } from "../utils";
 
@@ -60,6 +61,7 @@ export function CompletedGamesSection() {
           recentCompletedGames.map((game) => {
             const placement = getPlayerPlacementDisplay(game, user.id, "");
             const orderedPlayers = getPlayersOrderedByPlacement(game);
+            const winnerUserIds = getWinnerUserIds(game);
 
             return (
               <GameTitleImage
@@ -127,9 +129,7 @@ export function CompletedGamesSection() {
                       <GamePlayerStack
                         players={orderedPlayers}
                         size="sm"
-                        winnerUserIds={game.winners.map(
-                          (winner) => winner.userId,
-                        )}
+                        winnerUserIds={winnerUserIds}
                       />
                     </div>
                     <div className="ml-auto flex shrink-0 items-center gap-2">

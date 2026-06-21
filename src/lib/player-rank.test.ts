@@ -100,6 +100,32 @@ describe("computePlayerRankPayouts", () => {
     expect(payouts.find((entry) => entry.userId === "b")?.pointsAwardedMinor).toBe(6000);
     expect(payouts.find((entry) => entry.userId === "c")?.pointsAwardedMinor).toBe(0);
   });
+
+  it("uses explicit no-score podium placements for payouts", () => {
+    const payouts = computePlayerRankPayouts(
+      {
+        completedAt: "2026-01-01T00:00:00.000Z",
+        scoringMode: "no_score",
+        players: [
+          { userId: "a", score: 0 },
+          { userId: "b", score: 0 },
+          { userId: "c", score: 0 },
+          { userId: "d", score: 0 },
+        ],
+        winnerUserIds: ["a"],
+        placementSelections: [
+          { placement: 1, userIds: ["a"] },
+          { placement: 2, userIds: ["b", "c"] },
+        ],
+      },
+      baseConfig,
+    );
+
+    expect(payouts.find((entry) => entry.userId === "a")?.pointsAwardedMinor).toBe(12000);
+    expect(payouts.find((entry) => entry.userId === "b")?.pointsAwardedMinor).toBe(3000);
+    expect(payouts.find((entry) => entry.userId === "c")?.pointsAwardedMinor).toBe(3000);
+    expect(payouts.find((entry) => entry.userId === "d")?.placement).toBe(4);
+  });
 });
 
 describe("assignDensePlayerRankPositions", () => {

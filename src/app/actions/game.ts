@@ -20,6 +20,7 @@ import { getWinningUserIds } from "@/lib/game/v1";
 import { listAcceptedFriendsForUser } from "@/lib/db/store/friendship.store";
 import {
   addPlayerToGame,
+  addPlayerToGameWithStartingScore,
   createGameRound,
   createGameRoundScores,
   createOrFindGameTitle,
@@ -38,6 +39,7 @@ import {
   mergeGameTitles,
   promoteGameTitleToUniversal,
   replaceGameWinners,
+  replaceGameResultPlacements,
   removePlayerFromGame,
   shareGameTitleWithUser,
   updateGameTitleImageAndColor,
@@ -46,6 +48,7 @@ import {
   updateGameRound,
   updateGameRoundScore,
   deleteGame,
+  type GamePlayerStartingScoreMode,
 } from "@/lib/db/store/game.store";
 import {
   deleteGamePlayerRankResults,
@@ -170,6 +173,7 @@ async function syncPlayerRankForCompletedGame(input: {
   scoringMode: GameForPlayPage["scoringMode"];
   players: Array<{ userId: string; score: number }>;
   winnerUserIds: string[];
+  placementSelections?: Array<{ placement: 1 | 2 | 3; userIds: string[] }>;
 }) {
   await writePlayerRankResultsForCompletedGame({
     gameId: input.gameId,
@@ -178,10 +182,102 @@ async function syncPlayerRankForCompletedGame(input: {
       scoringMode: input.scoringMode,
       players: input.players,
       winnerUserIds: input.winnerUserIds,
+      placementSelections: input.placementSelections,
     },
   });
   await rebuildPlayerRankHistoryFromDate({
     startDate: input.completedAt,
+  });
+}
+
+type NoScorePlacementSelection = {
+  placement: 1 | 2 | 3;
+  userIds: string[];
+};
+
+function normalizeNoScorePlacementSelections(input: {
+  participants: Array<{ userId: string }>;
+  placementSelections?: Array<{ placement: 1 | 2 | 3; userIds: string[] }> | null;
+  winnerUserIds?: string[] | null;
+}) {
+  const allowedUserIds = new Set(input.participants.map((player) => player.userId));
+  const normalizedSelections =
+    input.placementSelections && input.placementSelections.length > 0
+      ? input.placementSelections
+      : input.winnerUserIds && input.winnerUserIds.length > 0
+        ? [{ placement: 1 as const, userIds: input.winnerUserIds }]
+        : [];
+  const seenUserIds = new Set<string>();
+  const byPlacement = new Map<1 | 2 | 3, string[]>();
+
+  for (const selection of normalizedSelections) {
+    if (selection.placement < 1 || selection.placement > 3) {
+      throw new Error("Only 1st, 2nd, and 3rd place can be recorded");
+    }
+
+    const uniqueUserIds = Array.from(new Set(selection.userIds)).filter((userId) => {
+      if (!allowedUserIds.has(userId)) {
+        throw new Error("Only players in the game can be assigned a placement");
+      }
+
+      if (seenUserIds.has(userId)) {
+        throw new Error("A player can only be assigned to one placement");
+      }
+
+      seenUserIds.add(userId);
+      return true;
+    });
+
+    if (uniqueUserIds.length === 0) {
+      continue;
+    }
+
+    byPlacement.set(selection.placement, uniqueUserIds);
+  }
+
+  if (!byPlacement.has(1)) {
+    throw new Error("Choose at least one 1st-place winner");
+  }
+
+  if (byPlacement.has(3) && !byPlacement.has(2)) {
+    throw new Error("Choose 2nd place before recording 3rd");
+  }
+
+  const placements: NoScorePlacementSelection[] = [1, 2, 3]
+    .map((placement) => {
+      const userIds = byPlacement.get(placement as 1 | 2 | 3) ?? [];
+
+      return userIds.length > 0
+        ? {
+            placement: placement as 1 | 2 | 3,
+            userIds,
+          }
+        : null;
+    })
+    .filter((selection): selection is NoScorePlacementSelection => selection !== null);
+
+  return {
+    placements,
+    winnerUserIds: byPlacement.get(1) ?? [],
+  };
+}
+
+async function replaceNoScoreGameResults(input: {
+  gameId: string;
+  placementSelections: NoScorePlacementSelection[];
+}) {
+  await replaceGameResultPlacements({
+    gameId: input.gameId,
+    placements: input.placementSelections.flatMap((selection) =>
+      selection.userIds.map((userId) => ({
+        userId,
+        placement: selection.placement,
+      })),
+    ),
+  });
+  await replaceGameWinners({
+    gameId: input.gameId,
+    userIds: input.placementSelections.find((selection) => selection.placement === 1)?.userIds ?? [],
   });
 }
 
@@ -605,6 +701,7 @@ export async function commitGameRound(input: {
   gameId: string;
   completeGame?: boolean;
   winnerUserIds?: string[] | null;
+  placementSelections?: Array<{ placement: 1 | 2 | 3; userIds: string[] }> | null;
 }) {
   const meta: LogMeta = {
     gameId: input.gameId,
@@ -642,24 +739,22 @@ export async function commitGameRound(input: {
         throw new Error("Could not create round");
       }
 
+      const noScorePlacements =
+        game.scoringMode === "no_score" && input.completeGame
+          ? normalizeNoScorePlacementSelections({
+              participants: game.players,
+              placementSelections: input.placementSelections,
+              winnerUserIds: input.winnerUserIds,
+            })
+          : null;
       const nextWinningUserIds =
         game.scoringMode === "no_score"
-          ? Array.from(
-              new Set(
-                (input.winnerUserIds ?? []).filter((userId) =>
-                  game.players.some((player) => player.userId === userId),
-                ),
-              ),
-            )
+          ? (noScorePlacements?.winnerUserIds ?? [])
           : getWinningUserIds(game);
       const finishedAt = nowIso();
       meta.roundId = round.id;
       meta.roundNumber = activeRoundNumber;
       meta.winnerCount = nextWinningUserIds.length;
-
-      if (input.completeGame && game.scoringMode === "no_score" && nextWinningUserIds.length === 0) {
-        throw new Error("Choose at least one winner");
-      }
 
       const updatedGame = await updateGame(game.id, {
         completedRounds: game.completedRounds + 1,
@@ -671,10 +766,17 @@ export async function commitGameRound(input: {
       });
 
       if (input.completeGame) {
-        await replaceGameWinners({
-          gameId: game.id,
-          userIds: nextWinningUserIds,
-        });
+        if (game.scoringMode === "no_score") {
+          await replaceNoScoreGameResults({
+            gameId: game.id,
+            placementSelections: noScorePlacements?.placements ?? [],
+          });
+        } else {
+          await replaceGameWinners({
+            gameId: game.id,
+            userIds: nextWinningUserIds,
+          });
+        }
 
         await syncPlayerRankForCompletedGame({
           gameId: game.id,
@@ -685,6 +787,7 @@ export async function commitGameRound(input: {
             score: player.score,
           })),
           winnerUserIds: nextWinningUserIds,
+          placementSelections: noScorePlacements?.placements,
         });
 
         if (game.gameTitleId) {
@@ -738,6 +841,10 @@ export async function reopenCompletedGame(input: { gameId: string }) {
       await replaceGameWinners({
         gameId: game.id,
         userIds: [],
+      });
+      await replaceGameResultPlacements({
+        gameId: game.id,
+        placements: [],
       });
       await deleteGamePlayerRankResults(game.id);
       await rebuildPlayerRankHistoryFromDate({
@@ -943,7 +1050,12 @@ export async function updateRecordedRoundScore(input: {
   );
 }
 
-export async function addGamePlayer(input: { gameId: string; userId: string }) {
+export async function addGamePlayer(input: {
+  gameId: string;
+  userId: string;
+  startingScoreMode?: GamePlayerStartingScoreMode;
+  startingScoreValue?: number | null;
+}) {
   const { gameId, userId } = input;
   const meta: LogMeta = { gameId, playerUserId: userId, actorUserId: null };
   return runGameAction(
@@ -959,7 +1071,12 @@ export async function addGamePlayer(input: { gameId: string; userId: string }) {
         throw new Error("That player is already in the game");
       }
 
-      const result = await addPlayerToGame(gameId, userId);
+      const result = await addPlayerToGameWithStartingScore({
+        gameId,
+        userId,
+        startingScoreMode: input.startingScoreMode,
+        startingScoreValue: input.startingScoreValue,
+      });
       const { game } = await requireGameMembership(gameId);
       revalidateDashboardPages([...getDashboardUserIdsForGame(game), userId]);
       revalidateGameHistoryPages([...getDashboardUserIdsForGame(game), userId]);
@@ -975,6 +1092,8 @@ export async function addGuestGamePlayer(input: {
   gameId: string;
   firstName: string;
   lastName?: string;
+  startingScoreMode?: GamePlayerStartingScoreMode;
+  startingScoreValue?: number | null;
 }) {
   const { gameId, firstName, lastName } = input;
   const meta: LogMeta = {
@@ -1005,7 +1124,12 @@ export async function addGuestGamePlayer(input: {
       });
 
       meta.guestUserId = guest.id;
-      const result = await addPlayerToGame(gameId, guest.id);
+      const result = await addPlayerToGameWithStartingScore({
+        gameId,
+        userId: guest.id,
+        startingScoreMode: input.startingScoreMode,
+        startingScoreValue: input.startingScoreValue,
+      });
       const { game } = await requireGameMembership(gameId);
       revalidateDashboardPages(getDashboardUserIdsForGame(game));
       revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
@@ -1274,6 +1398,7 @@ export async function updateGameSettings(input: {
 export async function completeGame(input: {
   gameId: string;
   winnerUserIds?: string[] | null;
+  placementSelections?: Array<{ placement: 1 | 2 | 3; userIds: string[] }> | null;
 }) {
   const { gameId } = input;
   const meta: LogMeta = { gameId, actorUserId: null };
@@ -1288,31 +1413,36 @@ export async function completeGame(input: {
         throw new Error("Game is already complete");
       }
 
+      const noScorePlacements =
+        game.scoringMode === "no_score"
+          ? normalizeNoScorePlacementSelections({
+              participants: game.players,
+              placementSelections: input.placementSelections,
+              winnerUserIds: input.winnerUserIds,
+            })
+          : null;
       const winningUserIds =
         game.scoringMode === "no_score"
-          ? Array.from(
-              new Set(
-                (input.winnerUserIds ?? []).filter((userId) =>
-                  game.players.some((player) => player.userId === userId),
-                ),
-              ),
-            )
+          ? (noScorePlacements?.winnerUserIds ?? [])
           : getWinningUserIds(game);
       meta.winnerCount = winningUserIds.length;
-
-      if (game.scoringMode === "no_score" && winningUserIds.length === 0) {
-        throw new Error("Choose at least one winner");
-      }
 
       const finishedAt = nowIso();
       const updatedGame = await updateGame(gameId, {
         completedAt: finishedAt,
       });
 
-      await replaceGameWinners({
-        gameId,
-        userIds: winningUserIds,
-      });
+      if (game.scoringMode === "no_score") {
+        await replaceNoScoreGameResults({
+          gameId,
+          placementSelections: noScorePlacements?.placements ?? [],
+        });
+      } else {
+        await replaceGameWinners({
+          gameId,
+          userIds: winningUserIds,
+        });
+      }
 
       await syncPlayerRankForCompletedGame({
         gameId,
@@ -1323,6 +1453,7 @@ export async function completeGame(input: {
           score: player.score,
         })),
         winnerUserIds: winningUserIds,
+        placementSelections: noScorePlacements?.placements,
       });
 
       if (game.gameTitleId) {

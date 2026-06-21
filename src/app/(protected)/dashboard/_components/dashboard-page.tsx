@@ -5,6 +5,7 @@ import { ActiveGamesSection } from "./sections/active-games-section";
 import { CompletedGamesSection } from "./sections/completed-games-section";
 import { DashboardHeroSection } from "./sections/dashboard-hero-section";
 import { EmptyDashboardStateSection } from "./sections/empty-dashboard-state-section";
+import { IncomingInvitationsCard } from "./sections/incoming-invitations-card";
 import { RecentlyPlayedSection } from "./sections/recently-played-section";
 import { StartGameCard } from "./sections/start-game-card";
 import {
@@ -13,9 +14,14 @@ import {
 } from "./dashboard-page-provider";
 
 function DashboardPageContent() {
-  const { recentActiveGames, recentCompletedGames, recentGameTitles } =
-    useDashboardPage();
+  const {
+    incomingInvitations,
+    recentActiveGames,
+    recentCompletedGames,
+    recentGameTitles,
+  } = useDashboardPage();
   const isFirstRunDashboard =
+    incomingInvitations.length === 0 &&
     recentActiveGames.length === 0 &&
     recentCompletedGames.length === 0 &&
     recentGameTitles.length === 0;
@@ -42,6 +48,7 @@ function DashboardPageContent() {
             <DashboardHeroSection />
             <RecentlyPlayedSection />
             <StartGameCard />
+            <IncomingInvitationsCard />
             <ActiveGamesSection />
             <CompletedGamesSection />
           </>

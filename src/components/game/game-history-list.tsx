@@ -6,6 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { CardEmpty } from "@/components/ui/card";
 import { WinnerIndicator } from "@/components/ui/winner-indicator";
 import type { GameFull } from "@/lib/db/store";
+import {
+  deriveGamePlacementOutcome,
+  formatPlacementLabel,
+} from "@/lib/game-placement";
 import { cn } from "@/lib/utils";
 
 function formatDate(value: string | null | undefined, prefix: string) {
@@ -27,24 +31,6 @@ function getPlayerLabel(
   return player.userId === currentUserId
     ? "You"
     : (player.user.firstName ?? "Player");
-}
-
-function getWinnerSummary(game: GameFull, currentUserId: string) {
-  if (game.winners.length === 0) {
-    return "No winner yet";
-  }
-
-  const [primaryWinner, ...otherWinners] = game.winners;
-  const primaryName =
-    primaryWinner.userId === currentUserId
-      ? "You"
-      : (primaryWinner.user.firstName ?? "Player");
-
-  if (otherWinners.length === 0) {
-    return primaryWinner.userId === currentUserId ? "You won" : `${primaryName} won`;
-  }
-
-  return `${primaryName} +${otherWinners.length} more`;
 }
 
 function PlayerStack({
@@ -95,6 +81,63 @@ function PlayerStack({
   );
 }
 
+function getPlacementOutcome(game: GameFull) {
+  return deriveGamePlacementOutcome({
+    scoringMode: game.scoringMode,
+    participants: game.players.map((player) => ({
+      userId: player.userId,
+      score: player.score,
+    })),
+    resultPlacements: game.resultPlacements,
+    winnerUserIds: game.winners.map((winner) => winner.userId),
+    suppressAllTiedPlacement: game.completedRounds === 0,
+  });
+}
+
+function getTopPlacementSummary(game: GameFull, currentUserId: string) {
+  const placementOutcome = getPlacementOutcome(game);
+  const topPlayers = game.players.filter((player) =>
+    placementOutcome.winnerUserIds.includes(player.userId),
+  );
+
+  if (topPlayers.length === 0) {
+    return {
+      label: "Winner",
+      text: "No winner yet",
+      user: null,
+      winnerUserIds: placementOutcome.winnerUserIds,
+      wonByCurrentUser: false,
+    };
+  }
+
+  const [primaryPlayer, ...otherTopPlayers] = topPlayers;
+  const primaryName =
+    primaryPlayer.userId === currentUserId
+      ? "You"
+      : (primaryPlayer.user.firstName ?? "Player");
+  const placementLabel =
+    formatPlacementLabel({
+      placement: placementOutcome.placementByUserId[primaryPlayer.userId] ?? 1,
+      won: true,
+      hasExplicitPodium: placementOutcome.hasExplicitPodium,
+    }) ?? "Winner";
+
+  return {
+    label: placementOutcome.hasExplicitPodium
+      ? placementLabel
+      : topPlayers.length > 1
+        ? "Tied winner"
+        : "Winner",
+    text:
+      otherTopPlayers.length === 0
+        ? primaryName
+        : `${primaryName} +${otherTopPlayers.length} more`,
+    user: primaryPlayer.user,
+    winnerUserIds: placementOutcome.winnerUserIds,
+    wonByCurrentUser: placementOutcome.wonByUserId[currentUserId] ?? false,
+  };
+}
+
 export default function GameHistoryList({
   games,
   currentUserId,
@@ -127,10 +170,10 @@ export default function GameHistoryList({
   return (
     <>
       {games.map((game) => {
-        const didWin = game.winners.some((winner) => winner.userId === currentUserId);
+        const topPlacementSummary = getTopPlacementSummary(game, currentUserId);
+        const didWin = topPlacementSummary.wonByCurrentUser;
         const title = game.gameTitle;
         const titleHref = title ? `/titles/${title.id}` : null;
-        const winnerSummary = getWinnerSummary(game, currentUserId);
 
         return (
           <article
@@ -207,7 +250,7 @@ export default function GameHistoryList({
                       <PlayerStack
                         currentUserId={currentUserId}
                         players={game.players}
-                        winnerUserIds={game.winners.map((winner) => winner.userId)}
+                        winnerUserIds={topPlacementSummary.winnerUserIds}
                       />
                     </div>
                   </div>
@@ -219,13 +262,13 @@ export default function GameHistoryList({
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px]">
                 <span className="inline-flex items-center gap-1.5 text-muted-foreground">
                   <Trophy className="size-3.5" />
-                  {game.winners[0] ? (
+                  {topPlacementSummary.user ? (
                     <>
                       <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">
-                        Winner
+                        {topPlacementSummary.label}
                       </span>
                       <ProfilePicture
-                        user={game.winners[0].user}
+                        user={topPlacementSummary.user}
                         size="xs"
                         className="shadow-sm"
                       />
@@ -235,7 +278,7 @@ export default function GameHistoryList({
                           didWin && "text-[color:var(--winner-text)]",
                         )}
                       >
-                        {winnerSummary}
+                        {topPlacementSummary.text}
                       </span>
                     </>
                   ) : (

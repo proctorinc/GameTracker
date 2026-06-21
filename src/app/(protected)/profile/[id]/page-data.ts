@@ -204,6 +204,12 @@ async function getProfileStatsPageData(input: {
                     userId: true,
                   },
                 },
+                resultPlacements: {
+                  columns: {
+                    userId: true,
+                    placement: true,
+                  },
+                },
               },
             },
           },
@@ -264,6 +270,12 @@ async function getProfileStatsPageData(input: {
                     winners: {
                       columns: {
                         userId: true,
+                      },
+                    },
+                    resultPlacements: {
+                      columns: {
+                        userId: true,
+                        placement: true,
                       },
                     },
                   },
@@ -403,6 +415,7 @@ function mapParticipationToCompletedGame(participation: {
       } | null;
     players: Array<{ userId: string; score: number | null }>;
     winners: Array<{ userId: string }>;
+    resultPlacements: Array<{ userId: string; placement: number }>;
   } | null;
 }): ProfileStatsCompletedGame | null {
   const game = participation.game;
@@ -430,6 +443,12 @@ function mapParticipationToCompletedGame(participation: {
     })),
     participantUserIds: game.players.map((player) => player.userId),
     winnerUserIds: game.winners.map((winner) => winner.userId),
+    placementByUserId: Object.fromEntries(
+      game.resultPlacements.map((placement) => [
+        placement.userId,
+        placement.placement,
+      ]),
+    ),
   };
 }
 

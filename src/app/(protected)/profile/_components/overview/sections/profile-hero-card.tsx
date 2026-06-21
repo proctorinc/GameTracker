@@ -2,7 +2,6 @@
 
 import { PlayerRankSummaryCard } from "@/components/player-rank/player-rank-summary-card";
 import ProfilePicture from "@/components/profile/profile-picture";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useProfileOverview } from "../profile-overview-provider";
 
 function formatMemberSince(createdAt: string | null) {

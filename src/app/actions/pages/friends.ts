@@ -2,6 +2,7 @@ import { loadCurrentUser } from "@/lib/auth/auth-me";
 import { buildRecentlyPlayedWithList } from "@/lib/recently-played-with";
 import {
   InvitationFull,
+  getOrCreateFriendInviteToken,
   listFriendActivityGames,
   listAcceptedFriendsForUser,
   listGuestsCreatedByUser,
@@ -28,6 +29,7 @@ export type FriendConnectionsCollections = {
 
 export type FriendConnectionsData = FriendConnectionsCollections & {
   user: FriendConnectionsUser;
+  friendInvitePath: string;
 };
 
 export type FriendsPageData = FriendConnectionsData & {
@@ -40,7 +42,13 @@ export async function getFriendsPageCollections(input: {
   userId: string;
 }): Promise<FriendsPageCollections> {
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const [friends, incomingInvitations, outgoingInvitations, createdGuests] =
+  const [
+    friends,
+    incomingInvitations,
+    outgoingInvitations,
+    createdGuests,
+    friendInviteToken,
+  ] =
     await Promise.all([
       listAcceptedFriendsForUser(input.userId),
       listIncomingInvitationsForUser({
@@ -48,6 +56,7 @@ export async function getFriendsPageCollections(input: {
       }),
       listOutgoingInvitationsForUser(input.userId),
       listGuestsCreatedByUser(input.userId),
+      getOrCreateFriendInviteToken(input.userId),
     ]);
 
   const recentlyPlayedWithRows = await listRecentlyPlayedWithForUser({
@@ -70,5 +79,6 @@ export async function getFriendsPageCollections(input: {
     outgoingInvitations,
     recentlyPlayedWith,
     friendActivity,
+    friendInvitePath: `/invite/${friendInviteToken}`,
   };
 }

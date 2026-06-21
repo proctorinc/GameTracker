@@ -37,6 +37,7 @@ function createGame(
     ],
     participantUserIds: ["user-1", "user-2"],
     winnerUserIds: ["user-1"],
+    placementByUserId: { "user-1": 1, "user-2": 2 },
     ...overrides,
   };
 }
@@ -262,6 +263,43 @@ describe("buildProfileStats", () => {
       wins: 0,
       losses: 0,
       winRate: null,
+    });
+  });
+
+  it("counts only explicitly recorded no-score placements beyond 1st", () => {
+    const result = buildProfileStats({
+      profileUserId: "user-1",
+      comparisonOptions: [],
+      friendCount: 0,
+      completedGames: [
+        createGame({
+          id: "winner-only",
+          scoringMode: "no_score",
+          participants: [
+            { userId: "user-1", score: null },
+            { userId: "user-2", score: null },
+          ],
+          winnerUserIds: ["user-1"],
+          placementByUserId: { "user-1": 1 },
+        }),
+        createGame({
+          id: "full-podium",
+          scoringMode: "no_score",
+          participants: [
+            { userId: "user-1", score: null },
+            { userId: "user-2", score: null },
+            { userId: "user-3", score: null },
+          ],
+          winnerUserIds: ["user-2"],
+          placementByUserId: { "user-2": 1, "user-1": 2, "user-3": 3 },
+        }),
+      ],
+    });
+
+    expect(result.stats.placements).toEqual({
+      first: 1,
+      second: 1,
+      third: 0,
     });
   });
 });

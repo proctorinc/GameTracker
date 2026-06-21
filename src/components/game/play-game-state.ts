@@ -29,6 +29,10 @@ export type PlayGameMutation =
       completeGame: boolean;
       finishedAt: string;
       winnerUserIds?: string[];
+      placementSelections?: Array<{
+        placement: 1 | 2 | 3;
+        userIds: string[];
+      }>;
     }
   | {
       type: "reopen-game";
@@ -37,11 +41,15 @@ export type PlayGameMutation =
       type: "add-player";
       user: UserBase;
       gamePlayerId: string;
+      startingScore: number;
+      previousRoundNumber: number | null;
     }
   | {
       type: "add-guest";
       user: UserBase;
       gamePlayerId: string;
+      startingScore: number;
+      previousRoundNumber: number | null;
     }
   | {
       type: "remove-player";
@@ -187,7 +195,13 @@ function applyOptimisticRoundCommit(
 
   const winnerIds =
     nextGame.scoringMode === "no_score"
-      ? Array.from(new Set(mutation.winnerUserIds ?? []))
+      ? Array.from(
+          new Set(
+            mutation.placementSelections?.find(
+              (selection) => selection.placement === 1,
+            )?.userIds ?? mutation.winnerUserIds ?? [],
+          ),
+        )
       : getWinningUserIds({
           players: nextGame.players.map((player) => ({
             userId: player.userId,
@@ -200,6 +214,18 @@ function applyOptimisticRoundCommit(
     ...snapshot,
     game: {
       ...nextGame,
+      resultPlacements:
+        nextGame.scoringMode === "no_score"
+          ? (mutation.placementSelections ?? [])
+              .flatMap((selection) =>
+                selection.userIds.map((userId) => ({
+                  gameId: nextGame.id,
+                  userId,
+                  placement: selection.placement,
+                  createdAt: mutation.finishedAt,
+                })),
+              )
+          : nextGame.resultPlacements,
       winners: winnerIds
         .map((userId) => {
           const player = nextGame.players.find((entry) => entry.userId === userId);
@@ -230,6 +256,7 @@ function applyOptimisticGameReopen(snapshot: PlayGameSnapshot) {
     game: {
       ...snapshot.game,
       completedAt: null,
+      resultPlacements: [],
       winners: [],
     },
   };
@@ -261,10 +288,28 @@ function applyOptimisticPlayer(
           gameId: snapshot.game.id,
           isManager: false,
           userId: mutation.user.id,
-          score: 0,
+          score: mutation.startingScore,
           user: mutation.user,
         },
       ],
+      rounds:
+        mutation.previousRoundNumber === null
+          ? snapshot.game.rounds
+          : snapshot.game.rounds.map((round) =>
+              round.roundNumber === mutation.previousRoundNumber
+                ? {
+                    ...round,
+                    scores: upsertRoundScore(round.scores, {
+                      id: `optimistic-score-${round.id}-${mutation.user.id}`,
+                      gameRoundId: round.id,
+                      userId: mutation.user.id,
+                      scoreDelta: mutation.startingScore,
+                      createdAt: nowIso(),
+                      user: mutation.user,
+                    }),
+                  }
+                : round,
+            ),
     },
   };
 }

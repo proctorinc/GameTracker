@@ -6,6 +6,15 @@ import { DashboardPageView } from "./dashboard-page";
 vi.mock("@/components/game/rematch-button", () => ({
   RematchButton: () => <button type="button">Rematch</button>,
 }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    refresh: vi.fn(),
+  }),
+}));
+vi.mock("@/app/actions/friends", () => ({
+  acceptInvitation: vi.fn(),
+  declineInvitation: vi.fn(),
+}));
 vi.mock("@/lib/use-page-auto-refresh", () => ({
   usePageAutoRefresh: () => undefined,
 }));
@@ -39,6 +48,7 @@ function createDashboardPageData(): DashboardPageData {
       friendshipsAsUser1: [],
       friendshipsAsUser2: [],
     },
+    incomingInvitations: [],
     canViewPlayerRank: true,
     playerRankTotal: "270",
     playerRankPosition: 2,

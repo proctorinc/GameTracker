@@ -224,6 +224,196 @@ describe("server action integration", () => {
     }, "game-manager-promote-action");
   });
 
+  it("adds a midgame player with the average score and backfills the previous round", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const opponent = await createUserFixture();
+      const teammate = await createUserFixture();
+      mockAuthenticatedUser(creator.id);
+      vi.doMock("next/cache", () => ({
+        revalidatePath: vi.fn(),
+        revalidateTag: vi.fn(),
+      }));
+
+      const {
+        addGamePlayer,
+        commitGameRound,
+        createConfiguredGame,
+        getGame,
+        upsertActiveRoundScore,
+      } = await import("../../../src/app/actions/game");
+      const { db, gameRoundScores } = await import("../../../src/lib/db");
+
+      const game = await createConfiguredGame({
+        gameTitleName: "Midgame Average Fixture",
+        scoringMode: "lowest_wins",
+        endingMode: "round_count",
+        targetRounds: 5,
+      });
+
+      await addGamePlayer({
+        gameId: game.id,
+        userId: opponent.id,
+      });
+      await upsertActiveRoundScore({
+        gameId: game.id,
+        userId: creator.id,
+        scoreDelta: 12,
+      });
+      await upsertActiveRoundScore({
+        gameId: game.id,
+        userId: opponent.id,
+        scoreDelta: 8,
+      });
+      await commitGameRound({
+        gameId: game.id,
+      });
+      await addGamePlayer({
+        gameId: game.id,
+        userId: teammate.id,
+        startingScoreMode: "average",
+      });
+
+      const persistedGame = await getGame(game.id);
+      const addedPlayer = persistedGame?.players.find(
+        (player) => player.userId === teammate.id,
+      );
+      const roundScoreRows = await db.query.gameRoundScores.findMany({
+        where: eq(gameRoundScores.userId, teammate.id),
+      });
+
+      expect(addedPlayer?.score).toBe(10);
+      expect(roundScoreRows).toHaveLength(1);
+      expect(roundScoreRows[0]?.scoreDelta).toBe(10);
+    }, "midgame-add-average-action");
+  });
+
+  it("adds a guest midgame with the disadvantage score without backfilling when no round is complete", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const opponent = await createUserFixture();
+      mockAuthenticatedUser(creator.id);
+      vi.doMock("next/cache", () => ({
+        revalidatePath: vi.fn(),
+        revalidateTag: vi.fn(),
+      }));
+
+      const {
+        addGamePlayer,
+        addGuestGamePlayer,
+        createConfiguredGame,
+        getGame,
+        upsertActiveRoundScore,
+      } = await import("../../../src/app/actions/game");
+      const { db, gameRoundScores } = await import("../../../src/lib/db");
+
+      const game = await createConfiguredGame({
+        gameTitleName: "Midgame Guest Highest Fixture",
+        scoringMode: "lowest_wins",
+        endingMode: "round_count",
+        targetRounds: 5,
+      });
+
+      await addGamePlayer({
+        gameId: game.id,
+        userId: opponent.id,
+      });
+      await upsertActiveRoundScore({
+        gameId: game.id,
+        userId: creator.id,
+        scoreDelta: 7,
+      });
+      await upsertActiveRoundScore({
+        gameId: game.id,
+        userId: opponent.id,
+        scoreDelta: 3,
+      });
+      await addGuestGamePlayer({
+        gameId: game.id,
+        firstName: "Guest",
+        startingScoreMode: "highest",
+      });
+
+      const persistedGame = await getGame(game.id);
+      const guestPlayer = persistedGame?.players.find(
+        (player) => player.user.firstName === "Guest",
+      );
+      const guestRoundScoreRows = guestPlayer
+        ? await db.query.gameRoundScores.findMany({
+            where: eq(gameRoundScores.userId, guestPlayer.userId),
+          })
+        : [];
+
+      expect(guestPlayer?.score).toBe(7);
+      expect(guestRoundScoreRows).toHaveLength(0);
+    }, "midgame-add-guest-disadvantage-action");
+  });
+
+  it("adds a midgame player with a custom score and backfills the previous round", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const opponent = await createUserFixture();
+      const teammate = await createUserFixture();
+      mockAuthenticatedUser(creator.id);
+      vi.doMock("next/cache", () => ({
+        revalidatePath: vi.fn(),
+        revalidateTag: vi.fn(),
+      }));
+
+      const {
+        addGamePlayer,
+        commitGameRound,
+        createConfiguredGame,
+        getGame,
+        upsertActiveRoundScore,
+      } = await import("../../../src/app/actions/game");
+      const { db, gameRoundScores } = await import("../../../src/lib/db");
+
+      const game = await createConfiguredGame({
+        gameTitleName: "Midgame Custom Fixture",
+        scoringMode: "lowest_wins",
+        endingMode: "round_count",
+        targetRounds: 5,
+      });
+
+      await addGamePlayer({
+        gameId: game.id,
+        userId: opponent.id,
+      });
+      await upsertActiveRoundScore({
+        gameId: game.id,
+        userId: creator.id,
+        scoreDelta: 9,
+      });
+      await upsertActiveRoundScore({
+        gameId: game.id,
+        userId: opponent.id,
+        scoreDelta: 4,
+      });
+      await commitGameRound({
+        gameId: game.id,
+      });
+      await addGamePlayer({
+        gameId: game.id,
+        userId: teammate.id,
+        startingScoreMode: "custom",
+        startingScoreValue: 17,
+      });
+
+      const persistedGame = await getGame(game.id);
+      const addedPlayer = persistedGame?.players.find(
+        (player) => player.userId === teammate.id,
+      );
+      const roundScoreRows = await db.query.gameRoundScores.findMany({
+        where: eq(gameRoundScores.userId, teammate.id),
+      });
+
+      expect(addedPlayer?.score).toBe(17);
+      expect(roundScoreRows).toHaveLength(1);
+      expect(roundScoreRows[0]?.scoreDelta).toBe(17);
+    }, "midgame-add-custom-action");
+  });
+
   it("writes and clears player rank history when a game is completed and reopened", async () => {
     await withTestDatabase(async () => {
       const creator = await createUserFixture();
@@ -294,6 +484,106 @@ describe("server action integration", () => {
       expect(clearedRows).toHaveLength(0);
       expect(clearedHistoryRows).toHaveLength(0);
     }, "player-rank-complete-action");
+  });
+
+  it("records winner-only and optional no-score podium placements", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const opponent = await createUserFixture();
+      const third = await createUserFixture();
+
+      mockAuthenticatedUser(creator.id);
+      vi.doMock("next/cache", () => ({
+        revalidateTag: vi.fn(),
+      }));
+
+      const { addGamePlayer, commitGameRound, createConfiguredGame, reopenCompletedGame } =
+        await import("../../../src/app/actions/game");
+      const { db, gamePlayerRankResults, gameResultPlacements } = await import(
+        "../../../src/lib/db"
+      );
+
+      const game = await createConfiguredGame({
+        gameTitleName: "No Score Podium Fixture",
+        scoringMode: "no_score",
+        endingMode: "round_count",
+        targetRounds: 3,
+      });
+
+      await addGamePlayer({ gameId: game.id, userId: opponent.id });
+      await addGamePlayer({ gameId: game.id, userId: third.id });
+
+      await commitGameRound({
+        gameId: game.id,
+        completeGame: true,
+        placementSelections: [
+          { placement: 1, userIds: [creator.id] },
+          { placement: 2, userIds: [opponent.id] },
+          { placement: 3, userIds: [third.id] },
+        ],
+      });
+
+      const placementRows = await db.query.gameResultPlacements.findMany({
+        where: eq(gameResultPlacements.gameId, game.id),
+      });
+      const rankRows = await db.query.gamePlayerRankResults.findMany({
+        where: eq(gamePlayerRankResults.gameId, game.id),
+      });
+
+      expect(
+        placementRows
+          .map((row) => [row.userId, row.placement] as const)
+          .sort((left, right) => left[1] - right[1]),
+      ).toEqual([
+        [creator.id, 1],
+        [opponent.id, 2],
+        [third.id, 3],
+      ]);
+      expect(rankRows.find((row) => row.userId === creator.id)?.placement).toBe(1);
+      expect(rankRows.find((row) => row.userId === opponent.id)?.placement).toBe(2);
+      expect(rankRows.find((row) => row.userId === third.id)?.placement).toBe(3);
+
+      await reopenCompletedGame({ gameId: game.id });
+
+      const clearedPlacementRows = await db.query.gameResultPlacements.findMany({
+        where: eq(gameResultPlacements.gameId, game.id),
+      });
+
+      expect(clearedPlacementRows).toHaveLength(0);
+    }, "no-score-podium-action");
+  });
+
+  it("rejects duplicate players across no-score placements", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const opponent = await createUserFixture();
+
+      mockAuthenticatedUser(creator.id);
+
+      const { addGamePlayer, commitGameRound, createConfiguredGame } = await import(
+        "../../../src/app/actions/game"
+      );
+
+      const game = await createConfiguredGame({
+        gameTitleName: "No Score Validation Fixture",
+        scoringMode: "no_score",
+        endingMode: "round_count",
+        targetRounds: 3,
+      });
+
+      await addGamePlayer({ gameId: game.id, userId: opponent.id });
+
+      await expect(
+        commitGameRound({
+          gameId: game.id,
+          completeGame: true,
+          placementSelections: [
+            { placement: 1, userIds: [creator.id] },
+            { placement: 2, userIds: [creator.id] },
+          ],
+        }),
+      ).rejects.toThrow("A player can only be assigned to one placement");
+    }, "no-score-podium-validation");
   });
 
   it("blocks non-manager players from updating live scores", async () => {

@@ -95,6 +95,7 @@ function createGame(input?: { started?: boolean }): GameForPlayPage {
       createdAt: "2025-01-01T00:00:00.000Z",
     },
     winners: [],
+    resultPlacements: [],
     players: [
       {
         id: "game-player-1",

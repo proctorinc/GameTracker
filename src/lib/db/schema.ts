@@ -305,6 +305,29 @@ export const gameWinners = sqliteTable(
   (table) => [primaryKey({ columns: [table.gameId, table.userId] })],
 );
 
+export const gameResultPlacements = sqliteTable(
+  "game_result_placements",
+  {
+    gameId: text("game_id")
+      .notNull()
+      .references(() => games.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    placement: integer("placement").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    primaryKey({ columns: [table.gameId, table.userId] }),
+    check(
+      "game_result_placements_placement_range",
+      sql`${table.placement} >= 1 AND ${table.placement} <= 3`,
+    ),
+  ],
+);
+
 export const gamePlayers = sqliteTable("game_players", {
   id: text("id")
     .notNull()
@@ -561,6 +584,7 @@ export const gamesRelations = relations(games, ({ one, many }) => ({
   players: many(gamePlayers),
   rounds: many(gameRounds),
   winners: many(gameWinners),
+  resultPlacements: many(gameResultPlacements),
   playerRankResults: many(gamePlayerRankResults),
   cardDrops: many(cardDrops),
 }));
@@ -643,6 +667,20 @@ export const gameWinnersRelations = relations(gameWinners, ({ one }) => ({
     relationName: "gameWinner",
   }),
 }));
+
+export const gameResultPlacementsRelations = relations(
+  gameResultPlacements,
+  ({ one }) => ({
+    game: one(games, {
+      fields: [gameResultPlacements.gameId],
+      references: [games.id],
+    }),
+    user: one(users, {
+      fields: [gameResultPlacements.userId],
+      references: [users.id],
+    }),
+  }),
+);
 
 export const playerRankConfigsRelations = relations(
   playerRankConfigs,

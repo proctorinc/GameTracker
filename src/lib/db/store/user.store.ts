@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { asc, desc, eq, and, inArray, isNull, or } from "drizzle-orm";
 import {
   db,
@@ -110,6 +111,10 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function createInviteToken() {
+  return randomBytes(24).toString("base64url");
+}
+
 export async function createUser(input: UserInsert): Promise<UserBase> {
   const [user] = await db
     .insert(users)
@@ -182,6 +187,43 @@ export async function getUserByFriendInviteToken(
   });
 
   return user ?? null;
+}
+
+export async function getOrCreateFriendInviteToken(userId: string): Promise<string> {
+  const existingUser = await getUserById(userId);
+
+  if (!existingUser) {
+    throw new Error("User not found");
+  }
+
+  if (existingUser.friendInviteToken) {
+    return existingUser.friendInviteToken;
+  }
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const token = createInviteToken();
+    const [tokenUser, tokenInvitation] = await Promise.all([
+      getUserByFriendInviteToken(token),
+      db.query.invitations.findFirst({
+        where: eq(invitations.inviteToken, token),
+        columns: { id: true },
+      }),
+    ]);
+
+    if (tokenUser || tokenInvitation) {
+      continue;
+    }
+
+    const updatedUser = await updateUser(userId, {
+      friendInviteToken: token,
+    });
+
+    if (updatedUser?.friendInviteToken) {
+      return updatedUser.friendInviteToken;
+    }
+  }
+
+  throw new Error("Unable to generate a unique friend invite token");
 }
 
 export async function getUserFullById(id: string): Promise<UserBase | null> {

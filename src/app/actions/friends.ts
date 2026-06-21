@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { randomBytes } from "node:crypto";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
 import {
+  revalidateDashboardPage,
   revalidateFriendsPage,
   revalidateGameHistoryPage,
   revalidatePublicProfilePage,
@@ -74,6 +75,10 @@ function revalidateOwnFriendsData(userId?: string | null) {
   revalidateFriendsPage(userId);
 }
 
+function revalidateOwnDashboard(userId?: string | null) {
+  revalidateDashboardPage(userId);
+}
+
 function revalidateOwnProfileOverview(userId?: string | null) {
   revalidateProfileOverviewPage(userId);
 }
@@ -127,6 +132,7 @@ export async function createFriendInvitationByUserId(input: {
     if (existing) {
       revalidateOwnFriendsData(user.id);
       revalidateOwnFriendsData(inviteeUserId);
+      revalidateOwnDashboard(inviteeUserId);
       revalidatePublicProfile(user.id);
       revalidatePublicProfile(inviteeUserId);
       logFriendsActionSuccess("invitation.create", {
@@ -154,6 +160,7 @@ export async function createFriendInvitationByUserId(input: {
 
     revalidateOwnFriendsData(user.id);
     revalidateOwnFriendsData(inviteeUserId);
+    revalidateOwnDashboard(inviteeUserId);
     revalidatePublicProfile(user.id);
     revalidatePublicProfile(inviteeUserId);
 
@@ -272,6 +279,7 @@ function revalidateInvitationAcceptanceViews(input: {
 }) {
   revalidateOwnFriendsData(input.inviterUserId);
   revalidateOwnFriendsData(input.inviteeUserId);
+  revalidateOwnDashboard(input.inviteeUserId);
   revalidateOwnProfileOverview(input.inviteeUserId);
   revalidateGameHistoryPage(input.inviterUserId);
   revalidateGameHistoryPage(input.inviteeUserId);
@@ -715,6 +723,7 @@ export async function declineInvitation(formData: FormData) {
 
     revalidateOwnFriendsData(invitation.inviterUserId);
     revalidateOwnFriendsData(user.id);
+    revalidateOwnDashboard(user.id);
     revalidateOwnProfileOverview(user.id);
     revalidateFriendsViews(invitation.inviteToken);
     revalidatePublicProfile(invitation.inviterUserId);
@@ -768,6 +777,7 @@ export async function revokeInvitation(formData: FormData) {
 
     revalidateOwnFriendsData(user.id);
     revalidateOwnFriendsData(invitation.inviteeUserId);
+    revalidateOwnDashboard(invitation.inviteeUserId);
     revalidateFriendsViews(invitation.inviteToken);
     revalidatePublicProfile(invitation.inviterUserId);
     revalidatePublicProfile(invitation.inviteeUserId);

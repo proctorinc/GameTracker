@@ -15,17 +15,14 @@ import {
 import { updateOwnedGuestColor } from "@/app/actions/user";
 import GameTitleImage from "@/components/game/game-title-image";
 import { PlayerRankDeltaBadge } from "@/components/player-rank/player-rank-delta-badge";
+import { PlayerRankPodium } from "@/components/player-rank/player-rank-podium";
 import { getProfileColorSurfaceStyles } from "@/components/profile/profile-color-styles";
 import { ProfileColorSelector } from "@/components/profile/profile-color-selector";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardEmpty,
-  CardHeader,
-} from "@/components/ui/card";
+import { Card, CardContent, CardEmpty, CardHeader } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { RematchButton } from "@/components/game/rematch-button";
 import {
   Command,
@@ -52,6 +49,7 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 import type { GameForPlayPage } from "@/lib/db/store/game.store";
+import type { GamePlayerStartingScoreMode } from "@/lib/db/store/game.store";
 import type { PlayerRankGameDelta } from "@/lib/db/store/player-rank.store";
 import type { UserBase } from "@/lib/db/store/user.store";
 import {
@@ -124,11 +122,31 @@ type ScoreDialogState = {
 
 type RoundDialogIntent = "round" | "end-game";
 
+type NoScorePlacement = 1 | 2 | 3;
+
+type NoScorePlacementSelection = {
+  placement: NoScorePlacement;
+  userIds: string[];
+};
+
 type PendingMutationEntry = {
   id: string;
   key: string;
   mutation: PlayGameMutation;
 };
+
+type AddPlayerSelection =
+  | {
+      type: "existing";
+      user: UserBase;
+    }
+  | {
+      type: "guest";
+      firstName: string;
+      lastName?: string;
+      rawName: string;
+      optimisticUser: UserBase;
+    };
 
 type RecentLocalMutationKey = {
   expiresAt: number;
@@ -219,24 +237,6 @@ function formatGameMetaDate(value: string | null | undefined) {
   });
 }
 
-function formatWinners(game: GameForPlayPage) {
-  const names = game.winners.map((winner) => getDisplayName(winner.user));
-
-  if (names.length === 0) {
-    return "Game complete";
-  }
-
-  if (names.length === 1) {
-    return `${names[0]} won!`;
-  }
-
-  if (names.length === 2) {
-    return `${names[0]} and ${names[1]} tied!`;
-  }
-
-  return `${names.slice(0, -1).join(", ")}, and ${names.at(-1)} tied!`;
-}
-
 function getPlayerTotalScore(player: { score: number | null | undefined }) {
   return player.score ?? 0;
 }
@@ -271,6 +271,79 @@ function getPlacementLabel(place: number) {
   }
 
   return `${place}th`;
+}
+
+function createEmptyNoScorePlacementSelections(): Record<
+  NoScorePlacement,
+  string[]
+> {
+  return {
+    1: [],
+    2: [],
+    3: [],
+  };
+}
+
+function buildNoScorePlacementSelections(
+  placements: Record<NoScorePlacement, string[]>,
+) {
+  return ([1, 2, 3] as const)
+    .map((placement) => {
+      const userIds = placements[placement];
+
+      return userIds.length > 0
+        ? {
+            placement,
+            userIds,
+          }
+        : null;
+    })
+    .filter(
+      (selection): selection is NoScorePlacementSelection => selection !== null,
+    );
+}
+
+function createNoScorePlacementsFromGame(game: GameForPlayPage) {
+  const placements = createEmptyNoScorePlacementSelections();
+
+  for (const resultPlacement of game.resultPlacements) {
+    if (
+      resultPlacement.placement >= 1 &&
+      resultPlacement.placement <= 3
+    ) {
+      placements[resultPlacement.placement as NoScorePlacement] = [
+        ...placements[resultPlacement.placement as NoScorePlacement],
+        resultPlacement.userId,
+      ];
+    }
+  }
+
+  if (placements[1].length === 0 && game.winners.length > 0) {
+    placements[1] = game.winners.map((winner) => winner.userId);
+  }
+
+  return placements;
+}
+
+function getStartingScoreAmount(input: {
+  mode: GamePlayerStartingScoreMode;
+  players: Array<{ score: number | null | undefined }>;
+  scoringMode: GameForPlayPage["scoringMode"];
+}) {
+  const scores = input.players.map((player) => getPlayerTotalScore(player));
+
+  if (input.mode === "none" || scores.length === 0) {
+    return 0;
+  }
+
+  if (input.mode === "highest") {
+    return input.scoringMode === "highest_wins"
+      ? Math.min(...scores)
+      : Math.max(...scores);
+  }
+
+  const total = scores.reduce((sum, score) => sum + score, 0);
+  return Math.round(total / scores.length);
 }
 
 function getCompletedPlacements(input: {
@@ -416,6 +489,9 @@ export default function PlayGame(props: PlayGameProps) {
   const [scoreAmountInput, setScoreAmountInput] = useState("0");
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
   const [isAddPlayerMode, setIsAddPlayerMode] = useState(false);
+  const [addPlayerSelection, setAddPlayerSelection] =
+    useState<AddPlayerSelection | null>(null);
+  const [customStartingScoreInput, setCustomStartingScoreInput] = useState("0");
   const [removePlayerUserId, setRemovePlayerUserId] = useState<string | null>(
     null,
   );
@@ -433,7 +509,14 @@ export default function PlayGame(props: PlayGameProps) {
   const [selectedGuestColor, setSelectedGuestColor] = useState<string | null>(
     null,
   );
-  const [selectedWinnerUserIds, setSelectedWinnerUserIds] = useState<string[]>(
+  const [selectedNoScorePlacements, setSelectedNoScorePlacements] = useState<
+    Record<NoScorePlacement, string[]>
+  >(() => createEmptyNoScorePlacementSelections());
+  const [activeNoScorePlacement, setActiveNoScorePlacement] =
+    useState<NoScorePlacement>(1);
+  const [confirmedNoScorePlacements, setConfirmedNoScorePlacements] = useState<
+    NoScorePlacement[]
+  >(
     [],
   );
   const [pendingManagerUserIds, setPendingManagerUserIds] = useState<string[]>(
@@ -506,7 +589,9 @@ export default function PlayGame(props: PlayGameProps) {
   const playerRankDeltasByUserId = useMemo(
     () =>
       new Map(
-        snapshot.playerRankDeltas.map((delta) => [delta.userId, delta] as const),
+        snapshot.playerRankDeltas.map(
+          (delta) => [delta.userId, delta] as const,
+        ),
       ),
     [snapshot.playerRankDeltas],
   );
@@ -581,28 +666,92 @@ export default function PlayGame(props: PlayGameProps) {
 
     return availablePlayers.filter((player) => {
       const haystack = normalizeValue(
-        [player.firstName, player.lastName]
-          .filter(Boolean)
-          .join(" "),
+        [player.firstName, player.lastName].filter(Boolean).join(" "),
       );
 
       return haystack.includes(query);
     });
   }, [availablePlayers, deferredPlayerSearch]);
+  const previousCompletedRoundNumber =
+    game.completedRounds > 0 ? game.completedRounds : null;
+  const previousCompletedRound = useMemo(
+    () =>
+      previousCompletedRoundNumber === null
+        ? null
+        : (game.rounds.find(
+            (round) => round.roundNumber === previousCompletedRoundNumber,
+          ) ?? null),
+    [game.rounds, previousCompletedRoundNumber],
+  );
+  const hasStartedRoundScoring =
+    previousCompletedRound !== null &&
+    previousCompletedRound.scores.length > 0 &&
+    game.players.some((player) => getPlayerTotalScore(player) !== 0);
+  const canOfferStartingScoreOptions =
+    !isCompleted &&
+    showsRounds &&
+    game.players.length > 0 &&
+    hasStartedRoundScoring;
+  const startingScoreOptions = useMemo(
+    () =>
+      [
+        {
+          mode: "average" as const,
+          label: "Average score",
+          value: getStartingScoreAmount({
+            mode: "average",
+            players: game.players,
+            scoringMode: game.scoringMode,
+          }),
+        },
+        {
+          mode: "highest" as const,
+          label:
+            game.scoringMode === "highest_wins"
+              ? "Lowest score"
+              : "Highest score",
+          value: getStartingScoreAmount({
+            mode: "highest",
+            players: game.players,
+            scoringMode: game.scoringMode,
+          }),
+        },
+        {
+          mode: "custom" as const,
+          label: "Custom",
+          value: null,
+        },
+      ] satisfies Array<{
+        mode: GamePlayerStartingScoreMode;
+        label: string;
+        value: number | null;
+      }>,
+    [game.players, game.scoringMode],
+  );
   const sortedPlayers = useMemo(() => {
     const players = [...game.players];
 
     if (game.scoringMode === "no_score") {
       if (game.completedAt) {
+        const recordedPlacementByUserId = new Map(
+          game.resultPlacements.map((placement) => [
+            placement.userId,
+            placement.placement,
+          ]),
+        );
         players.sort((left, right) => {
-          const leftIsWinner = winnerIds.has(left.userId);
-          const rightIsWinner = winnerIds.has(right.userId);
+          const leftPlacement =
+            recordedPlacementByUserId.get(left.userId) ??
+            (winnerIds.has(left.userId) ? 1 : Number.POSITIVE_INFINITY);
+          const rightPlacement =
+            recordedPlacementByUserId.get(right.userId) ??
+            (winnerIds.has(right.userId) ? 1 : Number.POSITIVE_INFINITY);
 
-          if (leftIsWinner === rightIsWinner) {
+          if (leftPlacement === rightPlacement) {
             return 0;
           }
 
-          return leftIsWinner ? -1 : 1;
+          return leftPlacement - rightPlacement;
         });
       }
 
@@ -638,6 +787,7 @@ export default function PlayGame(props: PlayGameProps) {
     activeRoundScoreByUserId,
     game.completedAt,
     game.players,
+    game.resultPlacements,
     game.scoringMode,
     showsRounds,
     winnerIds,
@@ -676,12 +826,99 @@ export default function PlayGame(props: PlayGameProps) {
   );
   const scorecardPlayers = useMemo(() => [...sortedPlayers], [sortedPlayers]);
   const completedPlacementByUserId = useMemo(() => {
-    if (game.completedAt === null || game.scoringMode === "no_score") {
+    if (game.completedAt === null) {
       return new Map<string, number>();
     }
 
+    if (game.scoringMode === "no_score") {
+      return new Map(
+        game.resultPlacements.map((placement) => [
+          placement.userId,
+          placement.placement,
+        ]),
+      );
+    }
+
     return getCompletedPlacements({ players: sortedPlayers });
-  }, [game.completedAt, game.scoringMode, sortedPlayers]);
+  }, [game.completedAt, game.resultPlacements, game.scoringMode, sortedPlayers]);
+  const completedNoScoreHasPodiumPlacements = useMemo(
+    () => game.resultPlacements.some((placement) => placement.placement > 1),
+    [game.resultPlacements],
+  );
+  const completedPodiumEntries = useMemo(() => {
+    if (!isCompleted) {
+      return [];
+    }
+
+    const podiumPlayers = isNoScoreMode
+      ? completedNoScoreHasPodiumPlacements
+        ? sortedPlayers.filter((player) =>
+            completedPlacementByUserId.has(player.userId),
+          )
+        : sortedPlayers.filter((player) => winnerIds.has(player.userId))
+      : sortedPlayers.slice(0, 3);
+
+    return podiumPlayers.slice(0, 3).map((player, index) => {
+      const position = isNoScoreMode
+        ? (completedPlacementByUserId.get(player.userId) ??
+            (winnerIds.has(player.userId) ? 1 : index + 1))
+        : (completedPlacementByUserId.get(player.userId) ?? index + 1);
+
+      return {
+        id: player.id,
+        position,
+        displayName: getDisplayName(player.user),
+        value: isNoScoreMode
+          ? completedNoScoreHasPodiumPlacements
+            ? getPlacementLabel(position)
+            : winnerIds.has(player.userId)
+              ? "Win"
+              : "Player"
+          : String(getPlayerTotalScore(player)),
+        user: player.user,
+        linkToProfile: !player.user.isGuest,
+      };
+    });
+  }, [
+    completedNoScoreHasPodiumPlacements,
+    completedPlacementByUserId,
+    isCompleted,
+    isNoScoreMode,
+    sortedPlayers,
+    winnerIds,
+  ]);
+  const selectedWinnerUserIds = selectedNoScorePlacements[1];
+  const selectedNoScorePlacementSelections = useMemo(
+    () => buildNoScorePlacementSelections(selectedNoScorePlacements),
+    [selectedNoScorePlacements],
+  );
+  const selectedNoScoreUserIdSet = useMemo(
+    () =>
+      new Set(
+        Object.values(selectedNoScorePlacements).flatMap((userIds) => userIds),
+      ),
+    [selectedNoScorePlacements],
+  );
+  const selectedNoScoreUserIdsForActivePlacement = useMemo(
+    () => new Set(selectedNoScorePlacements[activeNoScorePlacement]),
+    [activeNoScorePlacement, selectedNoScorePlacements],
+  );
+  const selectableNoScorePlayers = useMemo(
+    () =>
+      sortedPlayers.filter((player) => {
+        if (selectedNoScoreUserIdsForActivePlacement.has(player.userId)) {
+          return true;
+        }
+
+        return !selectedNoScoreUserIdSet.has(player.userId);
+      }),
+    [
+      selectedNoScoreUserIdSet,
+      selectedNoScoreUserIdsForActivePlacement,
+      sortedPlayers,
+    ],
+  );
+  const canSelectThirdPlace = selectedNoScorePlacements[2].length > 0;
   const shouldOfferRoundPrompt = useMemo(
     () => willGameOfferRoundPrompt(game),
     [game],
@@ -709,18 +946,31 @@ export default function PlayGame(props: PlayGameProps) {
         .map((player) => getDisplayName(player.user));
 
       if (winnerNames.length === 0) {
-        return "Choose the winner";
+        return "Choose at least one 1st-place winner";
       }
 
+      const secondPlaceCount = selectedNoScorePlacements[2].length;
+      const thirdPlaceCount = selectedNoScorePlacements[3].length;
+
       if (winnerNames.length === 1) {
-        return `${winnerNames[0]} is selected to win`;
+        const suffix =
+          secondPlaceCount > 0 || thirdPlaceCount > 0
+            ? ` with ${secondPlaceCount} in 2nd and ${thirdPlaceCount} in 3rd`
+            : "";
+        return `${winnerNames[0]} is selected to win${suffix}`;
       }
 
       if (winnerNames.length === 2) {
-        return `${winnerNames[0]} and ${winnerNames[1]} are selected to tie`;
+        const winnersLabel = `${winnerNames[0]} and ${winnerNames[1]} are selected to tie`;
+        return secondPlaceCount > 0 || thirdPlaceCount > 0
+          ? `${winnersLabel}. ${secondPlaceCount} in 2nd, ${thirdPlaceCount} in 3rd.`
+          : winnersLabel;
       }
 
-      return `${winnerNames.slice(0, -1).join(", ")}, and ${winnerNames.at(-1)} are selected to tie`;
+      const winnersLabel = `${winnerNames.slice(0, -1).join(", ")}, and ${winnerNames.at(-1)} are selected to tie`;
+      return secondPlaceCount > 0 || thirdPlaceCount > 0
+        ? `${winnersLabel}. ${secondPlaceCount} in 2nd, ${thirdPlaceCount} in 3rd.`
+        : winnersLabel;
     }
 
     const winnerNames = sortedPlayers
@@ -740,7 +990,12 @@ export default function PlayGame(props: PlayGameProps) {
     }
 
     return `${winnerNames.slice(0, -1).join(", ")}, and ${winnerNames.at(-1)} are tied for the lead`;
-  }, [game.scoringMode, projectedWinnerIds, sortedPlayers]);
+  }, [
+    game.scoringMode,
+    projectedWinnerIds,
+    selectedNoScorePlacements,
+    sortedPlayers,
+  ]);
 
   function previewSnapshot(
     nextBaseSnapshot: PlayGameSnapshot,
@@ -844,7 +1099,9 @@ export default function PlayGame(props: PlayGameProps) {
     }
 
     autoOpenedRoundRef.current = activeRound.roundNumber;
-    setSelectedWinnerUserIds(game.winners.map((winner) => winner.userId));
+    setSelectedNoScorePlacements(createNoScorePlacementsFromGame(game));
+    setActiveNoScorePlacement(1);
+    setConfirmedNoScorePlacements([]);
     setRoundDialogIntent("round");
     setIsRoundDialogOpen(true);
   }, [
@@ -868,16 +1125,19 @@ export default function PlayGame(props: PlayGameProps) {
   }
 
   function pruneRecentLocalMutationKeys(now = Date.now()) {
-    recentLocalMutationKeysRef.current = recentLocalMutationKeysRef.current.filter(
-      (entry) => entry.expiresAt > now,
-    );
+    recentLocalMutationKeysRef.current =
+      recentLocalMutationKeysRef.current.filter(
+        (entry) => entry.expiresAt > now,
+      );
   }
 
   function rememberLocalMutationKey(key: string) {
     const now = Date.now();
     pruneRecentLocalMutationKeys(now);
     recentLocalMutationKeysRef.current = [
-      ...recentLocalMutationKeysRef.current.filter((entry) => entry.key !== key),
+      ...recentLocalMutationKeysRef.current.filter(
+        (entry) => entry.key !== key,
+      ),
       {
         key,
         expiresAt: now + RECENT_LOCAL_MUTATION_MS,
@@ -1053,11 +1313,27 @@ export default function PlayGame(props: PlayGameProps) {
     setSelectedGuestColor(player.user.color);
   }
 
+  function resetAddPlayerFlow() {
+    setAddPlayerSelection(null);
+    setIsAddPlayerMode(false);
+    setPlayerSearch("");
+    setCustomStartingScoreInput("0");
+  }
+
   function handleAddExistingPlayer(userId: string) {
     const player = snapshot.playerOptions.find((entry) => entry.id === userId);
 
     if (!player) {
       toast.error("That player is no longer available");
+      return;
+    }
+
+    if (canOfferStartingScoreOptions) {
+      setCustomStartingScoreInput("0");
+      setAddPlayerSelection({
+        type: "existing",
+        user: player,
+      });
       return;
     }
 
@@ -1067,16 +1343,17 @@ export default function PlayGame(props: PlayGameProps) {
         type: "add-player",
         user: player,
         gamePlayerId: `optimistic-game-player-${userId}`,
+        startingScore: 0,
+        previousRoundNumber: null,
       },
       action: () => addGamePlayer({ gameId: game.id, userId }),
       onOptimistic: () => {
-        setIsAddPlayerMode(false);
-        setPlayerSearch("");
+        resetAddPlayerFlow();
       },
     });
   }
 
-  function handleAddGuest() {
+  function handleGuestSetup() {
     const rawName = playerSearch.trim();
 
     if (!rawName) {
@@ -1092,12 +1369,26 @@ export default function PlayGame(props: PlayGameProps) {
       lastName,
     });
 
+    if (canOfferStartingScoreOptions) {
+      setCustomStartingScoreInput("0");
+      setAddPlayerSelection({
+        type: "guest",
+        firstName,
+        lastName,
+        rawName,
+        optimisticUser: optimisticGuest,
+      });
+      return;
+    }
+
     runMutation({
       key: `add-guest:${normalizeValue(rawName)}`,
       mutation: {
         type: "add-guest",
         user: optimisticGuest,
         gamePlayerId: `optimistic-game-player-${optimisticGuest.id}`,
+        startingScore: 0,
+        previousRoundNumber: null,
       },
       action: () =>
         addGuestGamePlayer({
@@ -1106,8 +1397,81 @@ export default function PlayGame(props: PlayGameProps) {
           lastName,
         }),
       onOptimistic: () => {
-        setIsAddPlayerMode(false);
-        setPlayerSearch("");
+        resetAddPlayerFlow();
+      },
+    });
+  }
+
+  function handleAddPlayerWithStartingScore(mode: GamePlayerStartingScoreMode) {
+    if (!addPlayerSelection) {
+      return;
+    }
+
+    const customStartingScore = parseScoreAmountInput(customStartingScoreInput);
+
+    if (mode === "custom" && customStartingScore === null) {
+      toast.error("Enter a valid custom starting score");
+      return;
+    }
+
+    const startingScore =
+      mode === "custom"
+        ? (customStartingScore ?? 0)
+        : getStartingScoreAmount({
+            mode,
+            players: game.players,
+            scoringMode: game.scoringMode,
+          });
+    const previousRoundNumber = previousCompletedRoundNumber;
+
+    if (addPlayerSelection.type === "existing") {
+      const userId = addPlayerSelection.user.id;
+
+      runMutation({
+        key: `add-player:${userId}:${mode}`,
+        mutation: {
+          type: "add-player",
+          user: addPlayerSelection.user,
+          gamePlayerId: `optimistic-game-player-${userId}`,
+          startingScore,
+          previousRoundNumber,
+        },
+        action: () =>
+          addGamePlayer({
+            gameId: game.id,
+            userId,
+            startingScoreMode: mode,
+            startingScoreValue:
+              mode === "custom" ? customStartingScore : undefined,
+          }),
+        onOptimistic: () => {
+          resetAddPlayerFlow();
+        },
+      });
+
+      return;
+    }
+
+    runMutation({
+      key: `add-guest:${normalizeValue(addPlayerSelection.rawName)}:${mode}`,
+      mutation: {
+        type: "add-guest",
+        user: addPlayerSelection.optimisticUser,
+        gamePlayerId: `optimistic-game-player-${addPlayerSelection.optimisticUser.id}`,
+        startingScore,
+        previousRoundNumber,
+      },
+      action: () =>
+        addGuestGamePlayer({
+          gameId: game.id,
+          firstName: addPlayerSelection.firstName,
+          lastName: addPlayerSelection.lastName,
+          startingScoreMode: mode,
+          startingScoreValue:
+            mode === "custom" ? customStartingScore : undefined,
+        }),
+      onOptimistic: () => {
+        resetAddPlayerFlow();
       },
     });
   }
@@ -1255,6 +1619,8 @@ export default function PlayGame(props: PlayGameProps) {
 
   function handleCommitRound(completeGame: boolean) {
     const finishedAt = nowIso();
+    const placementSelections =
+      completeGame && isNoScoreMode ? selectedNoScorePlacementSelections : undefined;
     const winnerUserIds =
       completeGame && isNoScoreMode ? selectedWinnerUserIds : undefined;
 
@@ -1265,33 +1631,77 @@ export default function PlayGame(props: PlayGameProps) {
         completeGame,
         finishedAt,
         winnerUserIds,
+        placementSelections,
       },
       action: () =>
         commitGameRound({
           gameId: game.id,
           completeGame,
           winnerUserIds,
+          placementSelections,
         }),
       onOptimistic: () => {
         setIsRoundDialogOpen(false);
         setRoundDialogIntent("round");
         if (completeGame && isNoScoreMode) {
-          setSelectedWinnerUserIds([]);
+          setSelectedNoScorePlacements(createEmptyNoScorePlacementSelections());
+          setActiveNoScorePlacement(1);
+          setConfirmedNoScorePlacements([]);
         }
       },
     });
   }
 
-  function toggleWinnerSelection(userId: string) {
-    setSelectedWinnerUserIds((current) =>
-      current.includes(userId)
-        ? current.filter((entry) => entry !== userId)
-        : [...current, userId],
+  function toggleNoScorePlacementSelection(userId: string) {
+    setSelectedNoScorePlacements((current) => {
+      const currentPlacementUserIds = current[activeNoScorePlacement];
+      const isSelected = currentPlacementUserIds.includes(userId);
+
+      return {
+        ...current,
+        [activeNoScorePlacement]: isSelected
+          ? currentPlacementUserIds.filter((entry) => entry !== userId)
+          : [...currentPlacementUserIds, userId],
+      };
+    });
+  }
+
+  function advanceNoScorePlacement(currentPlacement: NoScorePlacement) {
+    if (currentPlacement === 1) {
+      setActiveNoScorePlacement(2);
+      return;
+    }
+
+    if (currentPlacement === 2) {
+      setActiveNoScorePlacement(3);
+    }
+  }
+
+  function confirmNoScorePlacement(placement: NoScorePlacement) {
+    setConfirmedNoScorePlacements((current) =>
+      current.includes(placement) ? current : [...current, placement],
     );
+    advanceNoScorePlacement(placement);
+  }
+
+  function skipNoScorePlacement(placement: Exclude<NoScorePlacement, 1>) {
+    setSelectedNoScorePlacements((current) => ({
+      ...current,
+      [placement]: [],
+      ...(placement === 2 ? { 3: [] } : {}),
+    }));
+    setConfirmedNoScorePlacements((current) =>
+      current.includes(placement) ? current : [...current, placement],
+    );
+    if (placement === 2) {
+      setActiveNoScorePlacement(2);
+    }
   }
 
   function openRoundDialog(intent: RoundDialogIntent = "round") {
-    setSelectedWinnerUserIds(game.winners.map((winner) => winner.userId));
+    setSelectedNoScorePlacements(createNoScorePlacementsFromGame(game));
+    setActiveNoScorePlacement(1);
+    setConfirmedNoScorePlacements([]);
     setRoundDialogIntent(intent);
     setIsRoundDialogOpen(true);
   }
@@ -1402,11 +1812,41 @@ export default function PlayGame(props: PlayGameProps) {
   const addGuestPending = pendingKeySet.has(
     `add-guest:${normalizeValue(playerSearch)}`,
   );
+  const addPlayerSelectionPending = addPlayerSelection
+    ? addPlayerSelection.type === "existing"
+      ? startingScoreOptions.some((option) =>
+          pendingKeySet.has(
+            `add-player:${addPlayerSelection.user.id}:${option.mode}`,
+          ),
+        )
+      : startingScoreOptions.some((option) =>
+          pendingKeySet.has(
+            `add-guest:${normalizeValue(addPlayerSelection.rawName)}:${option.mode}`,
+          ),
+        )
+    : false;
   const removePlayerPending = removePlayerUserId
     ? pendingKeySet.has(`remove-player:${removePlayerUserId}`)
     : false;
   const canOpenScoreFromCard =
     canManageLiveGame && !isCompleted && !isNoScoreMode;
+
+  function canOpenProfileFromCard(user: Pick<UserBase, "id" | "isGuest">) {
+    return isCompleted && !user.isGuest;
+  }
+
+  function handlePlayerCardActivate(
+    player: GameForPlayPage["players"][number],
+  ) {
+    if (canOpenScoreFromCard) {
+      openScoreDialog(player);
+      return;
+    }
+
+    if (canOpenProfileFromCard(player.user)) {
+      router.push(`/profile/${encodeURIComponent(player.user.id)}`);
+    }
+  }
   const highlightedPlayerIdSet = useMemo(
     () => new Set(liveHighlights.playerIds),
     [liveHighlights.playerIds],
@@ -1585,26 +2025,18 @@ export default function PlayGame(props: PlayGameProps) {
 
         {isCompleted ? (
           <div className="flex flex-col gap-3">
-            <Card
+            <div
               className={cn(
-                "winner-surface overflow-hidden rounded-3xl border",
-                liveHighlights.gameStatus && "live-update-surface",
+                liveHighlights.gameStatus &&
+                  "live-update-surface rounded-[1.6rem]",
               )}
               data-live-highlighted={liveHighlights.gameStatus || undefined}
-              size="sm"
             >
-              <CardContent className="flex items-center gap-3 py-3 text-[color:var(--winner-text)]">
-                <div className="winner-icon flex size-11 shrink-0 items-center justify-center rounded-2xl">
-                  <Trophy className="size-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="winner-muted text-[0.7rem] font-semibold uppercase tracking-[0.18em]">
-                    Winner
-                  </p>
-                  <p className="text-2xl font-bold">{formatWinners(game)}</p>
-                </div>
-              </CardContent>
-            </Card>
+              <PlayerRankPodium
+                ariaLabel="Completed game podium"
+                entries={completedPodiumEntries}
+              />
+            </div>
 
             <div className="flex justify-center">
               <RematchButton
@@ -1629,13 +2061,17 @@ export default function PlayGame(props: PlayGameProps) {
           {sortedPlayers.map((player, index) => {
             const isWinner = winnerIds.has(player.userId);
             const canEditColor = canEditGuestOrSelfColor(player);
+            const canOpenProfileCard = canOpenProfileFromCard(player.user);
+            const isPlayerCardInteractive =
+              canOpenScoreFromCard || canOpenProfileCard;
             const playerSurfaceStyles = getProfileColorSurfaceStyles(
               player.user.color,
             );
             const activeRoundDelta = activeRoundScoreByUserId.get(
               player.userId,
             );
-            const playerRankDelta = playerRankDeltasByUserId.get(player.userId) ?? null;
+            const playerRankDelta =
+              playerRankDeltasByUserId.get(player.userId) ?? null;
             const playerCardHighlighted = highlightedPlayerIdSet.has(
               player.userId,
             );
@@ -1655,46 +2091,56 @@ export default function PlayGame(props: PlayGameProps) {
               >
                 <CardContent
                   className={cn(
-                    "relative flex items-center gap-3 overflow-hidden px-3 py-1",
-                    canOpenScoreFromCard && "cursor-pointer",
+                    "relative flex items-center gap-3 px-3 py-1",
+                    isPlayerCardInteractive && "cursor-pointer",
                     playerCardHighlighted && "animate-live-update-pulse",
                   )}
                   data-testid={`player-card-content-${player.userId}`}
                   onClick={() => {
-                    if (canOpenScoreFromCard) {
-                      openScoreDialog(player);
+                    if (isPlayerCardInteractive) {
+                      handlePlayerCardActivate(player);
                     }
                   }}
                   onKeyDown={(event) => {
-                    if (!canOpenScoreFromCard) {
+                    if (!isPlayerCardInteractive) {
                       return;
                     }
 
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
-                      openScoreDialog(player);
+                      handlePlayerCardActivate(player);
                     }
                   }}
-                  role={canOpenScoreFromCard ? "button" : undefined}
-                  tabIndex={canOpenScoreFromCard ? 0 : undefined}
+                  role={isPlayerCardInteractive ? "button" : undefined}
+                  tabIndex={isPlayerCardInteractive ? 0 : undefined}
                   style={playerSurfaceStyles}
                 >
                   <div className="pointer-events-none absolute inset-[1px] rounded-[calc(1.5rem-1px)] border border-[var(--profile-surface-ring)]" />
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,var(--profile-surface-highlight)_0%,transparent_52%)] dark:bg-[radial-gradient(circle_at_18%_18%,rgba(15,23,42,0.18)_0%,transparent_52%)]" />
                   <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,transparent_42%,var(--profile-surface-shade)_100%)] dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.06)_0%,rgba(15,23,42,0.22)_100%)]" />
-                  {canEditColor ? (
-                    <button
-                      type="button"
-                      className="relative z-10 flex shrink-0 items-center justify-center rounded-full transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/15"
-                      data-testid={`player-color-button-${player.userId}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        openColorDialog(player);
-                      }}
-                      onKeyDown={(event) => {
-                        event.stopPropagation();
-                      }}
-                    >
+                  <div className="relative z-10 flex shrink-0 items-center justify-center rounded-full">
+                    {canEditColor ? (
+                      <button
+                        type="button"
+                        className="flex items-center justify-center rounded-full transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/15"
+                        data-testid={`player-color-button-${player.userId}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openColorDialog(player);
+                        }}
+                        onKeyDown={(event) => {
+                          event.stopPropagation();
+                        }}
+                      >
+                        <ProfilePicture
+                          user={player.user}
+                          className={cn(
+                            "border-none",
+                            isWinner && "winner-avatar-ring",
+                          )}
+                        />
+                      </button>
+                    ) : (
                       <ProfilePicture
                         user={player.user}
                         className={cn(
@@ -1702,26 +2148,33 @@ export default function PlayGame(props: PlayGameProps) {
                           isWinner && "winner-avatar-ring",
                         )}
                       />
-                    </button>
-                  ) : (
-                    <div className="relative z-10 flex shrink-0 items-center justify-center rounded-full">
-                      <ProfilePicture
-                        user={player.user}
-                        className={cn(
-                          "border-none",
-                          isWinner && "winner-avatar-ring",
-                        )}
+                    )}
+                    {isCompleted &&
+                    playerRankDelta &&
+                    playerRankDelta.deltaMinor !== 0 ? (
+                      <PlayerRankDeltaBadge
+                        delta={playerRankDelta}
+                        className="absolute -bottom-2 left-0 z-20 w-max max-w-[11rem] translate-y-full border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[color:var(--profile-surface-text)] shadow-md"
+                        tone="neutral"
                       />
-                    </div>
-                  )}
+                    ) : null}
+                  </div>
                   <div className="relative z-10 min-w-0 flex-1">
                     <div className="flex flex-col justify-center gap-1">
                       {isCompleted ? (
                         <p className="text-[0.68rem] font-black uppercase tracking-[0.18em] text-[color:var(--profile-surface-muted-text)]">
                           {isNoScoreMode
-                            ? isWinner
-                              ? "Winner"
-                              : "Player"
+                            ? completedNoScoreHasPodiumPlacements
+                              ? completedPlacementByUserId.get(player.userId)
+                                ? `${getPlacementLabel(
+                                    completedPlacementByUserId.get(
+                                      player.userId,
+                                    ) ?? 1,
+                                  )} place`
+                                : "Player"
+                              : isWinner
+                                ? "Winner"
+                                : "Player"
                             : `${getPlacementLabel(
                                 completedPlacementByUserId.get(player.userId) ??
                                   index + 1,
@@ -1731,12 +2184,6 @@ export default function PlayGame(props: PlayGameProps) {
                       <p className="truncate text-xl font-black text-[color:var(--profile-surface-text)]">
                         {getDisplayName(player.user)}
                       </p>
-                      {isCompleted && playerRankDelta ? (
-                        <PlayerRankDeltaBadge
-                          delta={playerRankDelta}
-                          className="w-fit border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[color:var(--profile-surface-text)]"
-                        />
-                      ) : null}
                       {player.user.isGuest ? (
                         <Badge
                           className="border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[0.65rem] font-bold uppercase tracking-[0.12em] text-[color:var(--profile-surface-text)]"
@@ -1769,7 +2216,9 @@ export default function PlayGame(props: PlayGameProps) {
                         "relative z-10 w-[5.5rem] overflow-visible rounded-[1.4rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-0 py-3 text-[color:var(--profile-surface-text)] shadow-sm backdrop-blur-[2px]",
                         playerScoreHighlighted && "animate-live-update-flash",
                       )}
-                      data-live-highlighted={playerScoreHighlighted || undefined}
+                      data-live-highlighted={
+                        playerScoreHighlighted || undefined
+                      }
                       data-testid={`player-score-button-${player.userId}`}
                       disabled={isCompleted}
                       onClick={() => openScoreDialog(player)}
@@ -1793,7 +2242,9 @@ export default function PlayGame(props: PlayGameProps) {
                         "relative z-10 w-[5.5rem] overflow-visible rounded-[1.4rem] border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-0 py-3 text-[color:var(--profile-surface-text)] shadow-sm backdrop-blur-[2px]",
                         playerScoreHighlighted && "animate-live-update-flash",
                       )}
-                      data-live-highlighted={playerScoreHighlighted || undefined}
+                      data-live-highlighted={
+                        playerScoreHighlighted || undefined
+                      }
                       data-testid={`player-score-display-${player.userId}`}
                     >
                       {showsRounds && activeRoundDelta !== undefined ? (
@@ -1813,7 +2264,9 @@ export default function PlayGame(props: PlayGameProps) {
               </Card>
             );
           })}
-          {canManageLiveGame && !hasAnyRecordedScores ? (
+          {game.players.length === 1 &&
+          canManageLiveGame &&
+          !hasAnyRecordedScores ? (
             <Button
               className="h-16 w-full rounded-[1.7rem] border-dashed"
               onClick={() => {
@@ -1831,7 +2284,8 @@ export default function PlayGame(props: PlayGameProps) {
         {!canManageLiveGame ? (
           <Card className="border-dashed bg-card/70 p-0">
             <CardContent className="px-4 py-4 text-sm text-slate-500">
-              View Mode. Only the creator or a manager can update scores and manage the game.
+              View Mode. Only the creator or a manager can update scores and
+              manage the game.
             </CardContent>
           </Card>
         ) : null}
@@ -2205,8 +2659,7 @@ export default function PlayGame(props: PlayGameProps) {
         onOpenChange={(open) => {
           setIsAddPlayerOpen(open);
           if (!open) {
-            setIsAddPlayerMode(false);
-            setPlayerSearch("");
+            resetAddPlayerFlow();
           }
         }}
         open={isAddPlayerOpen}
@@ -2220,139 +2673,244 @@ export default function PlayGame(props: PlayGameProps) {
           {isAddPlayerMode ? (
             <>
               <Command className="border-0 bg-transparent px-4">
-                <CommandInput
-                  className="text-lg"
-                  onValueChange={setPlayerSearch}
-                  placeholder="Search friends or guests"
-                  value={playerSearch}
-                />
+                {addPlayerSelection ? null : (
+                  <CommandInput
+                    className="text-lg"
+                    onValueChange={setPlayerSearch}
+                    placeholder="Search friends or guests"
+                    value={playerSearch}
+                  />
+                )}
                 <CommandList className="max-h-[50vh]">
-                  <CommandGroup
-                    heading={
-                      playerSearch.trim() ? "Matches" : "Suggested players"
-                    }
-                  >
-                    {filteredPlayers.map((player) => {
-                      const playerPending = pendingKeySet.has(
-                        `add-player:${player.id}`,
-                      );
-
-                      return (
-                        <CommandItem
-                          key={player.id}
-                          onSelect={() => {
-                            if (!playerPending) {
-                              handleAddExistingPlayer(player.id);
+                  {addPlayerSelection ? (
+                    <div className="space-y-4 px-1 py-3">
+                      <div className="rounded-[1.4rem] border border-border/70 bg-muted/40 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          Selected user
+                        </p>
+                        <div className="mt-3 flex items-center gap-3">
+                          <ProfilePicture
+                            className="border-none"
+                            size="sm"
+                            user={
+                              addPlayerSelection.type === "existing"
+                                ? addPlayerSelection.user
+                                : addPlayerSelection.optimisticUser
                             }
-                          }}
-                          value={`${player.firstName ?? ""} ${player.lastName ?? ""}`}
-                        >
-                          <div
-                            className={`flex w-full items-center justify-between gap-3 py-2 ${playerPending ? "opacity-60" : ""}`}
-                          >
-                            <div className="flex min-w-0 items-center gap-3">
-                              <ProfilePicture
-                                className="border-none"
-                                size="xs"
-                                user={player}
-                              />
-                              <p className="truncate text-base font-bold text-foreground">
-                                {getDisplayName(player)}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline">
-                                {player.isGuest ? "Guest" : "Friend"}
-                              </Badge>
-                              {playerPending ? (
-                                <LoaderCircle className="size-5 animate-spin text-muted-foreground" />
-                              ) : (
-                                <Users className="size-5 text-muted-foreground" />
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-base font-bold text-foreground">
+                              {getDisplayName(
+                                addPlayerSelection.type === "existing"
+                                  ? addPlayerSelection.user
+                                  : addPlayerSelection.optimisticUser,
                               )}
-                            </div>
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              Choose how this player should join the scoreboard.
+                            </p>
                           </div>
-                        </CommandItem>
-                      );
-                    })}
-                  </CommandGroup>
-                  {filteredPlayers.length === 0 ? (
-                    <CommandEmpty>
-                      <Button
-                        className="h-14 w-full rounded-[1.4rem]"
-                        disabled={!playerSearch.trim() || addGuestPending}
-                        onClick={handleAddGuest}
-                      >
-                        {addGuestPending ? (
-                          <LoaderCircle className="animate-spin" />
-                        ) : (
-                          <Plus className="size-5" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {startingScoreOptions.map((option) =>
+                          option.mode === "custom" ? (
+                            <div
+                              key={option.mode}
+                              className="col-span-2 rounded-[1.4rem] border border-border/70 bg-background px-4 py-4"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="font-semibold">Custom</span>
+                                <span className="text-sm text-muted-foreground">
+                                  Enter an amount
+                                </span>
+                              </div>
+                              <div className="mt-3 flex items-center gap-3">
+                                <Input
+                                  inputMode="numeric"
+                                  onChange={(event) =>
+                                    setCustomStartingScoreInput(
+                                      normalizeScoreAmountInput(
+                                        event.target.value,
+                                      ),
+                                    )
+                                  }
+                                  placeholder="0"
+                                  value={customStartingScoreInput}
+                                />
+                                <Button
+                                  disabled={
+                                    addPlayerSelectionPending ||
+                                    parseScoreAmountInput(
+                                      customStartingScoreInput,
+                                    ) === null
+                                  }
+                                  onClick={() =>
+                                    handleAddPlayerWithStartingScore("custom")
+                                  }
+                                  type="button"
+                                >
+                                  Apply
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <Button
+                              key={option.mode}
+                              className="h-32 flex-col items-center justify-center rounded-[1.4rem] px-4 py-3 text-center"
+                              disabled={addPlayerSelectionPending}
+                              onClick={() =>
+                                handleAddPlayerWithStartingScore(option.mode)
+                              }
+                              type="button"
+                              variant="outline"
+                            >
+                              <span className="text-4xl font-black leading-none">
+                                {option.value}
+                              </span>
+                              <span className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                                {option.label}
+                              </span>
+                            </Button>
+                          ),
                         )}
-                        Add {playerSearch} as guest
-                      </Button>
-                    </CommandEmpty>
-                  ) : null}
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <CommandGroup
+                        heading={
+                          playerSearch.trim() ? "Matches" : "Suggested players"
+                        }
+                      >
+                        {filteredPlayers.map((player) => {
+                          const playerPending = pendingKeySet.has(
+                            `add-player:${player.id}`,
+                          );
+
+                          return (
+                            <CommandItem
+                              key={player.id}
+                              onSelect={() => {
+                                if (!playerPending) {
+                                  handleAddExistingPlayer(player.id);
+                                }
+                              }}
+                              value={`${player.firstName ?? ""} ${player.lastName ?? ""}`}
+                            >
+                              <div
+                                className={`flex w-full items-center justify-between gap-3 py-2 ${playerPending ? "opacity-60" : ""}`}
+                              >
+                                <div className="flex min-w-0 items-center gap-3">
+                                  <ProfilePicture
+                                    className="border-none"
+                                    size="xs"
+                                    user={player}
+                                  />
+                                  <p className="truncate text-base font-bold text-foreground">
+                                    {getDisplayName(player)}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline">
+                                    {player.isGuest ? "Guest" : "Friend"}
+                                  </Badge>
+                                  {playerPending ? (
+                                    <LoaderCircle className="size-5 animate-spin text-muted-foreground" />
+                                  ) : (
+                                    <Users className="size-5 text-muted-foreground" />
+                                  )}
+                                </div>
+                              </div>
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                      {filteredPlayers.length === 0 ? (
+                        <CommandEmpty>
+                          <Button
+                            className="h-14 w-full rounded-[1.4rem]"
+                            disabled={!playerSearch.trim() || addGuestPending}
+                            onClick={handleGuestSetup}
+                          >
+                            {addGuestPending ? (
+                              <LoaderCircle className="animate-spin" />
+                            ) : (
+                              <Plus className="size-5" />
+                            )}
+                            Add {playerSearch} as guest
+                          </Button>
+                        </CommandEmpty>
+                      ) : null}
+                    </>
+                  )}
                 </CommandList>
               </Command>
               <DialogFooter>
                 <Button
                   className="w-full"
                   onClick={() => {
-                    setIsAddPlayerMode(false);
-                    setPlayerSearch("");
+                    if (addPlayerSelection) {
+                      setAddPlayerSelection(null);
+                      setCustomStartingScoreInput("0");
+                      return;
+                    }
+
+                    resetAddPlayerFlow();
                   }}
                   type="button"
                   variant="outline"
                 >
-                  Back to users
+                  {addPlayerSelection ? "Choose another user" : "Back to users"}
                 </Button>
               </DialogFooter>
             </>
           ) : (
             <>
-              <div className="px-5 pb-4">
-                <div
-                  className={cn(
-                    "rounded-3xl border border-border bg-muted/40 p-4",
-                    liveHighlights.roster && "live-update-section",
-                  )}
-                  data-live-highlighted={liveHighlights.roster || undefined}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                      Players
-                    </p>
-                  </div>
-                  <div className="mt-3 flex flex-col gap-2">
-                    {game.players.map((player) => {
-                      const playerPending = pendingKeySet.has(
-                        `remove-player:${player.userId}`,
-                      );
-                      const canRemoveSelf = player.userId !== currentUserId;
-                      const disableRemoval =
-                        game.players.length <= 1 || playerPending;
-                      const managerPending = pendingManagerUserIds.includes(
-                        player.userId,
-                      );
-                      const playerRowHighlighted = highlightedPlayerIdSet.has(
-                        player.userId,
-                      );
+              <div
+                className={cn(
+                  "px-5 pb-4",
+                  liveHighlights.roster && "live-update-section",
+                )}
+                data-live-highlighted={liveHighlights.roster || undefined}
+              >
+                <p className="text-sm font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                  Players
+                </p>
+                <div className="mt-3 flex flex-col gap-2">
+                  {game.players.map((player) => {
+                    const playerPending = pendingKeySet.has(
+                      `remove-player:${player.userId}`,
+                    );
+                    const canRemoveSelf = player.userId !== currentUserId;
+                    const disableRemoval =
+                      game.players.length <= 1 || playerPending;
+                    const managerPending = pendingManagerUserIds.includes(
+                      player.userId,
+                    );
+                    const playerRowHighlighted = highlightedPlayerIdSet.has(
+                      player.userId,
+                    );
 
-                      return (
-                        <div
-                          key={player.id}
-                          className={cn(
-                            "flex items-center justify-between gap-3 rounded-2xl border border-border bg-background px-3 py-3",
-                            playerRowHighlighted && "live-update-card",
-                          )}
-                          data-live-highlighted={playerRowHighlighted || undefined}
-                        >
+                    return (
+                      <Card
+                        key={player.id}
+                        className={cn(
+                          "gap-0 rounded-[1.6rem] border-border/70 p-0",
+                          playerRowHighlighted && "live-update-card",
+                        )}
+                        data-live-highlighted={
+                          playerRowHighlighted || undefined
+                        }
+                      >
+                        <CardContent className="p-0 flex items-center justify-between gap-3 px-3 py-3">
                           <div className="flex min-w-0 items-center gap-3">
                             <ProfilePicture
                               className="border-none"
                               size="xs"
                               user={player.user}
                             />
-                            <div className="min-w-0">
+                            <div className="min-w-0 self-center">
                               <p className="truncate text-sm font-bold text-foreground">
                                 {getDisplayName(player.user)}
                               </p>
@@ -2367,7 +2925,7 @@ export default function PlayGame(props: PlayGameProps) {
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex shrink-0 items-center gap-2 self-center">
                             {player.userId === game.creatorId ? (
                               <Badge variant="outline">Owner</Badge>
                             ) : (
@@ -2375,29 +2933,38 @@ export default function PlayGame(props: PlayGameProps) {
                                 aria-pressed={player.isManager}
                                 className={cn(
                                   "rounded-xl",
-                                  playerRowHighlighted && "animate-live-update-flash",
+                                  playerRowHighlighted &&
+                                    "animate-live-update-flash",
                                 )}
                                 data-testid={`toggle-manager-button-${player.userId}`}
-                                disabled={!isCreator || isCompleted || managerPending}
+                                disabled={
+                                  !isCreator || isCompleted || managerPending
+                                }
                                 onClick={() => handleManagerToggle(player)}
                                 size="sm"
                                 type="button"
-                                variant={player.isManager ? "default" : "outline"}
+                                variant={
+                                  player.isManager ? "default" : "outline"
+                                }
                               >
                                 {managerPending ? (
                                   <LoaderCircle className="animate-spin" />
                                 ) : player.isManager ? (
                                   <Check className="size-4" />
-                                ) : null}
+                                ) : (
+                                  <Plus className="size-4" />
+                                )}
                                 Manager
                               </Button>
                             )}
                             {canRemoveSelf ? (
                               <Button
+                                aria-label={`Remove ${getDisplayName(player.user)}`}
                                 className="rounded-xl"
                                 data-testid={`remove-player-button-${player.userId}`}
                                 disabled={
-                                  disableRemoval || player.userId === game.creatorId
+                                  disableRemoval ||
+                                  player.userId === game.creatorId
                                 }
                                 onClick={() =>
                                   openRemovePlayerDialog(player.userId)
@@ -2411,18 +2978,21 @@ export default function PlayGame(props: PlayGameProps) {
                                 ) : (
                                   <Trash2 className="size-4" />
                                 )}
-                                Remove
                               </Button>
                             ) : (
                               <Badge variant="outline">
-                                {isCreator ? "You" : isManager ? "Manager" : "You"}
+                                {isCreator
+                                  ? "You"
+                                  : isManager
+                                    ? "Manager"
+                                    : "You"}
                               </Badge>
                             )}
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               </div>
               <DialogFooter className="pt-4">
@@ -2496,6 +3066,8 @@ export default function PlayGame(props: PlayGameProps) {
           setIsRoundDialogOpen(open);
           if (!open) {
             setRoundDialogIntent("round");
+            setActiveNoScorePlacement(1);
+            setConfirmedNoScorePlacements([]);
           }
         }}
         open={isRoundDialogOpen}
@@ -2521,17 +3093,62 @@ export default function PlayGame(props: PlayGameProps) {
           {isNoScoreMode && (
             <div className="rounded-3xl border border-border bg-muted/50 p-4">
               <p className="mb-2 text-sm font-bold uppercase tracking-[0.18em] text-muted-foreground">
-                Pick the winner
+                Build the podium
               </p>
               <p className="mb-4 text-sm text-muted-foreground">
-                Select one or more players. Multiple selections will be saved as
-                a tie.
+                Pick 1st place first, then optionally add 2nd and 3rd. Ties are
+                allowed in any selected place.
               </p>
-              <div className="flex flex-col gap-2">
-                {sortedPlayers.map((player) => {
-                  const isSelected = selectedWinnerUserIds.includes(
-                    player.userId,
+              <div className="mb-4 grid grid-cols-3 gap-2">
+                {([1, 2, 3] as const).map((placement) => {
+                  const userIds = selectedNoScorePlacements[placement];
+                  const isActive = activeNoScorePlacement === placement;
+                  const isConfirmed =
+                    confirmedNoScorePlacements.includes(placement);
+                  const isDisabled =
+                    placement === 3 &&
+                    !canSelectThirdPlace &&
+                    userIds.length === 0;
+
+                  return (
+                    <button
+                      key={placement}
+                      className={cn(
+                        "rounded-2xl border px-3 py-3 text-left transition",
+                        isActive
+                          ? "border-foreground bg-foreground text-background"
+                          : "border-border bg-background text-foreground hover:bg-muted",
+                        isDisabled && "cursor-not-allowed opacity-50",
+                      )}
+                      disabled={isDisabled}
+                      onClick={() => setActiveNoScorePlacement(placement)}
+                      type="button"
+                    >
+                      <p className="text-sm font-black">
+                        {getPlacementLabel(placement)}
+                      </p>
+                      <p className="mt-1 text-xs uppercase tracking-[0.14em] opacity-75">
+                        {userIds.length > 0
+                          ? `${userIds.length} selected`
+                          : placement === 1
+                            ? "Required"
+                            : "Optional"}
+                      </p>
+                      {isConfirmed ? (
+                        <p className="mt-2 text-[0.68rem] font-semibold uppercase tracking-[0.14em] opacity-75">
+                          Confirmed
+                        </p>
+                      ) : null}
+                    </button>
                   );
+                })}
+              </div>
+              <div className="flex flex-col gap-2">
+                {selectableNoScorePlayers.map((player) => {
+                  const isSelected =
+                    selectedNoScorePlacements[activeNoScorePlacement].includes(
+                      player.userId,
+                    );
 
                   return (
                     <button
@@ -2542,18 +3159,47 @@ export default function PlayGame(props: PlayGameProps) {
                           ? "border-foreground bg-foreground text-background"
                           : "border-border bg-background text-foreground hover:bg-muted",
                       )}
-                      onClick={() => toggleWinnerSelection(player.userId)}
+                      onClick={() =>
+                        toggleNoScorePlacementSelection(player.userId)
+                      }
                       type="button"
                     >
                       <span className="font-bold">
                         {getDisplayName(player.user)}
                       </span>
                       <span className="text-xs font-semibold uppercase tracking-[0.16em] opacity-80">
-                        {isSelected ? "Winner" : "Select"}
+                        {isSelected
+                          ? getPlacementLabel(activeNoScorePlacement)
+                          : "Select"}
                       </span>
                     </button>
                   );
                 })}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button
+                  onClick={() => confirmNoScorePlacement(activeNoScorePlacement)}
+                  type="button"
+                  variant="outline"
+                >
+                  Confirm {getPlacementLabel(activeNoScorePlacement)}
+                </Button>
+                {activeNoScorePlacement !== 1 ? (
+                  <Button
+                    onClick={() =>
+                      skipNoScorePlacement(
+                        activeNoScorePlacement as Exclude<
+                          NoScorePlacement,
+                          1
+                        >,
+                      )
+                    }
+                    type="button"
+                    variant="ghost"
+                  >
+                    Skip {getPlacementLabel(activeNoScorePlacement)}
+                  </Button>
+                ) : null}
               </div>
               <p className="mt-4 text-sm font-medium text-foreground/80">
                 {projectedWinnersLabel}

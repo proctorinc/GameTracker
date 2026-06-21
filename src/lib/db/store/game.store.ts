@@ -3,6 +3,7 @@ import {
   db,
   friendships,
   gamePlayers,
+  gameResultPlacements,
   gameRounds,
   gameRoundScores,
   gameTitle,
@@ -12,6 +13,10 @@ import {
   users,
 } from "../index";
 import type { GameTitleDefaultSettings } from "@/lib/game/title-defaults";
+import {
+  deriveGamePlacementOutcome,
+  formatPlacementLabel,
+} from "@/lib/game-placement";
 import { buildRecentlyPlayedWithList } from "@/lib/recently-played-with";
 import {
   getActivePlayerRankConfig,
@@ -34,6 +39,11 @@ import { pickRandomProfileColor } from "@/lib/profile-colors";
 export type GameBase = typeof games.$inferSelect;
 export type GameInsert = typeof games.$inferInsert;
 export type GameUpdate = Partial<Omit<GameInsert, "id">>;
+export type GamePlayerStartingScoreMode =
+  | "none"
+  | "average"
+  | "highest"
+  | "custom";
 export type GameTitleBase = typeof gameTitle.$inferSelect;
 export type GameTitleLibraryEntry = GameTitleBase & {
   accessSource:
@@ -113,7 +123,9 @@ export type GameTitleHistoryRowPlayer = {
   isGuest: boolean;
   score: number | null;
   placement: number | null;
+  placementLabel: string | null;
   won: boolean;
+  hasExplicitPodium: boolean;
   rankDelta: GameTitleRankValue | null;
 };
 export type GameTitleHistoryRow = {
@@ -184,6 +196,7 @@ export const gameFullRelations = {
       user: true,
     },
   },
+  resultPlacements: true,
   rounds: {
     with: {
       scores: {
@@ -198,6 +211,8 @@ export const gameFullRelations = {
 } as const;
 
 export type GameWithPlayers = GameBase & {
+  winners: Array<typeof db._.fullSchema.gameWinners.$inferSelect>;
+  resultPlacements: Array<typeof db._.fullSchema.gameResultPlacements.$inferSelect>;
   players: Array<
     typeof db._.fullSchema.gamePlayers.$inferSelect & {
       user: typeof db._.fullSchema.users.$inferSelect;
@@ -215,6 +230,7 @@ export type GameFull = GameBase & {
       user: typeof db._.fullSchema.users.$inferSelect;
     }
   >;
+  resultPlacements: Array<typeof db._.fullSchema.gameResultPlacements.$inferSelect>;
   players: Array<
     typeof db._.fullSchema.gamePlayers.$inferSelect & {
       user: typeof db._.fullSchema.users.$inferSelect;
@@ -239,6 +255,7 @@ export type GameForPlayPage = GameBase & {
       user: typeof db._.fullSchema.users.$inferSelect;
     }
   >;
+  resultPlacements: Array<typeof db._.fullSchema.gameResultPlacements.$inferSelect>;
   players: Array<
     typeof db._.fullSchema.gamePlayers.$inferSelect & {
       user: typeof db._.fullSchema.users.$inferSelect;
@@ -257,6 +274,60 @@ export type GameForPlayPage = GameBase & {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function resolveStartingScore(input: {
+  mode: GamePlayerStartingScoreMode;
+  existingScores: number[];
+  scoringMode: typeof games.$inferSelect.scoringMode;
+  customValue?: number | null;
+}) {
+  if (input.mode === "none" || input.existingScores.length === 0) {
+    return 0;
+  }
+
+  if (input.mode === "custom") {
+    if (input.customValue === null || input.customValue === undefined) {
+      return 0;
+    }
+
+    return Math.trunc(input.customValue);
+  }
+
+  if (input.mode === "highest") {
+    return input.scoringMode === "highest_wins"
+      ? Math.min(...input.existingScores)
+      : Math.max(...input.existingScores);
+  }
+
+  const total = input.existingScores.reduce((sum, score) => sum + score, 0);
+  return Math.round(total / input.existingScores.length);
+}
+
+async function grantGameTitleToUserWithExecutor(
+  executor: typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0],
+  input: {
+    userId: string;
+    gameTitleId: string;
+    source: typeof userGameTitle.$inferInsert.source;
+    sourceGameId?: string | null;
+    acquiredFromUserId?: string | null;
+  },
+) {
+  const [ownership] = await executor
+    .insert(userGameTitle)
+    .values({
+      userId: input.userId,
+      gameTitleId: input.gameTitleId,
+      source: input.source,
+      sourceGameId: input.sourceGameId ?? null,
+      acquiredFromUserId: input.acquiredFromUserId ?? null,
+      acquiredAt: nowIso(),
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  return ownership ?? null;
 }
 
 function normalizeGameTitleTitle(title: string) {
@@ -292,42 +363,26 @@ function mapGameTitleLibraryRow(row: GameTitleLibraryRow): GameTitleLibraryEntry
   };
 }
 
-function getOrdinalPlacement(
-  input: Pick<GameFull, "players" | "scoringMode" | "completedRounds">,
-  userId: string,
+function getGamePlacementOutcome(
+  game: Pick<
+    GameFull,
+    | "players"
+    | "scoringMode"
+    | "completedRounds"
+    | "resultPlacements"
+    | "winners"
+  >,
 ) {
-  if (input.scoringMode === "no_score") {
-    return null;
-  }
-
-  if (
-    input.completedRounds === 0 &&
-    input.players.every((player) => player.score === input.players[0]?.score)
-  ) {
-    return null;
-  }
-
-  const sortedPlayers = [...input.players].sort((left, right) =>
-    input.scoringMode === "highest_wins"
-      ? right.score - left.score
-      : left.score - right.score,
-  );
-
-  let placement = 0;
-  let lastScore: number | null = null;
-
-  for (const player of sortedPlayers) {
-    if (lastScore === null || player.score !== lastScore) {
-      placement += 1;
-      lastScore = player.score;
-    }
-
-    if (player.userId === userId) {
-      return placement;
-    }
-  }
-
-  return null;
+  return deriveGamePlacementOutcome({
+    scoringMode: game.scoringMode,
+    participants: game.players.map((player) => ({
+      userId: player.userId,
+      score: player.score,
+    })),
+    resultPlacements: game.resultPlacements,
+    winnerUserIds: game.winners.map((winner) => winner.userId),
+    suppressAllTiedPlacement: game.completedRounds === 0,
+  });
 }
 
 function createEmptyPlacementBreakdown(): GameTitlePlacementBreakdown {
@@ -347,10 +402,14 @@ function toHistoryRowPlayer(input: {
   rankDeltaMinor: number | null;
 }): GameTitleHistoryRowPlayer | null {
   const player = input.game.players.find((entry) => entry.userId === input.userId);
+  const placementOutcome = getGamePlacementOutcome(input.game);
 
   if (!player) {
     return null;
   }
+
+  const placement = placementOutcome.placementByUserId[player.userId] ?? null;
+  const won = placementOutcome.wonByUserId[player.userId] ?? false;
 
   return {
     userId: player.userId,
@@ -360,8 +419,14 @@ function toHistoryRowPlayer(input: {
     color: player.user.color,
     isGuest: player.user.isGuest,
     score: input.game.scoringMode === "no_score" ? null : player.score,
-    placement: getOrdinalPlacement(input.game, player.userId),
-    won: input.game.winners.some((winner) => winner.userId === player.userId),
+    placement,
+    placementLabel: formatPlacementLabel({
+      placement,
+      won,
+      hasExplicitPodium: placementOutcome.hasExplicitPodium,
+    }),
+    won,
+    hasExplicitPodium: placementOutcome.hasExplicitPodium,
     rankDelta:
       input.rankDeltaMinor === null ? null : createRankValue(input.rankDeltaMinor),
   };
@@ -393,7 +458,7 @@ function buildTitleStatsSummary(input: {
   let bestRankGainMinor: number | null = null;
 
   for (const game of completedGames) {
-    const placement = getOrdinalPlacement(game, input.userId);
+    const placement = getGamePlacementOutcome(game).placementByUserId[input.userId] ?? null;
     if (placement === 1) placements.first += 1;
     if (placement === 2) placements.second += 1;
     if (placement === 3) placements.third += 1;
@@ -509,6 +574,8 @@ export async function getGameById(id: string): Promise<GameWithPlayers | null> {
   const game = await db.query.games.findFirst({
     where: eq(games.id, id),
     with: {
+      winners: true,
+      resultPlacements: true,
       players: {
         with: {
           user: true,
@@ -542,6 +609,7 @@ export async function getGameForPlayPage(
           user: true,
         },
       },
+      resultPlacements: true,
       players: {
         with: {
           user: true,
@@ -1303,6 +1371,44 @@ export async function replaceGameWinners(input: {
     .returning();
 }
 
+export async function replaceGameResultPlacements(input: {
+  gameId: string;
+  placements: Array<{ userId: string; placement: 1 | 2 | 3 }>;
+}) {
+  await db
+    .delete(gameResultPlacements)
+    .where(eq(gameResultPlacements.gameId, input.gameId));
+
+  const uniquePlacements = Array.from(
+    new Map(
+      input.placements
+        .filter(
+          (placement) =>
+            placement.userId.trim().length > 0 &&
+            placement.placement >= 1 &&
+            placement.placement <= 3,
+        )
+        .map((placement) => [placement.userId, placement] as const),
+    ).values(),
+  );
+
+  if (uniquePlacements.length === 0) {
+    return [];
+  }
+
+  return db
+    .insert(gameResultPlacements)
+    .values(
+      uniquePlacements.map((placement) => ({
+        gameId: input.gameId,
+        userId: placement.userId,
+        placement: placement.placement,
+        createdAt: nowIso(),
+      })),
+    )
+    .returning();
+}
+
 export async function createGameRound(input: {
   gameId: string;
   roundNumber: number;
@@ -1409,20 +1515,7 @@ export async function grantGameTitleToUser(input: {
   sourceGameId?: string | null;
   acquiredFromUserId?: string | null;
 }) {
-  const [ownership] = await db
-    .insert(userGameTitle)
-    .values({
-      userId: input.userId,
-      gameTitleId: input.gameTitleId,
-      source: input.source,
-      sourceGameId: input.sourceGameId ?? null,
-      acquiredFromUserId: input.acquiredFromUserId ?? null,
-      acquiredAt: nowIso(),
-    })
-    .onConflictDoNothing()
-    .returning();
-
-  return ownership ?? null;
+  return grantGameTitleToUserWithExecutor(db, input);
 }
 
 export async function grantGameTitleToUsers(input: {
@@ -1748,6 +1841,89 @@ export async function addPlayerToGame(
   }
 
   return gamePlayer;
+}
+
+export async function addPlayerToGameWithStartingScore(input: {
+  gameId: string;
+  userId: string;
+  isManager?: boolean;
+  startingScoreMode?: GamePlayerStartingScoreMode;
+  startingScoreValue?: number | null;
+}) {
+  return db.transaction(async (tx) => {
+    const [game, existingPlayers] = await Promise.all([
+      tx.query.games.findFirst({
+        where: eq(games.id, input.gameId),
+      }),
+      tx.query.gamePlayers.findMany({
+        where: eq(gamePlayers.gameId, input.gameId),
+        columns: {
+          score: true,
+        },
+      }),
+    ]);
+
+    const [gamePlayer] = await tx
+      .insert(gamePlayers)
+      .values({
+        gameId: input.gameId,
+        isManager: input.isManager ?? false,
+        userId: input.userId,
+      })
+      .returning();
+
+    if (!gamePlayer || !game) {
+      throw new Error("Could not add game player");
+    }
+
+    const startingScore = resolveStartingScore({
+      mode: input.startingScoreMode ?? "none",
+      existingScores: existingPlayers.map((player) => player.score),
+      scoringMode: game.scoringMode,
+      customValue: input.startingScoreValue,
+    });
+
+    if (startingScore !== 0) {
+      await tx
+        .update(gamePlayers)
+        .set({
+          score: startingScore,
+        })
+        .where(eq(gamePlayers.id, gamePlayer.id));
+    }
+
+    if (game.completedRounds > 0) {
+      const previousRound = await tx.query.gameRounds.findFirst({
+        where: and(
+          eq(gameRounds.gameId, input.gameId),
+          eq(gameRounds.roundNumber, game.completedRounds),
+        ),
+      });
+
+      if (previousRound) {
+        await tx.insert(gameRoundScores).values({
+          gameRoundId: previousRound.id,
+          userId: input.userId,
+          scoreDelta: startingScore,
+          createdAt: nowIso(),
+        });
+      }
+    }
+
+    if (game.gameTitleId) {
+      await grantGameTitleToUserWithExecutor(tx, {
+        userId: input.userId,
+        gameTitleId: game.gameTitleId,
+        source: "played",
+        sourceGameId: input.gameId,
+      });
+    }
+
+    return {
+      ...gamePlayer,
+      score: startingScore,
+    };
+  });
 }
 
 export async function removePlayerFromGame(input: {
