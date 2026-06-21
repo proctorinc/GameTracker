@@ -97,6 +97,28 @@ describe("server action integration", () => {
     }, "game-action");
   });
 
+  it("creates a reusable friend invite link once and reuses it", async () => {
+    await withTestDatabase(async () => {
+      const user = await createUserFixture();
+      mockAuthenticatedUser(user.id);
+      vi.doMock("next/cache", () => ({
+        revalidatePath: vi.fn(),
+        revalidateTag: vi.fn(),
+      }));
+
+      const { getOrCreateFriendInviteLink } = await import("../../../src/app/actions/user");
+      const { getUserById } = await import("../../../src/lib/db/store/user.store");
+
+      const first = await getOrCreateFriendInviteLink();
+      const second = await getOrCreateFriendInviteLink();
+      const persisted = await getUserById(user.id);
+
+      expect(first.invitePath).toBe(second.invitePath);
+      expect(first.invitePath).toMatch(/^\/invite\//);
+      expect(persisted?.friendInviteToken).toBeTruthy();
+    }, "friend-invite-link-action");
+  });
+
   it("creates a rematch with the same players and settings but reset progress", async () => {
     await withTestDatabase(async () => {
       const creator = await createUserFixture();

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import GameTitleImage from "@/components/game/game-title-image";
+import { getProfileColorFillStyles } from "@/components/profile/profile-color-styles";
 import { ProfileMatchupSelector } from "@/components/profile/profile-matchup-selector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -149,15 +150,9 @@ function ComparisonMetricRow(props: {
         <span
           className={cn(
             "inline-flex min-h-9 min-w-9 items-center justify-center rounded-full px-3 py-1",
-            props.currentWins ? "font-bold text-foreground" : "",
+            props.currentWins && "font-bold",
           )}
-          style={
-            props.currentWins
-              ? {
-                  border: `2px solid ${props.currentColor}`,
-                }
-              : undefined
-          }
+          style={getProfileColorFillStyles(props.currentColor)}
         >
           {props.currentValue}
         </span>
@@ -176,15 +171,9 @@ function ComparisonMetricRow(props: {
         <span
           className={cn(
             "inline-flex min-h-9 min-w-9 items-center justify-center rounded-full px-3 py-1",
-            props.comparisonWins ? "font-bold text-foreground" : "",
+            props.comparisonWins && "font-bold",
           )}
-          style={
-            props.comparisonWins
-              ? {
-                  border: `2px solid ${props.comparisonColor}`,
-                }
-              : undefined
-          }
+          style={getProfileColorFillStyles(props.comparisonColor)}
         >
           {props.comparisonValue}
         </span>
@@ -222,6 +211,90 @@ function buildProfileComparisonMetrics(data: ProfileStatsPageData, comparisonUse
 
   return [
     {
+      label: "Wins",
+      currentValue: data.stats.wins,
+      comparisonValue: comparisonOverallStats.wins,
+      ...compareMetric({
+        current: data.stats.wins,
+        comparison: comparisonOverallStats.wins,
+      }),
+    },
+    {
+      label: "1st places",
+      currentValue: data.stats.placements.first,
+      comparisonValue: comparisonOverallStats.placements.first,
+      ...compareMetric({
+        current: data.stats.placements.first,
+        comparison: comparisonOverallStats.placements.first,
+      }),
+    },
+    {
+      label: "2nd places",
+      currentValue: data.stats.placements.second,
+      comparisonValue: comparisonOverallStats.placements.second,
+      ...compareMetric({
+        current: data.stats.placements.second,
+        comparison: comparisonOverallStats.placements.second,
+      }),
+    },
+    {
+      label: "3rd places",
+      currentValue: data.stats.placements.third,
+      comparisonValue: comparisonOverallStats.placements.third,
+      ...compareMetric({
+        current: data.stats.placements.third,
+        comparison: comparisonOverallStats.placements.third,
+      }),
+    },
+    {
+      label: "Win rate",
+      currentValue: formatPercent(data.stats.winRate),
+      comparisonValue: formatPercent(comparisonOverallStats.winRate),
+      ...compareMetric({
+        current: data.stats.winRate,
+        comparison: comparisonOverallStats.winRate,
+      }),
+    },
+    {
+      label: "Completed",
+      currentValue: data.stats.completedGames,
+      comparisonValue: comparisonOverallStats.completedGames,
+      ...compareMetric({
+        current: data.stats.completedGames,
+        comparison: comparisonOverallStats.completedGames,
+      }),
+    },
+    {
+      label: "Current streak",
+      currentValue: formatStreak(
+        data.stats.currentStreak.type,
+        data.stats.currentStreak.count,
+      ),
+      comparisonValue: formatStreak(
+        comparisonOverallStats.currentStreak.type,
+        comparisonOverallStats.currentStreak.count,
+      ),
+      ...compareMetric({
+        current: getComparableStreakValue(
+          data.stats.currentStreak.type,
+          data.stats.currentStreak.count,
+        ),
+        comparison: getComparableStreakValue(
+          comparisonOverallStats.currentStreak.type,
+          comparisonOverallStats.currentStreak.count,
+        ),
+      }),
+    },
+    {
+      label: "Best streak",
+      currentValue: data.stats.bestWinStreak,
+      comparisonValue: comparisonOverallStats.bestWinStreak,
+      ...compareMetric({
+        current: data.stats.bestWinStreak,
+        comparison: comparisonOverallStats.bestWinStreak,
+      }),
+    },
+    {
       label: data.stats.rankWindowLabel ?? "Window rank gain",
       currentValue: data.stats.rankGainInWindow.formatted,
       comparisonValue: comparisonOverallStats.rankGainInWindow.formatted,
@@ -255,51 +328,6 @@ function buildProfileComparisonMetrics(data: ProfileStatsPageData, comparisonUse
       ...compareMetric({
         current: data.stats.averageRankGain?.minor ?? null,
         comparison: comparisonOverallStats.averageRankGain?.minor ?? null,
-      }),
-    },
-    {
-      label: "Wins",
-      currentValue: data.stats.wins,
-      comparisonValue: comparisonOverallStats.wins,
-      ...compareMetric({
-        current: data.stats.wins,
-        comparison: comparisonOverallStats.wins,
-      }),
-    },
-    {
-      label: "Win rate",
-      currentValue: formatPercent(data.stats.winRate),
-      comparisonValue: formatPercent(comparisonOverallStats.winRate),
-      ...compareMetric({
-        current: data.stats.winRate,
-        comparison: comparisonOverallStats.winRate,
-      }),
-    },
-    {
-      label: "1st places",
-      currentValue: data.stats.placements.first,
-      comparisonValue: comparisonOverallStats.placements.first,
-      ...compareMetric({
-        current: data.stats.placements.first,
-        comparison: comparisonOverallStats.placements.first,
-      }),
-    },
-    {
-      label: "2nd places",
-      currentValue: data.stats.placements.second,
-      comparisonValue: comparisonOverallStats.placements.second,
-      ...compareMetric({
-        current: data.stats.placements.second,
-        comparison: comparisonOverallStats.placements.second,
-      }),
-    },
-    {
-      label: "3rd places",
-      currentValue: data.stats.placements.third,
-      comparisonValue: comparisonOverallStats.placements.third,
-      ...compareMetric({
-        current: data.stats.placements.third,
-        comparison: comparisonOverallStats.placements.third,
       }),
     },
   ];
@@ -530,29 +558,26 @@ export function ProfileStatsSections({
           <CardContent>
             {selectedComparison ? (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-[1.6rem] border border-border/70 bg-card/95 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                      You
-                    </p>
-                    <p className="mt-2 text-2xl font-black">
-                      {data.stats.rankGainInWindow.formatted}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {data.stats.rankWindowLabel ?? "Window rank gain"}
-                    </p>
-                  </div>
-                  <div className="rounded-[1.6rem] border border-border/70 bg-card/95 p-4">
-                    <p className="truncate text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                      {selectedComparison.user.displayName}
-                    </p>
-                    <p className="mt-2 text-2xl font-black">
-                      {getComparisonOverallStats(selectedComparison).rankGainInWindow.formatted}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {getComparisonOverallStats(selectedComparison).rankWindowLabel ??
-                        "Window rank gain"}
-                    </p>
+                <div className="rounded-[1.6rem] border border-border/70 bg-card/95 p-4">
+                  <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                        You
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                        Head to head
+                      </p>
+                      <p className="mt-2 text-2xl font-black">
+                        {selectedComparison.wins}-{selectedComparison.losses}
+                      </p>
+                    </div>
+                    <div className="min-w-0 text-right">
+                      <p className="truncate text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                        {selectedComparison.user.displayName}
+                      </p>
+                    </div>
                   </div>
                 </div>
 

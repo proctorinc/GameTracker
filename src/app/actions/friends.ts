@@ -17,6 +17,7 @@ import {
   getFriendshipByUsers,
   getInvitationFullById,
   getInvitationFullByToken,
+  getUserByFriendInviteToken,
   getUserById,
   listPendingInvitationsForGuest,
   updateInvitation,
@@ -527,6 +528,82 @@ export async function finalizeFriendLinkInvitation(input: {
     logFriendsActionFailure("invitation.link_accept", error, {
       actorUserId,
       inviteTokenPresent: Boolean(input.inviteToken),
+    });
+    throw error;
+  }
+}
+
+export async function finalizeReusableFriendInvite(input: {
+  friendInviteToken: string;
+  inviteeUserId?: string;
+}): Promise<
+  | { status: "accepted"; inviterUserId: string }
+  | { status: "already_accepted"; inviterUserId: string }
+  | { status: "own_invite"; inviterUserId: string }
+  | { status: "invalid"; reason: string }
+> {
+  let actorUserId: string | null = null;
+
+  try {
+    const user =
+      input.inviteeUserId && input.inviteeUserId.length > 0
+        ? await getUserById(input.inviteeUserId)
+        : await requireCurrentUser();
+
+    if (!user) {
+      return {
+        status: "invalid",
+        reason: "User not found.",
+      };
+    }
+
+    actorUserId = user.id;
+
+    const inviter = await getUserByFriendInviteToken(input.friendInviteToken);
+
+    if (!inviter || inviter.isGuest || inviter.mergedIntoUserId) {
+      return {
+        status: "invalid",
+        reason: "Invitation not found.",
+      };
+    }
+
+    if (inviter.id === user.id) {
+      return {
+        status: "own_invite",
+        inviterUserId: inviter.id,
+      };
+    }
+
+    const existingFriendship = await getFriendshipByUsers(inviter.id, user.id);
+
+    if (!existingFriendship) {
+      await createFriendship({
+        user1Id: inviter.id,
+        user2Id: user.id,
+        inviterId: inviter.id,
+      });
+    }
+
+    revalidateInvitationAcceptanceViews({
+      inviterUserId: inviter.id,
+      inviteeUserId: user.id,
+    });
+
+    logFriendsActionSuccess("invitation.reusable_link_accept", {
+      actorUserId: user.id,
+      inviterUserId: inviter.id,
+      existingFriendship: Boolean(existingFriendship),
+    });
+
+    return {
+      status: existingFriendship ? "already_accepted" : "accepted",
+      inviterUserId: inviter.id,
+    };
+  } catch (error) {
+    logFriendsActionFailure("invitation.reusable_link_accept", error, {
+      actorUserId,
+      inviteTokenPresent: Boolean(input.friendInviteToken),
     });
     throw error;
   }

@@ -10,6 +10,7 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { FriendsPageData } from "@/app/actions/pages/friends";
+import { getOrCreateFriendInviteLink } from "@/app/actions/user";
 import {
   acceptInvitation,
   createFriendInvitationLink,
@@ -53,7 +54,6 @@ type FriendsPageContextValue = {
   setGuestActionMode: (value: "merge" | null) => void;
   toggleShowAllFriends: () => void;
   toggleShowAllRecentlyPlayed: () => void;
-  handleSharePublicProfile: () => Promise<void>;
   handleCreateInviteLink: (guestUserId?: string) => void;
   handleQuickInviteUser: (userId: string) => void;
   handleReshareInvitation: (input: {
@@ -185,38 +185,6 @@ export function FriendsPageProvider({
     }
   }
 
-  async function handleSharePublicProfile() {
-    const publicProfileUrl = `${window.location.origin}/profile/${data.user.id}`;
-    const profileName =
-      [data.user.firstName, data.user.lastName].filter(Boolean).join(" ") ||
-      "this player";
-
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: `${profileName} on ${APP_NAME}`,
-          text: `Check out ${profileName}'s profile on ${APP_NAME}.`,
-          url: publicProfileUrl,
-        });
-        return;
-      }
-
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(publicProfileUrl);
-        toast.success("Public profile link copied");
-        return;
-      }
-
-      toast.error("Sharing is not supported on this device");
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
-        return;
-      }
-
-      toast.error("Unable to share your public profile");
-    }
-  }
-
   async function handleReshareInvitation(input: {
     invitePath: string;
     guestName?: string | null;
@@ -239,8 +207,15 @@ export function FriendsPageProvider({
     }
 
     runAsyncActionSilently(
-      () => createFriendInvitationLink(formData),
-      guestUserId ? "Failed to create invitation link" : "Failed to create invitation link",
+      () =>
+        guestUserId
+          ? createFriendInvitationLink(formData).then((result) => ({
+              invitePath: result.invitePath,
+            }))
+          : getOrCreateFriendInviteLink().then((result) => ({
+              invitePath: result.invitePath,
+            })),
+      guestUserId ? "Failed to create invitation link" : "Failed to load invitation link",
       async (result) => {
         if (!result.invitePath) {
           throw new Error("Invite link was not created");
@@ -376,7 +351,6 @@ export function FriendsPageProvider({
     toggleShowAllRecentlyPlayed() {
       setShowAllRecentlyPlayed((current) => !current);
     },
-    handleSharePublicProfile,
     handleCreateInviteLink,
     handleQuickInviteUser,
     handleReshareInvitation,

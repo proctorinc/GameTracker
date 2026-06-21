@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { FriendInviteShareCard } from "@/components/profile/friend-invite-share-card";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -10,8 +11,9 @@ import {
 } from "@/components/ui/card";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
 import { UnauthorizedError } from "@/lib/auth/session";
-import { getInvitationFullByToken } from "@/lib/db/store";
+import { getInvitationFullByToken, getUserByFriendInviteToken } from "@/lib/db/store";
 import {
+  finalizeReusableFriendInvite,
   finalizeFriendLinkInvitation,
   finalizeGuestClaimInvitation,
 } from "@/app/actions/friends";
@@ -23,8 +25,19 @@ export default async function InvitePage({
 }) {
   const { token } = await params;
   const invitation = await getInvitationFullByToken(token);
+  const inviter = invitation ? null : await getUserByFriendInviteToken(token);
 
-  if (!invitation) {
+  let currentUser = null;
+
+  try {
+    currentUser = await loadCurrentUser();
+  } catch (error) {
+    if (!(error instanceof UnauthorizedError)) {
+      throw error;
+    }
+  }
+
+  if (!invitation && !inviter) {
     return (
       <div className="min-h-screen px-4 py-8">
         <div className="mx-auto w-full max-w-md">
@@ -41,14 +54,89 @@ export default async function InvitePage({
     );
   }
 
-  let currentUser = null;
+  if (!invitation && inviter) {
+    const inviterName =
+      [inviter.firstName, inviter.lastName].filter(Boolean).join(" ") ||
+      "A friend";
 
-  try {
-    currentUser = await loadCurrentUser();
-  } catch (error) {
-    if (!(error instanceof UnauthorizedError)) {
-      throw error;
+    if (currentUser && currentUser.id === inviter.id) {
+      return (
+        <div className="min-h-screen px-4 py-8">
+          <div className="mx-auto flex w-full max-w-md flex-col gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>{inviterName} invited you</CardTitle>
+                <CardDescription>
+                  This is your invitation link. Share it with someone else to let
+                  them connect with you.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+            <FriendInviteShareCard
+              initialInvitePath={`/invite/${token}`}
+              title="Share your invite"
+              description="Use this QR code or link to connect with friends instantly."
+            />
+          </div>
+        </div>
+      );
     }
+
+    if (currentUser) {
+      const result = await finalizeReusableFriendInvite({
+        friendInviteToken: token,
+        inviteeUserId: currentUser.id,
+      });
+
+      if (
+        result.status === "accepted" ||
+        result.status === "already_accepted" ||
+        result.status === "own_invite"
+      ) {
+        redirect(`/profile/${inviter.id}`);
+      }
+
+      return (
+        <div className="min-h-screen px-4 py-8">
+          <div className="mx-auto w-full max-w-md">
+            <Card>
+              <CardHeader>
+                <CardTitle>Invitation unavailable</CardTitle>
+                <CardDescription>{result.reason}</CardDescription>
+              </CardHeader>
+            </Card>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="min-h-screen px-4 py-8">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>{inviterName} invited you</CardTitle>
+              <CardDescription>
+                Sign in to connect as friends.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <Button
+                render={
+                  <Link href={`/login?from=${encodeURIComponent(`/invite/${token}`)}`} />
+                }
+              >
+                Sign in to connect
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (!invitation) {
+    return null;
   }
 
   const inviterName =
@@ -69,6 +157,11 @@ export default async function InvitePage({
               </CardDescription>
             </CardHeader>
           </Card>
+          <FriendInviteShareCard
+            initialInvitePath={`/invite/${token}`}
+            title="Share your invite"
+            description="Use this QR code or link to connect with friends instantly."
+          />
         </div>
       </div>
     );
@@ -139,7 +232,7 @@ export default async function InvitePage({
     const result = await finalizeFriendLinkInvitation({ inviteToken: token });
 
     if (result.status === "accepted" || result.status === "already_accepted") {
-      redirect("/dashboard");
+      redirect(`/profile/${invitation.inviterUserId}`);
     }
 
     return (

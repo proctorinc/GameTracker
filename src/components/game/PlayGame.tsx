@@ -316,6 +316,7 @@ function createTemporaryGuestUser(input: {
   return {
     id: `optimistic-guest-${timestamp}`,
     clerkUserId: null,
+    friendInviteToken: null,
     profileCardId: null,
     color: "#FFFFFF",
     role: "user" as const,

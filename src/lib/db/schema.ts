@@ -60,6 +60,7 @@ export const users = sqliteTable("users", {
     .primaryKey()
     .$defaultFn(() => createId()),
   clerkUserId: text("clerk_user_id").unique(),
+  friendInviteToken: text("friend_invite_token").unique(),
   profileCardId: text("profile_card_id"),
   color: text("color").notNull().default("#FFFFFF"),
   role: text("role").$type<UserRole>().notNull().default("user"),

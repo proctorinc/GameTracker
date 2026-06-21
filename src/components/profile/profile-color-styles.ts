@@ -42,13 +42,31 @@ function getRelativeLuminance({ r, g, b }: ReturnType<typeof hexToRgb>) {
   return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
 }
 
-export function getProfileColorSurfaceStyles(color: string): CSSProperties {
+function getProfileColorContrastValues(color: string) {
   const rgb = hexToRgb(color);
   const luminance = getRelativeLuminance(rgb);
   const isDark = luminance < 0.43;
   const textTint = isDark
     ? mixColors({ r: 255, g: 255, b: 255 }, rgb, 0.18)
     : mixColors({ r: 15, g: 23, b: 42 }, rgb, 0.22);
+
+  return {
+    isDark,
+    textTint,
+  };
+}
+
+export function getProfileColorFillStyles(color: string): CSSProperties {
+  const { textTint } = getProfileColorContrastValues(color);
+
+  return {
+    backgroundColor: color,
+    color: textTint,
+  };
+}
+
+export function getProfileColorSurfaceStyles(color: string): CSSProperties {
+  const { isDark, textTint } = getProfileColorContrastValues(color);
   return {
     backgroundColor: color,
     color: textTint,

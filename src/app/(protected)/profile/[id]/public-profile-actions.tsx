@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Send, Share2, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -19,7 +19,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { PublicProfileViewerState } from "./page-data";
-import { APP_NAME } from "@/lib/app-config";
 
 type PublicProfileActionsProps = {
   profileId: string;
@@ -36,64 +35,12 @@ export function PublicProfileActions({
   const [isPending, startTransition] = useTransition();
   const [showRemoveDialog, setShowRemoveDialog] = useState(false);
 
-  async function handleShare() {
-    const profileUrl = window.location.href;
-
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: `${profileName} on ${APP_NAME}`,
-          text: `Check out ${profileName}'s public profile on ${APP_NAME}.`,
-          url: profileUrl,
-        });
-        return;
-      }
-
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(profileUrl);
-        toast.success("Public profile link copied");
-        return;
-      }
-
-      toast.error("Sharing is not supported on this device");
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
-        return;
-      }
-
-      toast.error("Unable to share your public profile");
-    }
-  }
-
   if (!viewerState) {
     return null;
   }
 
   if (viewerState.kind === "self") {
-    return (
-      <button
-        type="button"
-        className="group rounded-2xl border border-border bg-muted/60 text-left transition-colors hover:bg-muted"
-        onClick={() => {
-          void handleShare();
-        }}
-      >
-        <span className="flex w-full items-center justify-between gap-3 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-foreground text-background">
-              <Share2 className="size-4" />
-            </div>
-            <div>
-              <p className="text-sm font-medium">Share profile</p>
-              <p className="text-xs text-muted-foreground">
-                Send your public profile link to someone
-              </p>
-            </div>
-          </div>
-          <Send className="size-4 text-muted-foreground" />
-        </span>
-      </button>
-    );
+    return null;
   }
 
   if (viewerState.kind === "signed_out") {

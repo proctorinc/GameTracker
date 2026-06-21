@@ -16,6 +16,7 @@ function createUser(input: {
   return {
     id: input.id,
     clerkUserId: null,
+    friendInviteToken: null,
     profileCardId: null,
     color: input.color ?? "#ffffff",
     role: "user",

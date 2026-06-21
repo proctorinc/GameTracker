@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../../../tests/helpers/render";
 import { ProfileOverviewPage } from "./profile-overview-page";
 
+vi.mock("@/components/profile/friend-invite-share-card", () => ({
+  FriendInviteShareCard: () => <div>Invite friends</div>,
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     refresh: vi.fn(),
@@ -113,10 +117,6 @@ describe("ProfileOverviewPage", () => {
 
     expect(screen.getByText("Pending invitations need your review.")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /friends/i }).length).toBeGreaterThan(0);
-    expect(screen.getByText("Share")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /share your profile/i }),
-    ).toBeInTheDocument();
     expect(container.querySelectorAll(".bg-red-500")).toHaveLength(1);
     expect(window.localStorage.getItem("page-tab:/profile")).toBe("friends");
   });

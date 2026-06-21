@@ -174,6 +174,16 @@ export async function getUserByClerkUserId(
   return user ?? null;
 }
 
+export async function getUserByFriendInviteToken(
+  friendInviteToken: string,
+): Promise<UserBase | null> {
+  const user = await db.query.users.findFirst({
+    where: eq(users.friendInviteToken, friendInviteToken),
+  });
+
+  return user ?? null;
+}
+
 export async function getUserFullById(id: string): Promise<UserBase | null> {
   // Use a simpler approach - just return the basic user since we can't load relations directly
   const user = await db.query.users.findFirst({

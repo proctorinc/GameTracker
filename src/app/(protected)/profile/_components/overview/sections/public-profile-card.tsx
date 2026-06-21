@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ChevronRight, DoorOpen, ExternalLink } from "lucide-react";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { useProfileOverview } from "../profile-overview-provider";
-import { SignOutButton, UserButton } from "@clerk/nextjs";
+import { SignOutButton } from "@clerk/nextjs";
 
 export function PublicProfileCard() {
   const { user } = useProfileOverview();

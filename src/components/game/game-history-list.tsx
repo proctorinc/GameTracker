@@ -1,5 +1,4 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
 import { ArrowRight, CalendarDays, Crown, Trophy, UserRound } from "lucide-react";
 import GameTitleImage from "@/components/game/game-title-image";
 import ProfilePicture from "@/components/profile/profile-picture";
@@ -75,7 +74,7 @@ function PlayerStack({
             <ProfilePicture
               user={player.user}
               size="sm"
-              className="ring-2 ring-background shadow-sm"
+              className="shadow-sm"
               content={
                 <span className="text-[10px] font-black leading-none">
                   {getPlayerLabel(player, currentUserId)
@@ -92,35 +91,6 @@ function PlayerStack({
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function DetailItem({
-  label,
-  value,
-  icon,
-  emphasis = false,
-}: {
-  label: string;
-  value: string;
-  icon: ReactNode;
-  emphasis?: boolean;
-}) {
-  return (
-    <div className="rounded-2xl border border-border/70 bg-background/80 p-3">
-      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-        {icon}
-        <span>{label}</span>
-      </div>
-      <p
-        className={cn(
-          "mt-2 text-sm font-semibold text-foreground",
-          emphasis && "text-[color:var(--winner-text)]",
-        )}
-      >
-        {value}
-      </p>
     </div>
   );
 }
@@ -161,9 +131,6 @@ export default function GameHistoryList({
         const title = game.gameTitle;
         const titleHref = title ? `/titles/${title.id}` : null;
         const winnerSummary = getWinnerSummary(game, currentUserId);
-        const playerLabels = game.players.map((player) =>
-          getPlayerLabel(player, currentUserId),
-        );
 
         return (
           <article
@@ -235,103 +202,86 @@ export default function GameHistoryList({
                     </div>
                   </div>
 
-                  <div className="rounded-[1.4rem] border border-white/15 bg-black/18 p-3 backdrop-blur-sm">
-                    <div className="flex items-center gap-3">
+                  <div className="rounded-[1.4rem] border border-white/15 bg-black/18 px-3 py-2.5 backdrop-blur-sm">
+                    <div className="flex items-center justify-start">
                       <PlayerStack
                         currentUserId={currentUserId}
                         players={game.players}
                         winnerUserIds={game.winners.map((winner) => winner.userId)}
                       />
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/72">
-                          Players
-                        </p>
-                        <p className="line-clamp-2 text-sm font-semibold text-white">
-                          {playerLabels.join(", ")}
-                        </p>
-                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </GameTitleImage>
 
-            <div className="space-y-4 bg-card p-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <DetailItem
-                  emphasis={didWin}
-                  icon={<Trophy className="size-3.5" />}
-                  label="Winner"
-                  value={winnerSummary}
-                />
-                <DetailItem
-                  icon={<CalendarDays className="size-3.5" />}
-                  label="Creator"
-                  value={
-                    game.creatorId === currentUserId
-                      ? "You"
-                      : (game.creator.firstName ?? "Player")
-                  }
-                />
-                <DetailItem
-                  icon={<UserRound className="size-3.5" />}
-                  label="Rounds"
-                  value={`${game.completedRounds} completed`}
-                />
-                <DetailItem
-                  icon={<ArrowRight className="size-3.5" />}
-                  label="Status"
-                  value={game.completedAt ? "Finished" : "Still live"}
-                />
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
+            <div className="space-y-2.5 bg-card px-4 pt-3 pb-4">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px]">
+                <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                  <Trophy className="size-3.5" />
                   {game.winners[0] ? (
                     <>
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">
+                        Winner
+                      </span>
                       <ProfilePicture
                         user={game.winners[0].user}
-                        size="sm"
-                        className="winner-avatar-ring shadow-sm"
+                        size="xs"
+                        className="shadow-sm"
                       />
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                          Top finisher
-                        </p>
-                        <p className="text-sm font-semibold">
-                          {winnerSummary}
-                        </p>
-                      </div>
+                      <span
+                        className={cn(
+                          "font-semibold text-foreground",
+                          didWin && "text-[color:var(--winner-text)]",
+                        )}
+                      >
+                        {winnerSummary}
+                      </span>
                     </>
                   ) : (
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                        Game owner
-                      </p>
-                      <p className="text-sm font-semibold">
-                        {game.creatorId === currentUserId
-                          ? "You"
-                          : (game.creator.firstName ?? "Player")}
-                      </p>
-                    </div>
+                    <span className="font-semibold text-foreground">
+                      No winner yet
+                    </span>
                   )}
-                </div>
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                  <CalendarDays className="size-3.5" />
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">
+                    Creator
+                  </span>
+                  <span className="font-semibold text-foreground">
+                    {game.creatorId === currentUserId
+                      ? "You"
+                      : (game.creator.firstName ?? "Player")}
+                  </span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                  <UserRound className="size-3.5" />
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">
+                    Rounds
+                  </span>
+                  <span className="font-semibold text-foreground">
+                    {game.completedRounds}
+                  </span>
+                </span>
+              </div>
 
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 <div className="flex flex-wrap items-center gap-2">
                   {titleHref ? (
                     <Link
                       href={titleHref}
-                      className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-2 text-sm font-semibold transition-colors hover:bg-muted"
+                      className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2.5 py-1.5 text-xs font-semibold transition-colors hover:bg-muted"
                     >
                       Title history
                     </Link>
                   ) : null}
                   <Link
                     href={`/game/${game.id}/play`}
-                    className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                    className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
                   >
                     Open game
-                    <ArrowRight className="size-4" />
+                    <ArrowRight className="size-3.5" />
                   </Link>
                 </div>
               </div>

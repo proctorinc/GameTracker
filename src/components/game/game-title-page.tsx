@@ -15,6 +15,7 @@ import { GameTitleHistoryList } from "@/components/game/game-title-history-list"
 import GameTitleImage from "@/components/game/game-title-image";
 import GameTitleImageEditor from "@/components/game/game-title-image-editor";
 import { GameTitleRankChart } from "@/components/game/game-title-rank-chart";
+import { getProfileColorFillStyles } from "@/components/profile/profile-color-styles";
 import { ProfileMatchupSelector } from "@/components/profile/profile-matchup-selector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -76,15 +77,9 @@ function ComparisonMetricRow(props: {
         <span
           className={cn(
             "inline-flex min-h-9 min-w-9 items-center justify-center rounded-full px-3 py-1",
-            props.currentWins ? "font-bold text-foreground" : "",
+            props.currentWins && "font-bold",
           )}
-          style={
-            props.currentWins
-              ? {
-                  border: `2px solid ${props.currentColor}`,
-                }
-              : undefined
-          }
+          style={getProfileColorFillStyles(props.currentColor)}
         >
           {props.currentValue}
         </span>
@@ -103,15 +98,9 @@ function ComparisonMetricRow(props: {
         <span
           className={cn(
             "inline-flex min-h-9 min-w-9 items-center justify-center rounded-full px-3 py-1",
-            props.comparisonWins ? "font-bold text-foreground" : "",
+            props.comparisonWins && "font-bold",
           )}
-          style={
-            props.comparisonWins
-              ? {
-                  border: `2px solid ${props.comparisonColor}`,
-                }
-              : undefined
-          }
+          style={getProfileColorFillStyles(props.comparisonColor)}
         >
           {props.comparisonValue}
         </span>
