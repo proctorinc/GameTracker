@@ -31,9 +31,7 @@ function ActivityPageContent() {
         )}
         <ActivityTabs />
         {activeTab === "activity" ? (
-          <div className="flex flex-1 flex-col">
-            <FriendActivityCard />
-          </div>
+          <FriendActivityCard />
         ) : (
           <LeaderboardTabContent />
         )}

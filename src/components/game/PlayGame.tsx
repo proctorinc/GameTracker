@@ -307,10 +307,7 @@ function createNoScorePlacementsFromGame(game: GameForPlayPage) {
   const placements = createEmptyNoScorePlacementSelections();
 
   for (const resultPlacement of game.resultPlacements) {
-    if (
-      resultPlacement.placement >= 1 &&
-      resultPlacement.placement <= 3
-    ) {
+    if (resultPlacement.placement >= 1 && resultPlacement.placement <= 3) {
       placements[resultPlacement.placement as NoScorePlacement] = [
         ...placements[resultPlacement.placement as NoScorePlacement],
         resultPlacement.userId,
@@ -516,9 +513,7 @@ export default function PlayGame(props: PlayGameProps) {
     useState<NoScorePlacement>(1);
   const [confirmedNoScorePlacements, setConfirmedNoScorePlacements] = useState<
     NoScorePlacement[]
-  >(
-    [],
-  );
+  >([]);
   const [pendingManagerUserIds, setPendingManagerUserIds] = useState<string[]>(
     [],
   );
@@ -840,7 +835,12 @@ export default function PlayGame(props: PlayGameProps) {
     }
 
     return getCompletedPlacements({ players: sortedPlayers });
-  }, [game.completedAt, game.resultPlacements, game.scoringMode, sortedPlayers]);
+  }, [
+    game.completedAt,
+    game.resultPlacements,
+    game.scoringMode,
+    sortedPlayers,
+  ]);
   const completedNoScoreHasPodiumPlacements = useMemo(
     () => game.resultPlacements.some((placement) => placement.placement > 1),
     [game.resultPlacements],
@@ -861,7 +861,7 @@ export default function PlayGame(props: PlayGameProps) {
     return podiumPlayers.slice(0, 3).map((player, index) => {
       const position = isNoScoreMode
         ? (completedPlacementByUserId.get(player.userId) ??
-            (winnerIds.has(player.userId) ? 1 : index + 1))
+          (winnerIds.has(player.userId) ? 1 : index + 1))
         : (completedPlacementByUserId.get(player.userId) ?? index + 1);
 
       return {
@@ -1620,7 +1620,9 @@ export default function PlayGame(props: PlayGameProps) {
   function handleCommitRound(completeGame: boolean) {
     const finishedAt = nowIso();
     const placementSelections =
-      completeGame && isNoScoreMode ? selectedNoScorePlacementSelections : undefined;
+      completeGame && isNoScoreMode
+        ? selectedNoScorePlacementSelections
+        : undefined;
     const winnerUserIds =
       completeGame && isNoScoreMode ? selectedWinnerUserIds : undefined;
 
@@ -1872,7 +1874,7 @@ export default function PlayGame(props: PlayGameProps) {
           <details className="group">
             <summary className="flex cursor-pointer list-none items-stretch pr-4">
               <GameTitleImage
-                className="w-20 shrink-0 border-border/70"
+                className="w-20 shrink-0"
                 color={game.gameTitle?.color}
                 imageUrl={game.gameTitle?.imageUrl}
               />
@@ -3145,10 +3147,9 @@ export default function PlayGame(props: PlayGameProps) {
               </div>
               <div className="flex flex-col gap-2">
                 {selectableNoScorePlayers.map((player) => {
-                  const isSelected =
-                    selectedNoScorePlacements[activeNoScorePlacement].includes(
-                      player.userId,
-                    );
+                  const isSelected = selectedNoScorePlacements[
+                    activeNoScorePlacement
+                  ].includes(player.userId);
 
                   return (
                     <button
@@ -3178,7 +3179,9 @@ export default function PlayGame(props: PlayGameProps) {
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button
-                  onClick={() => confirmNoScorePlacement(activeNoScorePlacement)}
+                  onClick={() =>
+                    confirmNoScorePlacement(activeNoScorePlacement)
+                  }
                   type="button"
                   variant="outline"
                 >
@@ -3188,10 +3191,7 @@ export default function PlayGame(props: PlayGameProps) {
                   <Button
                     onClick={() =>
                       skipNoScorePlacement(
-                        activeNoScorePlacement as Exclude<
-                          NoScorePlacement,
-                          1
-                        >,
+                        activeNoScorePlacement as Exclude<NoScorePlacement, 1>,
                       )
                     }
                     type="button"

@@ -47,7 +47,7 @@ export function PublicProfileActions({
     return (
       <Link
         href={`/login?from=${encodeURIComponent(`/profile/${profileId}`)}`}
-        className={buttonVariants({ size: "lg", className: "rounded-full" })}
+        className={buttonVariants({ size: "sm", className: "rounded-full" })}
       >
         Log in to add friend
       </Link>
@@ -57,18 +57,14 @@ export function PublicProfileActions({
   if (viewerState.kind === "friends") {
     return (
       <>
-        <div className="flex gap-2">
-          <Button
-            disabled
-            size="lg"
-            variant="secondary"
-            className="rounded-full"
-          >
+        <div className="flex items-center gap-2">
+          <Button disabled size="sm" variant="secondary">
             You&apos;re friends
           </Button>
           <Button
-            variant="ghost"
+            variant="outline"
             disabled={isPending}
+            size="sm"
             onClick={() => setShowRemoveDialog(true)}
           >
             <Trash2 />
@@ -131,7 +127,7 @@ export function PublicProfileActions({
     return (
       <Link
         href="/profile?tab=friends&invites=1"
-        className={buttonVariants({ size: "lg", className: "rounded-full" })}
+        className={buttonVariants({ size: "sm", className: "rounded-full" })}
       >
         View invitation
       </Link>
@@ -143,7 +139,7 @@ export function PublicProfileActions({
       <Link
         href="/profile?tab=friends"
         className={buttonVariants({
-          size: "lg",
+          size: "sm",
           variant: "secondary",
           className: "rounded-full",
         })}
@@ -155,7 +151,7 @@ export function PublicProfileActions({
 
   return (
     <Button
-      size="lg"
+      size="sm"
       className="rounded-full"
       disabled={isPending}
       onClick={() => {

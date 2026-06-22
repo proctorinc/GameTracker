@@ -14,6 +14,16 @@ const nextConfig: NextConfig = {
         ? validated.NEXT_PUBLIC_APP_ENV
         : (process.env.NEXT_PUBLIC_APP_ENV ?? appEnv),
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "img.clerk.com",
+        port: "",
+        pathname: "/**",
+      },
+    ],
+  },
 };
 
 export default nextConfig;

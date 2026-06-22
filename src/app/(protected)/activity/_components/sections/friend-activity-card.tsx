@@ -17,6 +17,7 @@ import {
   getActivityShortName,
   useClientDateFormatting,
 } from "../utils";
+import RankChip from "@/components/player-rank/RankChip";
 
 function getWinnerSummary(
   game: ReturnType<typeof useActivityPage>["data"]["friendActivity"][number],
@@ -52,7 +53,6 @@ function getPlayedBySummary(
       getActivityShortName({
         id: player.user.id,
         firstName: player.user.firstName,
-        lastName: player.user.lastName,
         currentUserId,
       }),
     );
@@ -155,120 +155,116 @@ export function FriendActivityCard() {
   const hasMoreActivity = visibleCount < data.friendActivity.length;
 
   return (
-    <Card className="flex-1">
-      <CardContent className="flex flex-1 flex-col">
-        {groups.length === 0 ? (
-          <CardEmpty className="flex flex-1 items-center justify-center">
-            No friend activity in the last 30 days
-          </CardEmpty>
-        ) : (
-          <div className="flex flex-col gap-4">
-            {groups.map((group) => (
-              <div key={group.dayLabel} className="flex flex-col gap-2">
-                <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  {group.dayLabel}
-                </p>
-                <div className="flex flex-col gap-2">
-                  {group.entries.map((game) => {
-                    const includesCurrentUser = game.players.some(
-                      (player) => player.userId === data.user.id,
-                    );
-                    const orderedPlayers = getPlayersOrderedByPlacement(game);
-                    const activityTime = formatActivityTime(
-                      game.createdAt,
-                      dateFormatting,
-                    );
+    <div className="flex flex-1 flex-col">
+      {groups.length === 0 ? (
+        <CardEmpty className="flex flex-1 items-center justify-center">
+          No friend activity in the last 30 days
+        </CardEmpty>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {groups.map((group) => (
+            <div key={group.dayLabel} className="flex flex-col gap-2">
+              <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                {group.dayLabel}
+              </p>
+              <div className="flex flex-col gap-2">
+                {group.entries.map((game) => {
+                  const includesCurrentUser = game.players.some(
+                    (player) => player.userId === data.user.id,
+                  );
+                  const orderedPlayers = getPlayersOrderedByPlacement(game);
+                  const activityTime = formatActivityTime(
+                    game.createdAt,
+                    dateFormatting,
+                  );
 
-                    return (
-                      <div
-                        key={game.id}
+                  return (
+                    <div
+                      key={game.id}
+                      className={cn(
+                        "flex w-full flex-col gap-1",
+                        includesCurrentUser ? "items-end" : "items-start",
+                      )}
+                    >
+                      <p
                         className={cn(
-                          "flex w-full flex-col gap-1",
-                          includesCurrentUser ? "items-end" : "items-start",
+                          "max-w-[85%] px-1 text-xs leading-relaxed text-foreground/84",
+                          includesCurrentUser ? "text-right" : "text-left",
                         )}
                       >
-                        <p
-                          className={cn(
-                            "max-w-[85%] px-1 text-xs leading-relaxed text-foreground/84",
-                            includesCurrentUser ? "text-right" : "text-left",
-                          )}
+                        <span className="font-medium text-foreground">
+                          {getPlayedBySummary(game, data.user.id, friendIds)}
+                        </span>{" "}
+                        played{" "}
+                        <span className="font-medium text-foreground">
+                          {game.gameTitle?.title ?? "New Game"}
+                        </span>
+                        <span className="text-[11px]">
+                          {activityTime ? ` at ${activityTime}` : ""}
+                        </span>
+                      </p>
+                      <Link
+                        href={`/game/${game.id}/play`}
+                        className="block w-full max-w-[85%]"
+                      >
+                        <GameTitleImage
+                          className="rounded-2xl border border-border/70 px-3 py-3 transition-colors hover:bg-muted/80"
+                          color={game.gameTitle?.color}
+                          imageUrl={game.gameTitle?.imageUrl}
+                          variant="card"
                         >
-                          <span className="font-medium text-foreground">
-                            {getPlayedBySummary(game, data.user.id, friendIds)}
-                          </span>{" "}
-                          played{" "}
-                          <span className="font-medium text-foreground">
-                            {game.gameTitle?.title ?? "New Game"}
-                          </span>
-                          <span className="text-[11px]">
-                            {activityTime ? ` at ${activityTime}` : ""}
-                          </span>
-                        </p>
-                        <Link
-                          href={`/game/${game.id}/play`}
-                          className="block w-full max-w-[85%]"
-                        >
-                          <GameTitleImage
-                            className="rounded-2xl border border-border/70 px-3 py-3 transition-colors hover:bg-muted/80"
-                            color={game.gameTitle?.color}
-                            imageUrl={game.gameTitle?.imageUrl}
-                            variant="card"
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="flex min-w-0 items-center gap-2 text-xs text-white">
-                                <Trophy className="size-3.5 shrink-0" />
-                                <span className="truncate font-bold">
-                                  {getWinnerSummary(game, data.user.id)}
-                                </span>
-                              </div>
-                              <div className="flex shrink-0 items-center gap-2">
-                                <div className="flex -space-x-2">
-                                  {orderedPlayers.slice(0, 4).map((player) => (
-                                    <ProfilePicture
-                                      key={player.id}
-                                      user={player.user}
-                                      size="xs"
-                                      className="ring-2 ring-background"
-                                    />
-                                  ))}
-                                </div>
-                                <div className="flex items-center gap-1 text-[11px] font-bold text-white/88">
-                                  <Users className="size-3.5" />
-                                  <span>{game.players.length}</span>
-                                </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex min-w-0 items-center gap-2 text-xs text-white">
+                              <Trophy className="size-3.5 shrink-0" />
+                              <span className="truncate font-bold">
+                                {getWinnerSummary(game, data.user.id)}
+                              </span>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2">
+                              <div className="flex -space-x-2">
+                                {orderedPlayers.slice(0, 4).map((player) => (
+                                  <ProfilePicture
+                                    key={player.id}
+                                    user={player.user}
+                                    size="xs"
+                                    className="ring-2 ring-background"
+                                  />
+                                ))}
                               </div>
                             </div>
-                          </GameTitleImage>
-                        </Link>
-                        {game.currentUserRankDelta &&
-                        game.currentUserRankDelta.deltaMinor !== 0 ? (
-                          <p className="max-w-[85%] px-1 text-right text-[11px] font-semibold text-muted-foreground">
-                            {game.currentUserRankDelta.deltaFormatted} Rank
-                          </p>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-            {hasMoreActivity ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="self-center px-4"
-                onClick={() => {
-                  setVisibleCount((currentCount) =>
-                    getActivityChunkEndIndex(data.friendActivity, currentCount),
+                          </div>
+                        </GameTitleImage>
+                      </Link>
+                      {game.currentUserRankDelta &&
+                      game.currentUserRankDelta.deltaMinor !== 0 ? (
+                        <RankChip
+                          size="sm"
+                          className="mr-2"
+                          delta={game.currentUserRankDelta.deltaFormatted}
+                        />
+                      ) : null}
+                    </div>
                   );
-                }}
-              >
-                Show more
-              </Button>
-            ) : null}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+                })}
+              </div>
+            </div>
+          ))}
+          {hasMoreActivity ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="self-center px-4"
+              onClick={() => {
+                setVisibleCount((currentCount) =>
+                  getActivityChunkEndIndex(data.friendActivity, currentCount),
+                );
+              }}
+            >
+              Show more
+            </Button>
+          ) : null}
+        </div>
+      )}
+    </div>
   );
 }

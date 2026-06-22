@@ -37,10 +37,7 @@ function getDisplayName(input: {
   return [input.firstName, input.lastName].filter(Boolean).join(" ").trim();
 }
 
-function getDaysSince(input: {
-  timestamp: string;
-  now: Date;
-}) {
+function getDaysSince(input: { timestamp: string; now: Date }) {
   return Math.floor(
     (input.now.getTime() - new Date(input.timestamp).getTime()) /
       (24 * 60 * 60 * 1000),
@@ -104,17 +101,26 @@ function buildRecentStats(input: {
       : input.gamesLast3Days >= 2
         ? {
             kind: "volume" as const,
-            label: createVolumeLabel(input.gamesLast3Days, "in the last 3 days"),
+            label: createVolumeLabel(
+              input.gamesLast3Days,
+              "in the last 3 days",
+            ),
           }
         : input.recentDecisiveGames >= 3
           ? {
               kind: "wins" as const,
-              label: createWinsLabel(input.recentWins, input.recentDecisiveGames),
+              label: createWinsLabel(
+                input.recentWins,
+                input.recentDecisiveGames,
+              ),
             }
           : input.gamesLast14Days >= 2
             ? {
                 kind: "volume" as const,
-                label: createVolumeLabel(input.gamesLast14Days, "in the last 2 weeks"),
+                label: createVolumeLabel(
+                  input.gamesLast14Days,
+                  "in the last 2 weeks",
+                ),
               }
             : {
                 kind: "idle" as const,
@@ -126,7 +132,10 @@ function buildRecentStats(input: {
 
   const supportingCandidates = [
     input.rankDeltaLast14Days > 0
-      ? createRankLabel(input.rankDeltaLast14Days, "rank points in last 14 days")
+      ? createRankLabel(
+          input.rankDeltaLast14Days,
+          "rank points in last 14 days",
+        )
       : null,
     input.recentDecisiveGames >= 3
       ? createWinsLabel(input.recentWins, input.recentDecisiveGames)

@@ -7,6 +7,7 @@ import ProfilePicture from "@/components/profile/profile-picture";
 import { Card } from "@/components/ui/card";
 import type { PlayerRankRecentChangeSummary } from "@/lib/db/store/player-rank.store";
 import { cn } from "@/lib/utils";
+import RankToken from "./RankToken";
 
 export type PlayerRankSummaryCardProps = {
   title?: string;
@@ -95,9 +96,7 @@ export function PlayerRankSummaryCard({
             <p className="text-3xl font-black tracking-tight text-foreground">
               {rankTotalLabel}
             </p>
-            <div className="flex size-9 shrink-0 items-center justify-center text-muted-foreground transition-colors">
-              <Info className="size-4" />
-            </div>
+            <RankToken />
           </div>
           <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Player Rank

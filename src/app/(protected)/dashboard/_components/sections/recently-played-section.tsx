@@ -3,7 +3,14 @@
 import GameTitleImage from "@/components/game/game-title-image";
 import { sectionActionClassName } from "@/components/ui/section-styles";
 import { CardContent, CardEmpty } from "@/components/ui/card";
-import { ArrowRight } from "lucide-react";
+import {
+  ArrowRight,
+  ChartBar,
+  ChartSpline,
+  Dice1,
+  Dice2,
+  Dice6,
+} from "lucide-react";
 import Link from "next/link";
 import { useDashboardPage } from "../dashboard-page-provider";
 import { cn } from "@/lib/utils";
@@ -45,14 +52,16 @@ export function RecentlyPlayedSection() {
                     <div className="mt-auto flex gap-2">
                       <Link
                         href={`/titles/${gameTitle.id}`}
-                        className="rounded-full border border-white/25 bg-white/15 px-3 py-1 text-sm font-semibold backdrop-blur-sm transition-opacity hover:opacity-90"
+                        className="rounded-full flex gap-1 items-center border border-white/25 bg-white/15 px-3 py-1 text-sm font-semibold backdrop-blur-sm transition-opacity hover:opacity-90"
                       >
-                        History
+                        <ChartSpline className="size-4" />
+                        Stats
                       </Link>
                       <Link
                         href={`/game/create/settings?titleId=${gameTitle.id}`}
-                        className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-slate-950 transition-opacity hover:opacity-90"
+                        className="rounded-full flex gap-1 items-center bg-white px-3 py-1 text-sm font-semibold text-slate-950 transition-opacity hover:opacity-90"
                       >
+                        <Dice6 className="size-4" />
                         Play
                       </Link>
                     </div>

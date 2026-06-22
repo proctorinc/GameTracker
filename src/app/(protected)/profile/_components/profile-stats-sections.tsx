@@ -145,7 +145,9 @@ function ComparisonMetricRow(props: {
       <div
         className={cn(
           "flex items-center",
-          props.currentWins ? "font-bold text-foreground" : "text-muted-foreground",
+          props.currentWins
+            ? "font-bold text-foreground"
+            : "text-muted-foreground",
         )}
       >
         <span
@@ -177,7 +179,9 @@ function ComparisonMetricRow(props: {
       <div
         className={cn(
           "flex items-center justify-end",
-          props.comparisonWins ? "font-bold text-foreground" : "text-muted-foreground",
+          props.comparisonWins
+            ? "font-bold text-foreground"
+            : "text-muted-foreground",
         )}
       >
         <span
@@ -223,7 +227,10 @@ function compareMetric(input: {
   };
 }
 
-function buildProfileComparisonMetrics(data: ProfileStatsPageData, comparisonUserId: string) {
+function buildProfileComparisonMetrics(
+  data: ProfileStatsPageData,
+  comparisonUserId: string,
+) {
   const comparison = data.comparisonSummariesByUserId[comparisonUserId];
 
   if (!comparison) {
@@ -347,7 +354,8 @@ function buildProfileComparisonMetrics(data: ProfileStatsPageData, comparisonUse
     {
       label: "Avg rank per game",
       currentValue: data.stats.averageRankGain?.formatted ?? "--",
-      comparisonValue: comparisonOverallStats.averageRankGain?.formatted ?? "--",
+      comparisonValue:
+        comparisonOverallStats.averageRankGain?.formatted ?? "--",
       ...compareMetric({
         current: data.stats.averageRankGain?.minor ?? null,
         comparison: comparisonOverallStats.averageRankGain?.minor ?? null,
@@ -359,27 +367,29 @@ function buildProfileComparisonMetrics(data: ProfileStatsPageData, comparisonUse
 function getComparisonOverallStats(
   comparison: ProfileStatsPageData["comparisonSummariesByUserId"][string],
 ) {
-  return comparison.overallStats ?? {
-    completedGames: comparison.completedGamesTogether,
-    wins: comparison.wins,
-    winRate: comparison.winRate,
-    currentStreak: comparison.currentStreak,
-    bestWinStreak: 0,
-    signatureTitle: null,
-    lastPlayedAt: comparison.lastPlayedAt,
-    placements: {
-      first: comparison.wins,
-      second: 0,
-      third: 0,
-    },
-    rankWindowLabel: "Window rank gain",
-    rankGainInWindow: { formatted: "0", minor: 0 },
-    rankGainAllTime: { formatted: "0", minor: 0 },
-    bestRankGain: null,
-    averageRankGain: null,
-    currentGlobalRankTotal: null,
-    currentGlobalRankPosition: null,
-  };
+  return (
+    comparison.overallStats ?? {
+      completedGames: comparison.completedGamesTogether,
+      wins: comparison.wins,
+      winRate: comparison.winRate,
+      currentStreak: comparison.currentStreak,
+      bestWinStreak: 0,
+      signatureTitle: null,
+      lastPlayedAt: comparison.lastPlayedAt,
+      placements: {
+        first: comparison.wins,
+        second: 0,
+        third: 0,
+      },
+      rankWindowLabel: "Window rank gain",
+      rankGainInWindow: { formatted: "0", minor: 0 },
+      rankGainAllTime: { formatted: "0", minor: 0 },
+      bestRankGain: null,
+      averageRankGain: null,
+      currentGlobalRankTotal: null,
+      currentGlobalRankPosition: null,
+    }
+  );
 }
 
 export function ProfileStatsSections({
@@ -392,7 +402,8 @@ export function ProfileStatsSections({
   const [selectedComparisonUserId, setSelectedComparisonUserId] = useState(
     data.defaultComparisonUserId,
   );
-  const [showAllComparisonMetrics, setShowAllComparisonMetrics] = useState(false);
+  const [showAllComparisonMetrics, setShowAllComparisonMetrics] =
+    useState(false);
   const accentStyles = useMemo(
     () => buildAccentStyles(data.profile.color),
     [data.profile.color],
@@ -584,7 +595,11 @@ export function ProfileStatsSections({
                 <div className="rounded-[1.6rem] border border-border/70 bg-card/95 p-4">
                   <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
                     <div className="min-w-0">
-                      <ProfilePicture user={data.profile} size="sm" />
+                      <ProfilePicture
+                        user={data.profile}
+                        size="sm"
+                        linkToProfile
+                      />
                     </div>
                     <div className="text-center">
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -596,7 +611,11 @@ export function ProfileStatsSections({
                     </div>
                     <div className="min-w-0 text-right">
                       <div className="flex justify-end">
-                        <ProfilePicture user={selectedComparison.user} size="sm" />
+                        <ProfilePicture
+                          user={selectedComparison.user}
+                          size="sm"
+                          linkToProfile
+                        />
                       </div>
                     </div>
                   </div>

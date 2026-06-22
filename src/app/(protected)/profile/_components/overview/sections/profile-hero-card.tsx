@@ -1,10 +1,8 @@
 "use client";
 
-import { PlayerRankSummaryCard } from "@/components/player-rank/player-rank-summary-card";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { useProfileOverview } from "../profile-overview-provider";
 import { Settings } from "lucide-react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 function formatMemberSince(createdAt: string | null) {
@@ -29,7 +27,7 @@ function formatDisplayName(input: {
 }
 
 export function ProfileHeroCard() {
-  const { user, data, setActiveTab } = useProfileOverview();
+  const { user, setActiveTab, activeTab } = useProfileOverview();
 
   return (
     <div className="flex flex-col gap-4 relative">
@@ -41,32 +39,18 @@ export function ProfileHeroCard() {
               {formatDisplayName(user)}
             </h2>
             <div className="flex flex-col gap-1">
-              <p>{formatMemberSince(user.createdAt)}</p>
+              <p className="text-sm">{formatMemberSince(user.createdAt)}</p>
             </div>
           </div>
         </div>
         <Button
           size="icon-lg"
-          variant="outline"
+          variant={activeTab === "settings" ? "default" : "outline"}
           onClick={() => setActiveTab("settings")}
         >
           <Settings />
         </Button>
       </div>
-      {data.canViewPlayerRank ? (
-        <PlayerRankSummaryCard
-          title="Your Player Rank"
-          rankGamesCount={data.playerRankGamesCount}
-          rankPosition={data.playerRankPosition}
-          recentChangeSummary={data.playerRankRecentChangeSummary}
-          rankTotal={data.playerRankTotal}
-          topThreeFinishes={data.topThreeFinishes}
-          windowLabel={data.playerRankWindowLabel}
-          twoPlayerPrizePool={data.twoPlayerPrizePool}
-          threePlayerPrizePool={data.threePlayerPrizePool}
-          sixPlusPlayerPrizePool={data.sixPlusPlayerPrizePool}
-        />
-      ) : null}
     </div>
   );
 }
