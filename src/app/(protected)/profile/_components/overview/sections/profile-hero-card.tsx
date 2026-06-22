@@ -3,6 +3,9 @@
 import { PlayerRankSummaryCard } from "@/components/player-rank/player-rank-summary-card";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { useProfileOverview } from "../profile-overview-provider";
+import { Settings } from "lucide-react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 function formatMemberSince(createdAt: string | null) {
   if (!createdAt) {
@@ -26,20 +29,29 @@ function formatDisplayName(input: {
 }
 
 export function ProfileHeroCard() {
-  const { user, data } = useProfileOverview();
+  const { user, data, setActiveTab } = useProfileOverview();
 
   return (
     <div className="flex flex-col gap-4 relative">
-      <div className="flex items-center gap-4 px-2">
-        <ProfilePicture user={user} />
-        <div className="z-10 flex flex-col justify-center gap-1">
-          <h2 className="text-2xl font-black tracking-tight text-foreground">
-            {formatDisplayName(user)}
-          </h2>
-          <div className="flex flex-col gap-1">
-            <p>{formatMemberSince(user.createdAt)}</p>
+      <div className="flex items-center justify-between w-full gap-4 px-2">
+        <div className="flex gap-4">
+          <ProfilePicture user={user} />
+          <div className="z-10 flex flex-col justify-center gap-1">
+            <h2 className="text-2xl font-black tracking-tight text-foreground">
+              {formatDisplayName(user)}
+            </h2>
+            <div className="flex flex-col gap-1">
+              <p>{formatMemberSince(user.createdAt)}</p>
+            </div>
           </div>
         </div>
+        <Button
+          size="icon-lg"
+          variant="outline"
+          onClick={() => setActiveTab("settings")}
+        >
+          <Settings />
+        </Button>
       </div>
       {data.canViewPlayerRank ? (
         <PlayerRankSummaryCard

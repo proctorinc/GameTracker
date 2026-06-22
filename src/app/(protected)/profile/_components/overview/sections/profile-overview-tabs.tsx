@@ -12,7 +12,7 @@ export function ProfileOverviewTabs() {
   } = useProfileOverview();
 
   return (
-    <div className="grid grid-cols-3 gap-2 rounded-2xl border border-border/70 bg-muted/70 p-1">
+    <div className="grid grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-muted/70 p-1">
       <Button
         variant={activeTab === "stats" ? "default" : "ghost"}
         className="rounded-xl"
@@ -34,7 +34,7 @@ export function ProfileOverviewTabs() {
         <Users />
         Friends
       </Button>
-      <Button
+      {/*<Button
         variant={activeTab === "settings" ? "default" : "ghost"}
         className="rounded-xl"
         size="sm"
@@ -42,7 +42,7 @@ export function ProfileOverviewTabs() {
       >
         <Settings />
         Settings
-      </Button>
+      </Button>*/}
     </div>
   );
 }

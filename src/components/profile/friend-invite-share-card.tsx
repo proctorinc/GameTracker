@@ -23,7 +23,7 @@ type FriendInviteShareCardProps = {
 export function FriendInviteShareCard({
   initialInvitePath = null,
   title = "Invite friends",
-  description = `Share your invite link so people can connect with you on ${APP_NAME}.`,
+  description = `Share your invite link to add them as a friend on ${APP_NAME}.`,
 }: FriendInviteShareCardProps) {
   const { inviteUrl, isLoading, handleShare } = useFriendInviteShareState({
     initialInvitePath,
@@ -136,14 +136,14 @@ function FriendInviteShareContent({
   onShare: () => Promise<void>;
 }) {
   return (
-    <div className="flex flex-col gap-4 pb-10">
+    <div className="flex flex-col gap-8 pb-20">
       <div className="flex justify-center">
         <div className="rounded-3xl border border-border bg-white shadow-sm">
           {inviteUrl ? (
             <QRCodeSVG
               value={inviteUrl}
               className="rounded-3xl"
-              size={184}
+              size={250}
               bgColor="#ffffff"
               fgColor="#111827"
               includeMargin
@@ -156,9 +156,6 @@ function FriendInviteShareContent({
           )}
         </div>
       </div>
-      <p className="break-all rounded-2xl border border-dashed border-border bg-muted/60 px-4 py-3 text-center text-xs text-muted-foreground">
-        {inviteUrl ?? "Loading invitation link..."}
-      </p>
       <Button
         type="button"
         disabled={isLoading || !inviteUrl}

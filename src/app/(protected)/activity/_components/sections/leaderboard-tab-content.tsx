@@ -207,17 +207,6 @@ export function LeaderboardTabContent() {
   return (
     <div className="pt-2">
       <CardContent className="flex flex-col gap-4 px-0">
-        {data.playerRankTrend ? (
-          <PlayerRankTrendCard
-            href="/player-rank"
-            user={data.user}
-            color={data.user.color}
-            rankPosition={data.playerRankTrend.rankPosition}
-            rankTotal={data.playerRankTrend.rankTotal}
-            chartPoints={data.playerRankTrend.chartPoints}
-            hasHistory={data.playerRankTrend.hasHistory}
-          />
-        ) : null}
         {data.leaderboardFriends.length === 0 ? (
           <CardEmpty>No friends yet to rank</CardEmpty>
         ) : (

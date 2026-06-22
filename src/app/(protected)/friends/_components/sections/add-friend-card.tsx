@@ -19,12 +19,7 @@ export function AddFriendCard() {
   return (
     <Drawer>
       <DrawerTrigger
-        render={
-          <button
-            type="button"
-            className="w-full text-left"
-          />
-        }
+        render={<button type="button" className="w-full text-left" />}
       >
         <Card>
           <CardHeader className="gap-3">
@@ -53,9 +48,9 @@ export function AddFriendCard() {
       </DrawerTrigger>
       <DrawerContent>
         <DrawerHeader>
-          <DrawerTitle>Share to add a friend</DrawerTitle>
+          <DrawerTitle>Add a friend</DrawerTitle>
           <DrawerDescription>
-            Share your reusable invite link or let someone scan your QR code to connect.
+            Scan the QR code or share the link to instantly add a friend.
           </DrawerDescription>
         </DrawerHeader>
         <div className="mt-4">

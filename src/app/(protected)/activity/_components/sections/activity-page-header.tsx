@@ -4,7 +4,7 @@ import { useActivityPage } from "../activity-page-provider";
 
 export function ActivityPageHeader() {
   const { activeTab } = useActivityPage();
-  const title = activeTab === "leaderboard" ? "Player Rank" : "Activity";
+  const title = activeTab === "leaderboard" ? "Leaderboard" : "Activity";
 
   return (
     <div className="space-y-2">
