@@ -13,9 +13,7 @@ function getOpenAiApiKey() {
   const env = getEnv();
 
   if (!env.OPENAI_API_KEY) {
-    throw new Error(
-      "AI title image generation is not available right now. Ask an administrator to add OPENAI_API_KEY to the server environment and redeploy.",
-    );
+    throw new Error("OpenAI image generation is not configured");
   }
 
   return env.OPENAI_API_KEY;

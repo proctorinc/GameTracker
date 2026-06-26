@@ -32,8 +32,6 @@ describe("validateEnv", () => {
       /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY/,
     );
     expect(() => validateEnv(true)).toThrow(/CLERK_SECRET_KEY/);
-    expect(() => validateEnv(true)).toThrow(/OPENAI_API_KEY/);
-    expect(() => validateEnv(true)).toThrow(/S3_BUCKET/);
   });
 
   it("accepts valid production config", () => {
@@ -45,17 +43,11 @@ describe("validateEnv", () => {
       CLERK_SECRET_KEY: "sk_test_123",
       CLERK_WEBHOOK_SIGNING_SECRET: "whsec_test_123",
       TURSO_AUTH_TOKEN: "turso-token",
-      OPENAI_API_KEY: "openai-key",
-      S3_BUCKET: "score-loser",
-      S3_REGION: "us-east-1",
-      S3_ACCESS_KEY_ID: "access-key",
-      S3_SECRET_ACCESS_KEY: "secret-key",
-      S3_PUBLIC_BASE_URL: "https://score-loser.s3.us-east-1.amazonaws.com",
     };
     const env = validateEnv(true);
     expect(env.APP_ENV).toBe("production");
     expect(env.CLERK_SECRET_KEY).toBe("sk_test_123");
-    expect(env.OPENAI_API_KEY).toBe("openai-key");
+    expect(env.OPENAI_API_KEY).toBeUndefined();
   });
 
   it("applies test defaults", () => {

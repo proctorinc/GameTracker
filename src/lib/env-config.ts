@@ -102,23 +102,21 @@ const testSchema = z
     }
   });
 
-const prodSchema = z.object({
-  APP_ENV: z.literal("production"),
-  DATABASE_URL: z.string().min(1),
-  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1),
-  CLERK_SECRET_KEY: z.string().min(1),
-  CLERK_WEBHOOK_SIGNING_SECRET: z.string().optional(),
-  NEXT_PUBLIC_APP_ENV: z.literal("production").optional(),
-  CLERK_SIGN_IN_URL: z.string().optional(),
-  CLERK_SIGN_UP_URL: z.string().optional(),
-  TURSO_AUTH_TOKEN: z.string().min(1),
-  OPENAI_API_KEY: z.string().min(1),
-  S3_BUCKET: z.string().min(1),
-  S3_REGION: z.string().min(1),
-  S3_ACCESS_KEY_ID: z.string().min(1),
-  S3_SECRET_ACCESS_KEY: z.string().min(1),
-  S3_PUBLIC_BASE_URL: z.string().url(),
-});
+const prodSchema = z
+  .object({
+    APP_ENV: z.literal("production"),
+    DATABASE_URL: z.string().min(1),
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1),
+    CLERK_SECRET_KEY: z.string().min(1),
+    CLERK_WEBHOOK_SIGNING_SECRET: z.string().optional(),
+    NEXT_PUBLIC_APP_ENV: z.literal("production").optional(),
+    CLERK_SIGN_IN_URL: z.string().optional(),
+    CLERK_SIGN_UP_URL: z.string().optional(),
+    TURSO_AUTH_TOKEN: z.string().min(1),
+  })
+  .merge(optionalTitleImageServices.extend({
+    S3_PUBLIC_BASE_URL: z.string().url().optional(),
+  }));
 
 export type DevEnv = z.infer<typeof devSchema>;
 export type TestEnv = z.infer<typeof testSchema>;
@@ -286,12 +284,6 @@ export function validateEnv(force = false): AppEnvConfig {
         CLERK_SIGN_IN_URL: raw.CLERK_SIGN_IN_URL,
         CLERK_SIGN_UP_URL: raw.CLERK_SIGN_UP_URL,
         TURSO_AUTH_TOKEN: raw.TURSO_AUTH_TOKEN,
-        OPENAI_API_KEY: raw.OPENAI_API_KEY,
-        S3_BUCKET: raw.S3_BUCKET,
-        S3_REGION: raw.S3_REGION,
-        S3_ACCESS_KEY_ID: raw.S3_ACCESS_KEY_ID,
-        S3_SECRET_ACCESS_KEY: raw.S3_SECRET_ACCESS_KEY,
-        S3_PUBLIC_BASE_URL: raw.S3_PUBLIC_BASE_URL,
       });
       break;
     }
