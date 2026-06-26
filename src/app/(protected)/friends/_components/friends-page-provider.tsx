@@ -40,6 +40,8 @@ type FriendsPageContextValue = {
   isPending: boolean;
   activeTab: TabKey;
   activeRecentPlayer: RecentlyPlayedItem | null;
+  activeGuestSharePlayer: RecentlyPlayedItem | null;
+  activeGuestShareInvitePath: string | null;
   friendToRemove: FriendsPageData["friends"][number] | null;
   guestActionMode: "merge" | null;
   mergeFriendUserId: string;
@@ -65,6 +67,8 @@ type FriendsPageContextValue = {
   handleAcceptInvitation: (invitationId: string) => void;
   handleDeclineInvitation: (invitationId: string) => void;
   handleRevokeInvitation: (invitationId: string) => void;
+  openGuestShareDrawer: (entry: RecentlyPlayedItem) => void;
+  closeGuestShareDrawer: () => void;
   openRecentPlayerDialog: (entry: RecentlyPlayedItem) => void;
   closeRecentPlayerDialog: () => void;
 };
@@ -88,6 +92,11 @@ export function FriendsPageProvider({
   });
   const [activeRecentPlayer, setActiveRecentPlayer] =
     useState<RecentlyPlayedItem | null>(null);
+  const [activeGuestSharePlayer, setActiveGuestSharePlayer] =
+    useState<RecentlyPlayedItem | null>(null);
+  const [activeGuestShareInvitePath, setActiveGuestShareInvitePath] = useState<
+    string | null
+  >(null);
   const [friendToRemove, setFriendToRemove] = useState<
     FriendsPageData["friends"][number] | null
   >(null);
@@ -241,6 +250,54 @@ export function FriendsPageProvider({
     );
   }
 
+  function closeGuestShareDrawer() {
+    setActiveGuestSharePlayer(null);
+    setActiveGuestShareInvitePath(null);
+  }
+
+  function openGuestShareDrawer(entry: RecentlyPlayedItem) {
+    const isOwnedGuest =
+      entry.user.isGuest && entry.user.created_by_user_id === data.user.id;
+
+    if (!isOwnedGuest) {
+      return;
+    }
+
+    const existingInvitePath =
+      entry.pendingInvitation?.kind === "claim_guest" &&
+      entry.pendingInvitation.targetType === "link" &&
+      entry.pendingInvitation.inviteToken
+        ? `/invite/${entry.pendingInvitation.inviteToken}`
+        : null;
+
+    setActiveGuestSharePlayer(entry);
+    setActiveGuestShareInvitePath(existingInvitePath);
+
+    if (existingInvitePath) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.set("guestUserId", entry.user.id);
+
+    startTransition(async () => {
+      try {
+        const result = await createFriendInvitationLink(formData);
+
+        if (!result.invitePath) {
+          throw new Error("Claim link was not created");
+        }
+
+        setActiveGuestShareInvitePath(result.invitePath);
+      } catch (error) {
+        closeGuestShareDrawer();
+        toast.error(
+          error instanceof Error ? error.message : "Failed to create claim link",
+        );
+      }
+    });
+  }
+
   function handleQuickInviteUser(userId: string) {
     runAsyncAction(
       () => createFriendInvitationByUserId({ inviteeUserId: userId }),
@@ -333,6 +390,8 @@ export function FriendsPageProvider({
     isPending,
     activeTab,
     activeRecentPlayer,
+    activeGuestSharePlayer,
+    activeGuestShareInvitePath,
     friendToRemove,
     guestActionMode,
     mergeFriendUserId,
@@ -377,6 +436,8 @@ export function FriendsPageProvider({
         error: "Failed to cancel invitation",
       });
     },
+    openGuestShareDrawer,
+    closeGuestShareDrawer,
     openRecentPlayerDialog,
     closeRecentPlayerDialog,
   };

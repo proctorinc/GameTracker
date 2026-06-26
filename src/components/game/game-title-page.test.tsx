@@ -20,6 +20,7 @@ describe("GameTitlePage", () => {
     renderWithProviders(
       <GameTitlePage
         canManageDefaults={false}
+        canManageTitleArtwork={false}
         data={{
           title: {
             id: "title-1",
@@ -189,6 +190,68 @@ describe("GameTitlePage", () => {
     expect(screen.getAllByText("1st places").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Alex Rival").length).toBeGreaterThan(0);
     expect(screen.getByText("Completed game")).toBeInTheDocument();
+    expect(screen.getAllByText("+45").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("+15").length).toBeGreaterThan(0);
     expect(screen.queryAllByText("Skyjo")).toHaveLength(1);
+  });
+
+  it("shows only the defaults editor for non-admin title owners", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <GameTitlePage
+        canManageDefaults={true}
+        canManageTitleArtwork={false}
+        data={{
+          title: {
+            id: "title-1",
+            title: "Skyjo",
+            normalizedTitle: "skyjo",
+            color: "#0f766e",
+            imageUrl: "",
+            defaultScoringMode: "lowest_wins",
+            defaultEndingMode: "manual",
+            defaultTrackRounds: false,
+            defaultTargetRounds: null,
+            defaultScoreThreshold: null,
+            defaultScoreThresholdDirection: "at_or_above",
+            isUniversal: false,
+            createdByUserId: "user-1",
+            mergedIntoGameTitleId: null,
+            createdAt: "2026-06-01T00:00:00.000Z",
+          },
+          currentUserId: "user-1",
+          defaultComparisonUserId: null,
+          comparisonOptions: [],
+          chartSeries: [],
+          stats: {
+            rankWindowLabel: null,
+            totalGames: 0,
+            completedGames: 0,
+            activeGames: 0,
+            wins: 0,
+            winRate: 0,
+            averageScore: null,
+            bestScore: null,
+            lastPlayedAt: null,
+            totalRounds: 0,
+            placements: { first: 0, second: 0, third: 0 },
+            rankGainInWindow: { minor: 0, formatted: "0" },
+            rankGainAllTime: { minor: 0, formatted: "0" },
+            bestRankGain: null,
+            averageRankGain: null,
+            currentGlobalRankTotal: null,
+            currentGlobalRankPosition: null,
+          },
+          comparisonSummariesByUserId: {},
+          history: [],
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /admin/i }));
+
+    expect(screen.getByText("defaults editor")).toBeInTheDocument();
+    expect(screen.queryByText("image editor")).not.toBeInTheDocument();
   });
 });

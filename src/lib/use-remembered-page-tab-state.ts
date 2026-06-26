@@ -7,6 +7,7 @@ type UseRememberedPageTabStateOptions<TTab extends string> = {
   initialValue: TTab;
   validTabs: readonly TTab[];
   preferInitialValue?: boolean;
+  normalizeStoredTab?: (tab: TTab) => TTab;
 };
 
 export function useRememberedPageTabState<TTab extends string>({
@@ -14,6 +15,7 @@ export function useRememberedPageTabState<TTab extends string>({
   initialValue,
   validTabs,
   preferInitialValue = false,
+  normalizeStoredTab = (tab) => tab,
 }: UseRememberedPageTabStateOptions<TTab>) {
   const [activeTab, setActiveTab] = useState<TTab>(() => {
     if (typeof window === "undefined") {
@@ -27,7 +29,7 @@ export function useRememberedPageTabState<TTab extends string>({
     const storedTab = window.localStorage.getItem(storageKey);
 
     if (storedTab && validTabs.includes(storedTab as TTab)) {
-      return storedTab as TTab;
+      return normalizeStoredTab(storedTab as TTab);
     }
 
     return initialValue;
@@ -38,8 +40,8 @@ export function useRememberedPageTabState<TTab extends string>({
       return;
     }
 
-    window.localStorage.setItem(storageKey, activeTab);
-  }, [activeTab, storageKey]);
+    window.localStorage.setItem(storageKey, normalizeStoredTab(activeTab));
+  }, [activeTab, normalizeStoredTab, storageKey]);
 
   return [activeTab, setActiveTab] as const;
 }

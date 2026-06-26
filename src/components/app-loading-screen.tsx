@@ -5,7 +5,7 @@ type AppLoadingScreenProps = {
 };
 
 export function AppLoadingScreen({
-  className = "fixed inset-0 z-50",
+  className = "fixed inset-0 z-[60]",
 }: AppLoadingScreenProps) {
   return (
     <main

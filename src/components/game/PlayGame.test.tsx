@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GameForPlayPage } from "@/lib/db/store/game.store";
 import type { PlayerRankGameDelta } from "@/lib/db/store/player-rank.store";
 import type { UserBase } from "@/lib/db/store/user.store";
+import { PROFILE_COLORS } from "@/components/profile/profile-color-selector";
 import { renderWithProviders } from "../../../tests/helpers/render";
+import type { PlayGameSnapshot } from "./play-game-state";
 import PlayGame from "./PlayGame";
 
 const routerPush = vi.fn();
@@ -16,12 +18,17 @@ const toastError = vi.fn();
 
 const addGamePlayer = vi.fn();
 const addGuestGamePlayer = vi.fn();
+const approveGameJoinRequest = vi.fn();
 const commitGameRound = vi.fn();
 const createRematchGameAndRedirect = vi.fn();
+const declineGameJoinRequest = vi.fn();
 const deleteCreatedGame = vi.fn();
 const getPlayGameSnapshot = vi.fn();
+const pauseGame = vi.fn();
 const reopenCompletedGame = vi.fn();
 const removeGamePlayer = vi.fn();
+const resumeGame = vi.fn();
+const setGameInviteUsersEnabled = vi.fn();
 const setGamePlayerManager = vi.fn();
 const updateRecordedRoundScore = vi.fn();
 const upsertActiveRoundScore = vi.fn();
@@ -45,15 +52,21 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/app/actions/game", () => ({
+  approveGameJoinRequest: (...args: unknown[]) => approveGameJoinRequest(...args),
   addGamePlayer: (...args: unknown[]) => addGamePlayer(...args),
   addGuestGamePlayer: (...args: unknown[]) => addGuestGamePlayer(...args),
   commitGameRound: (...args: unknown[]) => commitGameRound(...args),
   createRematchGameAndRedirect: (...args: unknown[]) =>
     createRematchGameAndRedirect(...args),
+  declineGameJoinRequest: (...args: unknown[]) => declineGameJoinRequest(...args),
   deleteCreatedGame: (...args: unknown[]) => deleteCreatedGame(...args),
   getPlayGameSnapshot: (...args: unknown[]) => getPlayGameSnapshot(...args),
+  pauseGame: (...args: unknown[]) => pauseGame(...args),
   reopenCompletedGame: (...args: unknown[]) => reopenCompletedGame(...args),
   removeGamePlayer: (...args: unknown[]) => removeGamePlayer(...args),
+  resumeGame: (...args: unknown[]) => resumeGame(...args),
+  setGameInviteUsersEnabled: (...args: unknown[]) =>
+    setGameInviteUsersEnabled(...args),
   setGamePlayerManager: (...args: unknown[]) => setGamePlayerManager(...args),
   updateRecordedRoundScore: (...args: unknown[]) =>
     updateRecordedRoundScore(...args),
@@ -116,7 +129,11 @@ function createGameSnapshot(score = 0): GameForPlayPage {
     targetRounds: null,
     scoreThreshold: null,
     scoreThresholdDirection: null,
+    shareToken: "game-share-token",
+    inviteUsersEnabled: true,
     completedRounds: 0,
+    pausedAt: null,
+    pausedNextUserId: null,
     createdAt: "2025-01-01T00:00:00.000Z",
     completedAt: null,
     creator,
@@ -189,6 +206,14 @@ function createCompletedGameSnapshot(): GameForPlayPage {
         score: 18,
       },
     ],
+  };
+}
+
+function createPausedGameSnapshot(input?: { nextUserId?: string | null }): GameForPlayPage {
+  return {
+    ...createGameSnapshot(),
+    pausedAt: "2025-01-02T00:00:00.000Z",
+    pausedNextUserId: input?.nextUserId ?? null,
   };
 }
 
@@ -454,8 +479,20 @@ function createCompletedNoScorePodiumSnapshot(): GameForPlayPage {
 function renderComponent(input?: {
   canManageLiveGame?: boolean;
   currentUserId?: string;
+  gameSharePath?: string | null;
   isCreator?: boolean;
   isManager?: boolean;
+  pendingJoinRequests?: Array<{
+    id: string;
+    gameId: string;
+    requesterUserId: string;
+    status: "pending";
+    requestedAt: string;
+    resolvedAt: string | null;
+    resolvedByUserId: string | null;
+    requester: UserBase;
+    resolvedBy: UserBase | null;
+  }>;
   game?: GameForPlayPage;
   playerRankDeltas?: PlayerRankGameDelta[];
   playerOptions?: UserBase[];
@@ -469,12 +506,41 @@ function renderComponent(input?: {
       canManageLiveGame={input?.canManageLiveGame ?? true}
       currentUserId={input?.currentUserId ?? creator.id}
       game={game}
+      gameSharePath={input?.gameSharePath ?? null}
       isCreator={input?.isCreator ?? true}
       isManager={input?.isManager ?? false}
+      pendingJoinRequests={input?.pendingJoinRequests ?? []}
       playerRankDeltas={input?.playerRankDeltas ?? []}
       playerOptions={input?.playerOptions ?? [creator, opponent]}
     />,
   );
+}
+
+function createPlayGameSnapshot(input?: {
+  canManageLiveGame?: boolean;
+  currentUserId?: string;
+  game?: GameForPlayPage;
+  isCreator?: boolean;
+  isManager?: boolean;
+  playerOptions?: UserBase[];
+  playerRankDeltas?: PlayerRankGameDelta[];
+}): PlayGameSnapshot {
+  const game = input?.game ?? createGameSnapshot();
+  const creator = game.creator;
+  const opponent = game.players[1]?.user;
+
+  return {
+    canManageLiveGame: input?.canManageLiveGame ?? true,
+    currentUserId: input?.currentUserId ?? creator.id,
+    gameSharePath: null,
+    isCreator: input?.isCreator ?? true,
+    isManager: input?.isManager ?? false,
+    pendingJoinRequests: [],
+    playerOptions:
+      input?.playerOptions ?? [creator, ...(opponent ? [opponent] : [])],
+    playerRankDeltas: input?.playerRankDeltas ?? [],
+    game,
+  };
 }
 
 function tapScoreDigits(value: string) {
@@ -510,16 +576,23 @@ describe("PlayGame", () => {
     toastError.mockReset();
     addGamePlayer.mockReset();
     addGuestGamePlayer.mockReset();
+    approveGameJoinRequest.mockReset();
     commitGameRound.mockReset();
     deleteCreatedGame.mockReset();
+    declineGameJoinRequest.mockReset();
     getPlayGameSnapshot.mockReset();
+    pauseGame.mockReset();
     reopenCompletedGame.mockReset();
     removeGamePlayer.mockReset();
+    resumeGame.mockReset();
+    setGameInviteUsersEnabled.mockReset();
     setGamePlayerManager.mockReset();
     updateRecordedRoundScore.mockReset();
     upsertActiveRoundScore.mockReset();
     updateOwnedGuestColor.mockReset();
+    pauseGame.mockResolvedValue(undefined);
     reopenCompletedGame.mockResolvedValue(undefined);
+    resumeGame.mockResolvedValue(undefined);
     vi.useRealTimers();
   });
 
@@ -538,18 +611,11 @@ describe("PlayGame", () => {
       "5",
     );
 
-    getPlayGameSnapshot.mockResolvedValue({
-      canManageLiveGame: true,
-      currentUserId: "user-1",
-      isCreator: true,
-      isManager: false,
-      playerOptions: [
-        createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
-        createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
-      ],
-      playerRankDeltas: [],
-      game: createGameSnapshot(5),
-    });
+    getPlayGameSnapshot.mockResolvedValue(
+      createPlayGameSnapshot({
+        game: createGameSnapshot(5),
+      }),
+    );
     deferred.resolve();
 
     await waitFor(() => {
@@ -621,15 +687,7 @@ describe("PlayGame", () => {
   });
 
   it("does not wait for reconciliation before finishing a successful mutation", async () => {
-    const reconcileDeferred = createDeferred<{
-      canManageLiveGame: boolean;
-      currentUserId: string;
-      isCreator: boolean;
-      isManager: boolean;
-      playerOptions: UserBase[];
-      playerRankDeltas: PlayerRankGameDelta[];
-      game: GameForPlayPage;
-    }>();
+    const reconcileDeferred = createDeferred<PlayGameSnapshot>();
 
     upsertActiveRoundScore.mockResolvedValue(undefined);
     getPlayGameSnapshot.mockReturnValue(reconcileDeferred.promise);
@@ -687,18 +745,13 @@ describe("PlayGame", () => {
   });
 
   it("reconciles on focus without a full page refresh", async () => {
-    getPlayGameSnapshot.mockResolvedValue({
-      canManageLiveGame: false,
-      currentUserId: "user-1",
-      isCreator: false,
-      isManager: false,
-      playerOptions: [
-        createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
-        createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
-      ],
-      playerRankDeltas: [],
-      game: createGameSnapshot(7),
-    });
+    getPlayGameSnapshot.mockResolvedValue(
+      createPlayGameSnapshot({
+        canManageLiveGame: false,
+        game: createGameSnapshot(7),
+        isCreator: false,
+      }),
+    );
 
     renderComponent({
       canManageLiveGame: false,
@@ -723,18 +776,13 @@ describe("PlayGame", () => {
 
   it("polls active games every two seconds", async () => {
     vi.useFakeTimers();
-    getPlayGameSnapshot.mockResolvedValue({
-      canManageLiveGame: false,
-      currentUserId: "user-1",
-      isCreator: false,
-      isManager: false,
-      playerOptions: [
-        createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
-        createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
-      ],
-      playerRankDeltas: [],
-      game: createGameSnapshot(2),
-    });
+    getPlayGameSnapshot.mockResolvedValue(
+      createPlayGameSnapshot({
+        canManageLiveGame: false,
+        game: createGameSnapshot(2),
+        isCreator: false,
+      }),
+    );
 
     renderComponent({
       canManageLiveGame: false,
@@ -755,18 +803,13 @@ describe("PlayGame", () => {
   });
 
   it("shows subtle feedback for remote score updates", async () => {
-    getPlayGameSnapshot.mockResolvedValue({
-      canManageLiveGame: false,
-      currentUserId: "user-1",
-      isCreator: false,
-      isManager: false,
-      playerOptions: [
-        createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
-        createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
-      ],
-      playerRankDeltas: [],
-      game: createGameSnapshot(7),
-    });
+    getPlayGameSnapshot.mockResolvedValue(
+      createPlayGameSnapshot({
+        canManageLiveGame: false,
+        game: createGameSnapshot(7),
+        isCreator: false,
+      }),
+    );
 
     renderComponent({
       canManageLiveGame: false,
@@ -797,18 +840,11 @@ describe("PlayGame", () => {
   it("does not show remote feedback for this device's own score update", async () => {
     const deferred = createDeferred<void>();
     upsertActiveRoundScore.mockReturnValue(deferred.promise);
-    getPlayGameSnapshot.mockResolvedValue({
-      canManageLiveGame: true,
-      currentUserId: "user-1",
-      isCreator: true,
-      isManager: false,
-      playerOptions: [
-        createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
-        createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
-      ],
-      playerRankDeltas: [],
-      game: createGameSnapshot(5),
-    });
+    getPlayGameSnapshot.mockResolvedValue(
+      createPlayGameSnapshot({
+        game: createGameSnapshot(5),
+      }),
+    );
 
     renderComponent();
 
@@ -879,6 +915,104 @@ describe("PlayGame", () => {
     });
   });
 
+  it("shows the play nav as scores, pause, then round", () => {
+    renderComponent({
+      game: createRoundTrackedGameSnapshot(),
+    });
+
+    const roundButton = screen.getByRole("button", { name: "Round" });
+    const playNav = roundButton.closest("div.flex.justify-between.gap-2");
+
+    expect(playNav).toBeTruthy();
+    expect(
+      within(playNav as HTMLElement)
+        .getAllByRole("button")
+        .map((button) => button.textContent?.trim()),
+    ).toEqual(["Scores", "Pause", "Round"]);
+  });
+
+  it("lets managers pause the game with a selected next player", async () => {
+    renderComponent({
+      game: createRoundTrackedGameSnapshot(),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    fireEvent.click(screen.getByRole("button", { name: "Kai" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pause game" }));
+
+    await waitFor(() => {
+      expect(pauseGame).toHaveBeenCalledWith({
+        gameId: "game-1",
+        nextUserId: "user-2",
+      });
+    });
+    expect(screen.getByRole("heading", { name: "Game paused" })).toBeInTheDocument();
+    expect(screen.getByText("Kai's turn is next.")).toBeInTheDocument();
+  });
+
+  it("allows pausing without selecting a player and resuming later", async () => {
+    renderComponent({
+      game: createRoundTrackedGameSnapshot(),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pause game" }));
+
+    await waitFor(() => {
+      expect(pauseGame).toHaveBeenCalledWith({
+        gameId: "game-1",
+        nextUserId: null,
+      });
+    });
+    expect(screen.getByText("No next player selected yet.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue playing" }));
+
+    await waitFor(() => {
+      expect(resumeGame).toHaveBeenCalledWith({
+        gameId: "game-1",
+      });
+    });
+  });
+
+  it("shows a blocking paused modal for non-managers", () => {
+    renderComponent({
+      canManageLiveGame: false,
+      currentUserId: "user-2",
+      game: createPausedGameSnapshot({ nextUserId: "user-1" }),
+      isCreator: false,
+      isManager: false,
+    });
+
+    expect(screen.getByRole("heading", { name: "Game paused" })).toBeInTheDocument();
+    expect(screen.getByText("Mia's turn is next.")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Continue playing" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("blocks score entry while the game is paused", () => {
+    const pausedRoundGame = {
+      ...createRoundTrackedGameSnapshot(),
+      pausedAt: "2025-01-02T00:00:00.000Z",
+      pausedNextUserId: "user-2",
+    } satisfies GameForPlayPage;
+
+    renderComponent({
+      game: pausedRoundGame,
+    });
+
+    fireEvent.click(screen.getByTestId("player-score-button-user-2"));
+
+    expect(screen.queryByTestId("score-drawer-entry")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Round", hidden: true }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Scores", hidden: true }),
+    ).toBeDisabled();
+  });
+
   it("shows a finalized leaderboard instead of score actions when the game is complete", () => {
     renderComponent({
       game: createCompletedGameSnapshot(),
@@ -890,7 +1024,7 @@ describe("PlayGame", () => {
     expect(screen.getByRole("button", { name: "Rematch" })).toBeInTheDocument();
     expect(screen.getByText("1st place")).toBeInTheDocument();
     expect(screen.getByText("2nd place")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Score" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Scores" })).toBeInTheDocument();
     expect(
       screen.queryByTestId("player-score-button-user-1"),
     ).not.toBeInTheDocument();
@@ -955,7 +1089,7 @@ describe("PlayGame", () => {
       ],
     });
 
-    expect(screen.getByText("+50 Rank")).toBeInTheDocument();
+    expect(screen.getByText("+50")).toBeInTheDocument();
     expect(screen.queryByText("No Rank change")).not.toBeInTheDocument();
   });
 
@@ -1101,7 +1235,7 @@ describe("PlayGame", () => {
       isCreator: false,
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Score" }));
+    fireEvent.click(screen.getByRole("button", { name: "Scores" }));
 
     expect(
       screen.getByRole("heading", { name: "Score breakdown" }),
@@ -1113,7 +1247,7 @@ describe("PlayGame", () => {
       game: createRoundTrackedGameSnapshot(),
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Score" }));
+    fireEvent.click(screen.getByRole("button", { name: "Scores" }));
 
     expect(
       screen.getByText(
@@ -1127,7 +1261,7 @@ describe("PlayGame", () => {
       game: createRoundTrackedGameWithActiveScoresSnapshot(),
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Score" }));
+    fireEvent.click(screen.getByRole("button", { name: "Scores" }));
 
     expect(screen.getByText("R2")).toBeInTheDocument();
     expect(screen.getAllByText("+2")).toHaveLength(2);
@@ -1186,7 +1320,7 @@ describe("PlayGame", () => {
 
     expect(screen.getByText("Round 2")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Round" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Score" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Scores" })).toBeInTheDocument();
   });
 
   it("hides score controls entirely for no-score games", () => {
@@ -1196,7 +1330,6 @@ describe("PlayGame", () => {
       isCreator: false,
     });
 
-    expect(screen.getByText("No score")).toBeInTheDocument();
     expect(
       screen.queryByTestId("player-score-display-user-1"),
     ).not.toBeInTheDocument();
@@ -1204,8 +1337,24 @@ describe("PlayGame", () => {
       screen.queryByTestId("player-score-display-user-2"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Score" }),
+      screen.queryByRole("button", { name: "Scores" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows game info at the top of the settings drawer for managers", () => {
+    renderComponent({
+      canManageLiveGame: true,
+      currentUserId: "user-2",
+      game: createManagedGameSnapshot(),
+      isCreator: false,
+      isManager: true,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+
+    expect(screen.getByText("Lowest score wins")).toBeInTheDocument();
+    expect(screen.getByText("Free play without rounds")).toBeInTheDocument();
+    expect(screen.getByText("Created by Mia")).toBeInTheDocument();
   });
 
   it("lets the creator record winner-only no-score results", async () => {
@@ -1292,18 +1441,11 @@ describe("PlayGame", () => {
 
   it("lets the creator toggle manager access from manage users", async () => {
     setGamePlayerManager.mockResolvedValue(undefined);
-    getPlayGameSnapshot.mockResolvedValue({
-      canManageLiveGame: true,
-      currentUserId: "user-1",
-      isCreator: true,
-      isManager: false,
-      playerOptions: [
-        createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
-        createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
-      ],
-      playerRankDeltas: [],
-      game: createManagedGameSnapshot(),
-    });
+    getPlayGameSnapshot.mockResolvedValue(
+      createPlayGameSnapshot({
+        game: createManagedGameSnapshot(),
+      }),
+    );
 
     renderComponent();
 
@@ -1321,18 +1463,11 @@ describe("PlayGame", () => {
   });
 
   it("shows remote feedback for manager changes inside manage users", async () => {
-    getPlayGameSnapshot.mockResolvedValue({
-      canManageLiveGame: true,
-      currentUserId: "user-1",
-      isCreator: true,
-      isManager: false,
-      playerOptions: [
-        createUser({ id: "user-1", firstName: "Mia", color: "#aaaaaa" }),
-        createUser({ id: "user-2", firstName: "Kai", color: "#bbbbbb" }),
-      ],
-      playerRankDeltas: [],
-      game: createManagedGameSnapshot(),
-    });
+    getPlayGameSnapshot.mockResolvedValue(
+      createPlayGameSnapshot({
+        game: createManagedGameSnapshot(),
+      }),
+    );
 
     renderComponent();
 
@@ -1439,6 +1574,215 @@ describe("PlayGame", () => {
     expect(screen.getByRole("button", { name: /Average score/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Highest score/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument();
+  });
+
+  it("prompts for a guest color before adding them to a new game", async () => {
+    addGuestGamePlayer.mockResolvedValue(undefined);
+
+    renderComponent();
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
+    fireEvent.click(screen.getByRole("button", { name: "Player" }));
+    fireEvent.change(screen.getByPlaceholderText("Search friends or guests"), {
+      target: { value: "Nova Guest" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add Nova Guest as guest" }));
+
+    expect(screen.getByText("Pick a badge color before adding this guest")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add guest" })).toBeInTheDocument();
+    expect(addGuestGamePlayer).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: `Choose color ${PROFILE_COLORS[2]}`,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add guest" }));
+
+    await waitFor(() => {
+      expect(addGuestGamePlayer).toHaveBeenCalledWith({
+        color: PROFILE_COLORS[2],
+        gameId: "game-1",
+        firstName: "Nova",
+        lastName: "Guest",
+      });
+    });
+  });
+
+  it("sends the chosen guest color with midgame quick-start adds", async () => {
+    addGuestGamePlayer.mockResolvedValue(undefined);
+
+    renderComponent({
+      game: createRoundTrackedGameWithActiveScoresSnapshot(),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
+    fireEvent.click(screen.getByRole("button", { name: "Player" }));
+    fireEvent.change(screen.getByPlaceholderText("Search friends or guests"), {
+      target: { value: "Nova Guest" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add Nova Guest as guest" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: `Choose color ${PROFILE_COLORS[4]}`,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Average score/i }));
+
+    await waitFor(() => {
+      expect(addGuestGamePlayer).toHaveBeenCalledWith({
+        color: PROFILE_COLORS[4],
+        gameId: "game-1",
+        firstName: "Nova",
+        lastName: "Guest",
+        startingScoreMode: "average",
+      });
+    });
+  });
+
+  it("shows the game share drawer and toggles link joining", async () => {
+    setGameInviteUsersEnabled.mockResolvedValue(undefined);
+    getPlayGameSnapshot.mockResolvedValue(
+      createPlayGameSnapshot({
+        game: {
+          ...createGameSnapshot(),
+          inviteUsersEnabled: false,
+        },
+      }),
+    );
+
+    renderComponent({
+      game: {
+        ...createGameSnapshot(),
+        inviteUsersEnabled: false,
+      },
+      gameSharePath: "/invite/game/game-share-token",
+      pendingJoinRequests: [
+        {
+          id: "request-1",
+          gameId: "game-1",
+          requesterUserId: "user-3",
+          status: "pending",
+          requestedAt: "2025-01-01T01:00:00.000Z",
+          resolvedAt: null,
+          resolvedByUserId: null,
+          requester: createUser({ id: "user-3", firstName: "Noa" }),
+          resolvedBy: null,
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Share invite link" }));
+
+    expect(screen.getByText("Share this game")).toBeInTheDocument();
+    expect(screen.queryByText("Noa")).not.toBeInTheDocument();
+    expect(screen.getByTestId("share-qr-blurred")).toBeInTheDocument();
+    expect(screen.getByTestId("share-qr-overlay")).toBeInTheDocument();
+    expect(
+      screen.getByText("Enable join link to reveal QR code"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Share game" }),
+    ).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("checkbox"));
+
+    await waitFor(() => {
+      expect(setGameInviteUsersEnabled).toHaveBeenCalledWith({
+        gameId: "game-1",
+        enabled: true,
+      });
+    });
+  });
+
+  it("opens the share drawer from manage users", () => {
+    renderComponent({
+      gameSharePath: "/invite/game/game-share-token",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
+    fireEvent.click(screen.getByRole("button", { name: "Share invite link" }));
+
+    expect(
+      screen.getByRole("heading", { name: "Share this game" }),
+    ).toBeInTheDocument();
+  });
+
+  it("uses the starting-score chooser when approving a midgame join request", async () => {
+    approveGameJoinRequest.mockResolvedValue(undefined);
+    getPlayGameSnapshot.mockResolvedValue(createPlayGameSnapshot());
+
+    renderComponent({
+      gameSharePath: "/invite/game/game-share-token",
+      game: createRoundTrackedGameWithActiveScoresSnapshot(),
+      pendingJoinRequests: [
+        {
+          id: "request-1",
+          gameId: "game-1",
+          requesterUserId: "user-3",
+          status: "pending",
+          requestedAt: "2025-01-01T01:00:00.000Z",
+          resolvedAt: null,
+          resolvedByUserId: null,
+          requester: createUser({ id: "user-3", firstName: "Noa" }),
+          resolvedBy: null,
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
+    fireEvent.click(screen.getByRole("button", { name: "Approve Noa" }));
+
+    expect(screen.getByText("Selected user")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Average score/i }));
+
+    await waitFor(() => {
+      expect(approveGameJoinRequest).toHaveBeenCalledWith({
+        requestId: "request-1",
+        startingScoreMode: "average",
+        startingScoreValue: undefined,
+      });
+    });
+  });
+
+  it("shows pending join requests at the bottom of manage players and allows declining", async () => {
+    declineGameJoinRequest.mockResolvedValue(undefined);
+    getPlayGameSnapshot.mockResolvedValue(createPlayGameSnapshot());
+
+    renderComponent({
+      pendingJoinRequests: [
+        {
+          id: "request-1",
+          gameId: "game-1",
+          requesterUserId: "user-3",
+          status: "pending",
+          requestedAt: "2025-01-01T01:00:00.000Z",
+          resolvedAt: null,
+          resolvedByUserId: null,
+          requester: createUser({ id: "user-3", firstName: "Noa" }),
+          resolvedBy: null,
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
+
+    expect(screen.getByText("Noa")).toBeInTheDocument();
+    expect(screen.getByText("Join request")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Decline Noa" }));
+
+    await waitFor(() => {
+      expect(declineGameJoinRequest).toHaveBeenCalledWith({
+        requestId: "request-1",
+      });
+    });
   });
 
   it("removes a player optimistically after confirmation", async () => {
@@ -1655,7 +1999,7 @@ describe("PlayGame", () => {
     fireEvent.click(screen.getByText("June"));
     fireEvent.click(screen.getByRole("button", { name: /Average score/i }));
     fireEvent.click(screen.getByRole("button", { name: "Back to game" }));
-    fireEvent.click(screen.getByRole("button", { name: "Score" }));
+    fireEvent.click(screen.getByRole("button", { name: "Scores" }));
 
     expect(screen.getByText("June")).toBeInTheDocument();
     expect(screen.getByText("+10")).toBeInTheDocument();
@@ -1668,7 +2012,7 @@ describe("PlayGame", () => {
       game: createRoundTrackedGameWithActiveScoresSnapshot(),
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Score" }));
+    fireEvent.click(screen.getByRole("button", { name: "Scores" }));
     fireEvent.click(screen.getByRole("button", { name: "+2" }));
     fireEvent.click(screen.getByRole("button", { name: "Delete digit" }));
     tapScoreDigits("5");

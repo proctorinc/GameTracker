@@ -42,8 +42,10 @@ function createSnapshot(): PlayGameSnapshot {
   return {
     canManageLiveGame: true,
     currentUserId: creator.id,
+    gameSharePath: null,
     isCreator: true,
     isManager: false,
+    pendingJoinRequests: [],
     playerOptions: [creator, opponent],
     game: {
       id: "game-1",
@@ -57,6 +59,8 @@ function createSnapshot(): PlayGameSnapshot {
       scoreThreshold: null,
       scoreThresholdDirection: null,
       completedRounds: 0,
+      pausedAt: null,
+      pausedNextUserId: null,
       createdAt: "2025-01-01T00:00:00.000Z",
       completedAt: null,
       creator,
@@ -195,6 +199,24 @@ describe("play-game-state", () => {
     expect(nextSnapshot.game.completedAt).toBeNull();
     expect(nextSnapshot.game.winners).toEqual([]);
     expect(nextSnapshot.game.completedRounds).toBe(1);
+  });
+
+  it("applies optimistic pause and resume state", () => {
+    const pausedSnapshot = applyPlayGameMutation(createSnapshot(), {
+      type: "pause-game",
+      pausedAt: "2025-01-01T00:10:00.000Z",
+      pausedNextUserId: "user-2",
+    });
+
+    expect(pausedSnapshot.game.pausedAt).toBe("2025-01-01T00:10:00.000Z");
+    expect(pausedSnapshot.game.pausedNextUserId).toBe("user-2");
+
+    const resumedSnapshot = applyPlayGameMutation(pausedSnapshot, {
+      type: "resume-game",
+    });
+
+    expect(resumedSnapshot.game.pausedAt).toBeNull();
+    expect(resumedSnapshot.game.pausedNextUserId).toBeNull();
   });
 
   it("reapplies pending optimistic mutations over a newer base snapshot", () => {

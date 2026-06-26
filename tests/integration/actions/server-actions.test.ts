@@ -119,6 +119,277 @@ describe("server action integration", () => {
     }, "friend-invite-link-action");
   });
 
+  it("creates a stable share token for each game", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      mockAuthenticatedUser(creator.id);
+
+      const { createConfiguredGame } = await import("../../../src/app/actions/game");
+      const { getGameByShareToken, getOrCreateGameShareToken } = await import(
+        "../../../src/lib/db/store/game.store"
+      );
+
+      const game = await createConfiguredGame({
+        gameTitleName: "Shared Game Fixture",
+        scoringMode: "lowest_wins",
+        endingMode: "none",
+      });
+
+      const firstToken = await getOrCreateGameShareToken(game.id);
+      const secondToken = await getOrCreateGameShareToken(game.id);
+      const sharedGame = await getGameByShareToken(firstToken);
+
+      expect(firstToken).toBe(secondToken);
+      expect(sharedGame?.id).toBe(game.id);
+    }, "game-share-token");
+  });
+
+  it("auto-joins a shared game before it starts and makes the users friends", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const joiner = await createUserFixture();
+      mockAuthenticatedUser(creator.id);
+
+      const { createConfiguredGame, getGame } = await import(
+        "../../../src/app/actions/game"
+      );
+      const { getOrCreateGameShareToken } = await import(
+        "../../../src/lib/db/store/game.store"
+      );
+
+      const game = await createConfiguredGame({
+        gameTitleName: "Auto Join Fixture",
+        scoringMode: "lowest_wins",
+        endingMode: "none",
+      });
+      const shareToken = await getOrCreateGameShareToken(game.id);
+
+      vi.resetModules();
+      mockAuthenticatedUser(joiner.id);
+
+      const { enterSharedGame } = await import("../../../src/app/actions/game");
+      const { getFriendshipByUsers } = await import(
+        "../../../src/lib/db/store/friendship.store"
+      );
+
+      const result = await enterSharedGame({ shareToken });
+      const persistedGame = await getGame(game.id);
+      const friendship = await getFriendshipByUsers(creator.id, joiner.id);
+
+      expect(result).toEqual({
+        status: "joined",
+        gameId: game.id,
+      });
+      expect(persistedGame?.players.map((player) => player.userId)).toEqual(
+        expect.arrayContaining([creator.id, joiner.id]),
+      );
+      expect(friendship).toBeTruthy();
+    }, "game-share-auto-join");
+  });
+
+  it("turns off direct link joins after scoring starts and creates a join request instead", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const requester = await createUserFixture();
+      mockAuthenticatedUser(creator.id);
+
+      const { createConfiguredGame, getGame, upsertActiveRoundScore } = await import(
+        "../../../src/app/actions/game"
+      );
+      const { getOrCreateGameShareToken } = await import(
+        "../../../src/lib/db/store/game.store"
+      );
+
+      const game = await createConfiguredGame({
+        gameTitleName: "Join Request Fixture",
+        scoringMode: "lowest_wins",
+        endingMode: "none",
+      });
+      const shareToken = await getOrCreateGameShareToken(game.id);
+
+      await upsertActiveRoundScore({
+        gameId: game.id,
+        userId: creator.id,
+        scoreDelta: 8,
+      });
+
+      expect((await getGame(game.id))?.inviteUsersEnabled).toBe(false);
+
+      vi.resetModules();
+      mockAuthenticatedUser(requester.id);
+
+      const { enterSharedGame } = await import("../../../src/app/actions/game");
+      const { getPendingJoinRequest } = await import(
+        "../../../src/lib/db/store/game-join-request.store"
+      );
+
+      const result = await enterSharedGame({ shareToken });
+      const request = await getPendingJoinRequest(game.id, requester.id);
+
+      expect(result.status).toBe("requested");
+      expect(request).toBeTruthy();
+    }, "game-share-request");
+  });
+
+  it("approves a mid-game join request using the selected starting score mode", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const opponent = await createUserFixture();
+      const requester = await createUserFixture();
+      mockAuthenticatedUser(creator.id);
+
+      const {
+        addGamePlayer,
+        approveGameJoinRequest,
+        commitGameRound,
+        createConfiguredGame,
+        getGame,
+        upsertActiveRoundScore,
+      } = await import("../../../src/app/actions/game");
+      const { getOrCreateGameShareToken } = await import(
+        "../../../src/lib/db/store/game.store"
+      );
+
+      const game = await createConfiguredGame({
+        gameTitleName: "Approve Join Fixture",
+        scoringMode: "lowest_wins",
+        endingMode: "round_count",
+        targetRounds: 5,
+      });
+
+      await addGamePlayer({
+        gameId: game.id,
+        userId: opponent.id,
+      });
+      await upsertActiveRoundScore({
+        gameId: game.id,
+        userId: creator.id,
+        scoreDelta: 12,
+      });
+      await upsertActiveRoundScore({
+        gameId: game.id,
+        userId: opponent.id,
+        scoreDelta: 8,
+      });
+      await commitGameRound({
+        gameId: game.id,
+      });
+
+      const shareToken = await getOrCreateGameShareToken(game.id);
+
+      vi.resetModules();
+      mockAuthenticatedUser(requester.id);
+      const { enterSharedGame } = await import("../../../src/app/actions/game");
+      const requestResult = await enterSharedGame({ shareToken });
+
+      expect(requestResult.status).toBe("requested");
+
+      vi.resetModules();
+      mockAuthenticatedUser(creator.id);
+
+      const { getPendingJoinRequest } = await import(
+        "../../../src/lib/db/store/game-join-request.store"
+      );
+      const request = await getPendingJoinRequest(game.id, requester.id);
+
+      expect(request).toBeTruthy();
+
+      await approveGameJoinRequest({
+        requestId: request!.id,
+        startingScoreMode: "average",
+      });
+
+      const persistedGame = await getGame(game.id);
+      const addedPlayer = persistedGame?.players.find(
+        (player) => player.userId === requester.id,
+      );
+
+      expect(addedPlayer?.score).toBe(10);
+    }, "game-share-approve");
+  });
+
+  it("makes registered participants friends when a game completes without friending guests", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const opponent = await createUserFixture();
+      const third = await createUserFixture();
+      mockAuthenticatedUser(creator.id);
+
+      const {
+        addGamePlayer,
+        addGuestGamePlayer,
+        commitGameRound,
+        createConfiguredGame,
+        upsertActiveRoundScore,
+      } = await import("../../../src/app/actions/game");
+      const { listFriendships } = await import(
+        "../../../src/lib/db/store/friendship.store"
+      );
+
+      const game = await createConfiguredGame({
+        gameTitleName: "Completion Friendship Fixture",
+        scoringMode: "lowest_wins",
+        endingMode: "round_count",
+        targetRounds: 1,
+      });
+
+      await addGamePlayer({ gameId: game.id, userId: opponent.id });
+      await addGamePlayer({ gameId: game.id, userId: third.id });
+      const guestPlayer = await addGuestGamePlayer({
+        gameId: game.id,
+        firstName: "Guest",
+      });
+      await upsertActiveRoundScore({
+        gameId: game.id,
+        userId: creator.id,
+        scoreDelta: 10,
+      });
+      await upsertActiveRoundScore({
+        gameId: game.id,
+        userId: opponent.id,
+        scoreDelta: 12,
+      });
+      await upsertActiveRoundScore({
+        gameId: game.id,
+        userId: third.id,
+        scoreDelta: 15,
+      });
+      await upsertActiveRoundScore({
+        gameId: game.id,
+        userId: guestPlayer.userId,
+        scoreDelta: 20,
+      });
+      await commitGameRound({
+        gameId: game.id,
+        completeGame: true,
+      });
+
+      const friendships = await listFriendships();
+      const friendshipPairs = friendships.map((friendship) =>
+        [friendship.user1Id, friendship.user2Id].sort().join(":"),
+      );
+
+      expect(friendships).toHaveLength(3);
+      expect(friendships.every((friendship) => friendship.inviterId === creator.id)).toBe(
+        true,
+      );
+      expect(friendshipPairs).toEqual(
+        expect.arrayContaining([
+          [creator.id, opponent.id].sort().join(":"),
+          [creator.id, third.id].sort().join(":"),
+          [opponent.id, third.id].sort().join(":"),
+        ]),
+      );
+      expect(
+        friendships.some(
+          (friendship) =>
+            friendship.user1Id === guestPlayer.userId ||
+            friendship.user2Id === guestPlayer.userId,
+        ),
+      ).toBe(false);
+    }, "game-complete-friendships");
+  });
+
   it("creates a rematch with the same players and settings but reset progress", async () => {
     await withTestDatabase(async () => {
       const creator = await createUserFixture();
@@ -619,6 +890,86 @@ describe("server action integration", () => {
         }),
       ).rejects.toThrow("Only the game creator or a manager can do that");
     }, "game-manager-score-block-action");
+  });
+
+  it("persists paused turn state and clears it on resume", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const opponent = await createUserFixture();
+
+      mockAuthenticatedUser(creator.id);
+      const { addGamePlayer, createConfiguredGame, getGame, pauseGame, resumeGame } =
+        await import("../../../src/app/actions/game");
+
+      const game = await createConfiguredGame({
+        gameTitleName: "Pause Fixture",
+        scoringMode: "lowest_wins",
+        endingMode: "none",
+      });
+      await addGamePlayer({
+        gameId: game.id,
+        userId: opponent.id,
+      });
+
+      await pauseGame({
+        gameId: game.id,
+        nextUserId: opponent.id,
+      });
+
+      const pausedGame = await getGame(game.id);
+      expect(pausedGame?.pausedAt).toBeTruthy();
+      expect(pausedGame?.pausedNextUserId).toBe(opponent.id);
+
+      await resumeGame({
+        gameId: game.id,
+      });
+
+      const resumedGame = await getGame(game.id);
+      expect(resumedGame?.pausedAt).toBeNull();
+      expect(resumedGame?.pausedNextUserId).toBeNull();
+    }, "game-pause-resume-action");
+  });
+
+  it("validates paused next turn permissions and membership", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const opponent = await createUserFixture();
+      const outsider = await createUserFixture();
+
+      mockAuthenticatedUser(creator.id);
+      const { addGamePlayer, createConfiguredGame, pauseGame } = await import(
+        "../../../src/app/actions/game"
+      );
+
+      const game = await createConfiguredGame({
+        gameTitleName: "Pause Validation Fixture",
+        scoringMode: "lowest_wins",
+        endingMode: "none",
+      });
+      await addGamePlayer({
+        gameId: game.id,
+        userId: opponent.id,
+      });
+
+      await expect(
+        pauseGame({
+          gameId: game.id,
+          nextUserId: outsider.id,
+        }),
+      ).rejects.toThrow("Choose a player in this game");
+
+      vi.resetModules();
+      mockAuthenticatedUser(opponent.id);
+
+      const { pauseGame: pauseAsPlayer } = await import("../../../src/app/actions/game");
+
+      await expect(
+        pauseAsPlayer({
+          gameId: game.id,
+          nextUserId: creator.id,
+        }),
+      ).rejects.toThrow("Only the game creator or a manager can do that");
+    }, "game-pause-validation-action");
   });
 
   it("lets managers run live play actions", async () => {

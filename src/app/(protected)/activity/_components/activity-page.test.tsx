@@ -186,7 +186,6 @@ describe("ActivityPageView", () => {
             friendPosition: 1,
             playerRankTotal: "220",
             playerRankTotalMinor: 22_000,
-            globalPosition: 4,
             playerRankWindowLabel: "6-month rolling rank",
             playerRankGamesCount: 5,
             topThreeFinishes: 3,
@@ -209,7 +208,6 @@ describe("ActivityPageView", () => {
             friendPosition: 2,
             playerRankTotal: "140",
             playerRankTotalMinor: 14_000,
-            globalPosition: 7,
             playerRankWindowLabel: "6-month rolling rank",
             playerRankGamesCount: 2,
             topThreeFinishes: 1,
@@ -232,7 +230,6 @@ describe("ActivityPageView", () => {
             friendPosition: 3,
             playerRankTotal: "120",
             playerRankTotalMinor: 12_000,
-            globalPosition: 9,
             playerRankWindowLabel: "6-month rolling rank",
             playerRankGamesCount: 3,
             topThreeFinishes: 1,
@@ -255,7 +252,6 @@ describe("ActivityPageView", () => {
             friendPosition: 4,
             playerRankTotal: "90",
             playerRankTotalMinor: 9_000,
-            globalPosition: 12,
             playerRankWindowLabel: "6-month rolling rank",
             playerRankGamesCount: 1,
             topThreeFinishes: 0,
@@ -278,7 +274,6 @@ describe("ActivityPageView", () => {
             friendPosition: 5,
             playerRankTotal: "0",
             playerRankTotalMinor: 0,
-            globalPosition: null,
             playerRankWindowLabel: null,
             playerRankGamesCount: 0,
             topThreeFinishes: 0,
@@ -300,8 +295,8 @@ describe("ActivityPageView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /leaderboard/i }));
 
-    expect(screen.getByRole("heading", { name: "Player Rank" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /your rank 180 #3 compare mv/i })).toHaveAttribute(
+    expect(screen.getByRole("heading", { name: "Leaderboard" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /your rank 180 sl compare mv/i })).toHaveAttribute(
       "href",
       "/player-rank",
     );
@@ -334,6 +329,20 @@ describe("ActivityPageView", () => {
     expect(within(podium).getAllByText("Amy A.").length).toBeGreaterThan(0);
   });
 
+  it("renders the shared rank delta pill in the activity feed", () => {
+    renderWithProviders(
+      <ActivityPageView
+        initialTab="activity"
+        data={createActivityPageData([])}
+      />,
+    );
+
+    const chip = screen.getByText("+40").parentElement;
+
+    expect(chip).toHaveTextContent("+40");
+    expect(chip?.querySelector('img[alt="SL"]')).not.toBeNull();
+  });
+
   it("mutes the podium accent when only one leaderboard user exists", () => {
     renderWithProviders(
       <ActivityPageView
@@ -350,7 +359,6 @@ describe("ActivityPageView", () => {
             friendPosition: 1,
             playerRankTotal: "220",
             playerRankTotalMinor: 22_000,
-            globalPosition: 4,
             playerRankWindowLabel: "6-month rolling rank",
             playerRankGamesCount: 5,
             topThreeFinishes: 3,
@@ -390,7 +398,6 @@ describe("ActivityPageView", () => {
             friendPosition: 1,
             playerRankTotal: "220",
             playerRankTotalMinor: 22_000,
-            globalPosition: 4,
             playerRankWindowLabel: "6-month rolling rank",
             playerRankGamesCount: 5,
             topThreeFinishes: 3,
@@ -413,7 +420,6 @@ describe("ActivityPageView", () => {
             friendPosition: 2,
             playerRankTotal: "140",
             playerRankTotalMinor: 14_000,
-            globalPosition: 7,
             playerRankWindowLabel: "6-month rolling rank",
             playerRankGamesCount: 2,
             topThreeFinishes: 1,
@@ -439,27 +445,17 @@ describe("ActivityPageView", () => {
     ).toEqual(["1st place Goldie F.", "2nd place Silver S."]);
   });
 
-  it("loads activity history in 7-day chunks until more items are requested", () => {
+  it("shows at most 20 activity items", () => {
     const data = createActivityPageData([]);
-    data.friendActivity = Array.from({ length: 10 }, (_, index) =>
+    data.friendActivity = Array.from({ length: 25 }, (_, index) =>
       createFriendActivityGame(index),
     );
 
     renderWithProviders(<ActivityPageView data={data} initialTab="activity" />);
 
     expect(screen.getByText("Game 0")).toBeInTheDocument();
-    expect(screen.getByText("Game 6")).toBeInTheDocument();
-    expect(screen.queryByText("Game 7")).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", {
-        name: /show more/i,
-      }),
-    ).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /show more/i }));
-
-    expect(screen.getByText("Game 7")).toBeInTheDocument();
-    expect(screen.getByText("Game 9")).toBeInTheDocument();
+    expect(screen.getByText("Game 19")).toBeInTheDocument();
+    expect(screen.queryByText("Game 20")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", {
         name: /show more/i,

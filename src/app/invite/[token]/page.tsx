@@ -267,11 +267,29 @@ export default async function InvitePage({
                 This invitation is {invitation.status}.
               </p>
             ) : !currentUser ? (
-              <Button render={<Link href={`/login?from=${encodeURIComponent(`/invite/${token}`)}`} />}>
-                {invitation.kind === "claim_guest"
-                  ? "Sign in to claim"
-                  : "Sign in to connect"}
-              </Button>
+              <>
+                <Button
+                  render={
+                    <Link href={`/login?from=${encodeURIComponent(`/invite/${token}`)}`} />
+                  }
+                >
+                  {invitation.kind === "claim_guest"
+                    ? "Sign in to claim"
+                    : "Sign in to connect"}
+                </Button>
+                {invitation.kind === "claim_guest" ? (
+                  <Button
+                    variant="outline"
+                    render={
+                      <Link
+                        href={`/register?from=${encodeURIComponent(`/invite/${token}`)}`}
+                      />
+                    }
+                  >
+                    Create account to claim
+                  </Button>
+                ) : null}
+              </>
             ) : (
               <p className="text-sm text-muted-foreground">
                 Connecting your account...

@@ -658,7 +658,7 @@ function summarizeOverallComparisonStats(input: {
       bestRankGainMinor === null ? null : createRankValue(bestRankGainMinor),
     averageRankGain:
       completedGamesCount > 0
-        ? createRankValue(Math.round(rankGainAllTimeMinor / completedGamesCount))
+        ? createRankValue(Math.floor(rankGainAllTimeMinor / completedGamesCount))
         : null,
     currentGlobalRankTotal: input.currentGlobalRankTotal,
     currentGlobalRankPosition: input.currentGlobalRankPosition,
@@ -677,8 +677,7 @@ function createRankValue(minor: number): ProfileStatsRankValue {
 }
 
 function formatSignedRankValue(minor: number) {
-  const absolute = Math.abs(minor);
-  const whole = (absolute / 100).toFixed(2).replace(/\.?0+$/, "");
+  const whole = `${Math.floor(Math.abs(minor) / 100)}`;
   if (minor > 0) {
     return `+${whole}`;
   }

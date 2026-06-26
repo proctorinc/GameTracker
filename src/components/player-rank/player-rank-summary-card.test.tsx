@@ -27,4 +27,37 @@ describe("PlayerRankSummaryCard", () => {
     expect(screen.getByText("Highlighted Player")).toBeInTheDocument();
     expect(screen.getByText("#2")).toBeInTheDocument();
   });
+
+  it("floors player rank totals instead of rounding them", () => {
+    renderWithProviders(
+      <PlayerRankSummaryCard
+        rankTotal="220.9"
+        rankPosition={1}
+        rankGamesCount={3}
+        topThreeFinishes={2}
+        windowLabel="30-day rank history"
+      />,
+    );
+
+    expect(screen.getByText("220")).toBeInTheDocument();
+    expect(screen.queryByText("221")).not.toBeInTheDocument();
+  });
+
+  it("can hide the ranking column without rendering placeholder dashes", () => {
+    renderWithProviders(
+      <PlayerRankSummaryCard
+        rankTotal="220"
+        rankPosition={null}
+        showRankPosition={false}
+        rankGamesCount={3}
+        topThreeFinishes={2}
+        windowLabel="30-day rank history"
+      />,
+    );
+
+    const summaryToggle = screen.getByRole("button", { expanded: false });
+
+    expect(screen.queryByText("Ranking")).not.toBeInTheDocument();
+    expect(summaryToggle).not.toHaveTextContent("--");
+  });
 });

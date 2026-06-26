@@ -26,6 +26,13 @@ function orderUserIds(userAId: string, userBId: string) {
   return userAId < userBId ? [userAId, userBId] : [userBId, userAId];
 }
 
+export function getCanonicalFriendshipUserIds(
+  userAId: string,
+  userBId: string,
+) {
+  return orderUserIds(userAId, userBId);
+}
+
 export async function createFriendship(
   input: FriendshipInsert,
 ): Promise<FriendshipBase> {
@@ -124,4 +131,26 @@ export async function deleteFriendship(
     .returning();
 
   return friendship ?? null;
+}
+
+export async function ensureFriendshipExists(input: {
+  userAId: string;
+  userBId: string;
+  inviterId: string;
+}) {
+  if (input.userAId === input.userBId) {
+    return null;
+  }
+
+  const existing = await getFriendshipByUsers(input.userAId, input.userBId);
+
+  if (existing) {
+    return existing;
+  }
+
+  return createFriendship({
+    user1Id: input.userAId,
+    user2Id: input.userBId,
+    inviterId: input.inviterId,
+  });
 }

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { and, asc, eq, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import {
   db,
@@ -276,6 +277,10 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function createShareToken() {
+  return randomBytes(24).toString("base64url");
+}
+
 function resolveStartingScore(input: {
   mode: GamePlayerStartingScoreMode;
   existingScores: number[];
@@ -502,7 +507,7 @@ function buildTitleStatsSummary(input: {
       bestRankGainMinor === null ? null : createRankValue(bestRankGainMinor),
     averageRankGain:
       completedGames.length > 0
-        ? createRankValue(Math.round(rankGainAllTimeMinor / completedGames.length))
+        ? createRankValue(Math.floor(rankGainAllTimeMinor / completedGames.length))
         : null,
     currentGlobalRankTotal: input.currentGlobalRankTotal,
     currentGlobalRankPosition: input.currentGlobalRankPosition,
@@ -596,11 +601,9 @@ export async function getGameById(id: string): Promise<GameWithPlayers | null> {
   return game ?? null;
 }
 
-export async function getGameForPlayPage(
-  id: string,
-): Promise<GameForPlayPage | null> {
+async function getGameForPlayPageWhere(where: ReturnType<typeof eq>) {
   const game = await db.query.games.findFirst({
-    where: eq(games.id, id),
+    where,
     with: {
       creator: true,
       gameTitle: true,
@@ -628,6 +631,77 @@ export async function getGameForPlayPage(
   });
 
   return game ?? null;
+}
+
+export async function getGameForPlayPage(
+  id: string,
+): Promise<GameForPlayPage | null> {
+  return getGameForPlayPageWhere(eq(games.id, id));
+}
+
+export async function getGameByShareToken(
+  shareToken: string,
+): Promise<GameForPlayPage | null> {
+  return getGameForPlayPageWhere(eq(games.shareToken, shareToken));
+}
+
+export async function getOrCreateGameShareToken(gameId: string): Promise<string> {
+  const existingGame = await db.query.games.findFirst({
+    where: eq(games.id, gameId),
+    columns: {
+      id: true,
+      shareToken: true,
+    },
+  });
+
+  if (!existingGame) {
+    throw new Error("Game not found");
+  }
+
+  if (existingGame.shareToken) {
+    return existingGame.shareToken;
+  }
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const shareToken = createShareToken();
+    const existingShare = await db.query.games.findFirst({
+      where: eq(games.shareToken, shareToken),
+      columns: {
+        id: true,
+      },
+    });
+
+    if (existingShare) {
+      continue;
+    }
+
+    const [updatedGame] = await db
+      .update(games)
+      .set({
+        shareToken,
+      })
+      .where(and(eq(games.id, gameId), isNull(games.shareToken)))
+      .returning({
+        shareToken: games.shareToken,
+      });
+
+    if (updatedGame?.shareToken) {
+      return updatedGame.shareToken;
+    }
+
+    const currentGame = await db.query.games.findFirst({
+      where: eq(games.id, gameId),
+      columns: {
+        shareToken: true,
+      },
+    });
+
+    if (currentGame?.shareToken) {
+      return currentGame.shareToken;
+    }
+  }
+
+  throw new Error("Unable to generate a unique game share token");
 }
 
 export async function getGameFullById(id: string): Promise<GameFull | null> {
@@ -876,10 +950,18 @@ export async function listAdminGameTitles(): Promise<AdminGameTitleEntry[]> {
 export async function getAccessibleGameTitleById(input: {
   userId: string;
   gameTitleId: string;
+  allowAdminAccess?: boolean;
 }) {
   const title = await db.query.gameTitle.findFirst({
-    where: (table, { and, eq, exists, isNull, or }) =>
-      and(
+    where: (table, { and, eq, exists, isNull, or }) => {
+      if (input.allowAdminAccess) {
+        return and(
+          eq(table.id, input.gameTitleId),
+          isNull(table.mergedIntoGameTitleId),
+        );
+      }
+
+      return and(
         eq(table.id, input.gameTitleId),
         isNull(table.mergedIntoGameTitleId),
         or(
@@ -896,7 +978,8 @@ export async function getAccessibleGameTitleById(input: {
               ),
           ),
         ),
-      ),
+      );
+    },
   });
 
   return title ?? null;
@@ -905,6 +988,7 @@ export async function getAccessibleGameTitleById(input: {
 export async function getGameTitleStatsPageData(input: {
   userId: string;
   gameTitleId: string;
+  allowAdminAccess?: boolean;
 }): Promise<GameTitleStatsPageData | null> {
   const title = await getAccessibleGameTitleById(input);
 
@@ -1306,7 +1390,7 @@ export async function listFriendActivityGames(
     where: (games, { and, exists, gte, isNotNull, inArray }) =>
       and(
         isNotNull(games.completedAt),
-        gte(games.completedAt, filters.since),
+        gte(games.createdAt, filters.since),
         exists(
           db
             .select()
@@ -1319,7 +1403,8 @@ export async function listFriendActivityGames(
             ),
         ),
       ),
-    orderBy: (games, { desc }) => [desc(games.completedAt), desc(games.createdAt)],
+    orderBy: (games, { desc }) => [desc(games.createdAt), desc(games.completedAt)],
+    limit: 20,
     with: gameFullRelations,
   });
 }

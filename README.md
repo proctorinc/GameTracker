@@ -67,6 +67,12 @@ Configuration is validated at startup (`src/instrumentation.ts`, `next.config.ts
 | `CLERK_WEBHOOK_SIGNING_SECRET` | optional unless receiving webhooks | optional | **required** when webhooks are enabled |
 | `CLERK_SIGN_IN_URL` | defaults to `/login` | defaults to `/login` | optional |
 | `CLERK_SIGN_UP_URL` | defaults to `/register` | defaults to `/register` | optional |
+| `OPENAI_API_KEY` | optional | optional | **required** for admin title-art generation |
+| `S3_BUCKET` | optional | optional | **required** for admin title-art uploads |
+| `S3_REGION` | optional | optional | **required** for admin title-art uploads |
+| `S3_ACCESS_KEY_ID` | optional | optional | **required** for admin title-art uploads |
+| `S3_SECRET_ACCESS_KEY` | optional | optional | **required** for admin title-art uploads |
+| `S3_PUBLIC_BASE_URL` | optional | optional | **required** public URL prefix for stored title-art assets |
 | `DEV_SEED_*` | optional | — | must not be set |
 
 ## Production
@@ -83,6 +89,12 @@ CLERK_SECRET_KEY=...
 CLERK_WEBHOOK_SIGNING_SECRET=...
 CLERK_SIGN_IN_URL=/login
 CLERK_SIGN_UP_URL=/register
+OPENAI_API_KEY=...
+S3_BUCKET=...
+S3_REGION=...
+S3_ACCESS_KEY_ID=...
+S3_SECRET_ACCESS_KEY=...
+S3_PUBLIC_BASE_URL=https://cdn.example.com
 ```
 
 ```bash

@@ -348,9 +348,11 @@ function ComparisonSection(props: {
 export default function GameTitlePage({
   data,
   canManageDefaults,
+  canManageTitleArtwork,
 }: {
   data: GameTitleStatsPageData;
   canManageDefaults: boolean;
+  canManageTitleArtwork: boolean;
 }) {
   const [selectedComparisonUserId, setSelectedComparisonUserId] = useState(
     data.defaultComparisonUserId,
@@ -411,7 +413,7 @@ export default function GameTitlePage({
           selectedComparisonUserId={selectedComparisonUserId}
         />
 
-        {canManageDefaults ? (
+        {canManageDefaults || canManageTitleArtwork ? (
           <div className="grid grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-muted/70 p-1">
             <Button
               variant={activeTab === "stats" ? "default" : "ghost"}
@@ -434,14 +436,14 @@ export default function GameTitlePage({
           </div>
         ) : null}
 
-        {canManageDefaults && activeTab === "admin" ? (
+        {(canManageDefaults || canManageTitleArtwork) && activeTab === "admin" ? (
           <div className="flex flex-col gap-6">
-            <GameTitleImageEditor title={title} />
-            <GameTitleDefaultsEditor title={title} />
+            {canManageTitleArtwork ? <GameTitleImageEditor title={title} /> : null}
+            {canManageDefaults ? <GameTitleDefaultsEditor title={title} /> : null}
           </div>
         ) : null}
 
-        {!canManageDefaults || activeTab === "stats" ? (
+        {(!canManageDefaults && !canManageTitleArtwork) || activeTab === "stats" ? (
           <div className="grid gap-6">
             <Card>
               <CardHeader className="gap-4">

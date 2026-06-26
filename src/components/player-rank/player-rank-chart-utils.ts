@@ -54,7 +54,7 @@ export function formatChartDate(historyDate: string) {
 }
 
 export function formatScoreValue(valueMinor: number) {
-  return `${Math.round(valueMinor / 100)}`;
+  return `${Math.floor(valueMinor / 100)}`;
 }
 
 export function getPointValue(input: {

@@ -25,10 +25,11 @@ export function PlayerRankTrendCard({
   user,
   color,
   rankTotal,
-  rankPosition,
   chartPoints,
   hasHistory,
 }: PlayerRankTrendCardProps) {
+  const rankTotalLabel = rankTotal ? `${Math.floor(Number(rankTotal))}` : "--";
+
   return (
     <Link href={href} className="block">
       <Card className="relative gap-0 border-border/70 bg-card/95 px-4 pt-4 transition-transform hover:scale-[1.01]">
@@ -43,7 +44,7 @@ export function PlayerRankTrendCard({
               </p>
               <div className="flex gap-1 items-center">
                 <p className="text-3xl font-black tracking-tight">
-                  {rankTotal ?? "--"}
+                  {rankTotalLabel}
                 </p>
                 <RankToken />
               </div>

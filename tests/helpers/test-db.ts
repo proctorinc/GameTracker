@@ -15,8 +15,22 @@ async function applyMigrations(dbPath: string) {
     const migrationFiles = (await readdir(MIGRATIONS_DIR))
       .filter((entry) => entry.endsWith(".sql"))
       .sort();
+    const effectiveMigrationFiles = migrationFiles.filter((fileName) => {
+      if (!migrationFiles.includes("0011_new_revanche.sql")) {
+        return true;
+      }
 
-    for (const fileName of migrationFiles) {
+      return ![
+        "0005_player_rank.sql",
+        "0006_player_rank_leaderboard_disabled.sql",
+        "0007_link_only_invites.sql",
+        "0008_player_rank_history.sql",
+        "0009_fixed_friend_invite_link.sql",
+        "0010_no_score_placements.sql",
+      ].includes(fileName);
+    });
+
+    for (const fileName of effectiveMigrationFiles) {
       const sql = await readFile(path.join(MIGRATIONS_DIR, fileName), "utf8");
       sqlite.exec(sql);
     }

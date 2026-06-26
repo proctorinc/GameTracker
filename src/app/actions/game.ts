@@ -3,6 +3,7 @@
 import {
   revalidateDashboardPage,
   revalidateDashboardPages,
+  revalidateFriendsPage,
   revalidateGameHistoryPage,
   revalidateGameHistoryPages,
   revalidatePlayerRankHistory,
@@ -17,7 +18,17 @@ import {
 import { loadOptionalCurrentUser } from "@/lib/auth/auth-me";
 import { loadUser } from "@/lib/auth/protected-session";
 import { getWinningUserIds } from "@/lib/game/v1";
-import { listAcceptedFriendsForUser } from "@/lib/db/store/friendship.store";
+import {
+  ensureFriendshipExists,
+  listAcceptedFriendsForUser,
+} from "@/lib/db/store/friendship.store";
+import {
+  createGameJoinRequest,
+  getGameJoinRequestFullById,
+  getPendingJoinRequest,
+  listPendingJoinRequestsForGame,
+  resolveGameJoinRequest,
+} from "@/lib/db/store/game-join-request.store";
 import {
   addPlayerToGame,
   addPlayerToGameWithStartingScore,
@@ -26,7 +37,9 @@ import {
   createOrFindGameTitle,
   createGame,
   getAccessibleGameTitleById,
+  getGameByShareToken,
   getGameForPlayPage,
+  getOrCreateGameShareToken,
   type GameForPlayPage,
   getGameById,
   getGameRoundByGameAndNumber,
@@ -63,9 +76,13 @@ import {
 } from "@/lib/game/title-defaults";
 import { pickRandomProfileColor } from "@/lib/profile-colors";
 import {
+  parseTitleImageDataUrl,
+  prepareTitleImageAsset,
   deriveTitleColorFromImageUrl,
   normalizeTitleImageUrl,
 } from "@/lib/title-image-color";
+import { uploadGameTitleImageToS3 } from "@/lib/title-image-storage";
+import { generateGameTitleImageCandidate } from "@/lib/openai-title-image";
 import {
   getGamePlayerFullById,
   getGamePlayerByGameAndUserId,
@@ -77,6 +94,23 @@ import { redirect } from "next/navigation";
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function getFormDataString(formData: FormData, key: string) {
+  const value = formData.get(key);
+
+  return typeof value === "string" ? value : "";
+}
+
+function buildGameSharePath(shareToken: string) {
+  return `/invite/game/${shareToken}`;
+}
+
+function hasGameStarted(game: Pick<GameForPlayPage, "completedRounds" | "rounds">) {
+  return (
+    game.completedRounds > 0 ||
+    game.rounds.some((round) => round.scores.length > 0)
+  );
 }
 
 async function runGameAction<T>(
@@ -139,6 +173,12 @@ async function requireGameLiveManager(gameId: string) {
   return context;
 }
 
+function assertGameIsNotPaused(game: GameForPlayPage) {
+  if (game.pausedAt) {
+    throw new Error("Game is paused");
+  }
+}
+
 async function requireGameCreator(gameId: string) {
   const context = await requireGameMembership(gameId);
 
@@ -164,6 +204,43 @@ function revalidateRankRelatedPages(userIds: Array<string | null | undefined>) {
   for (const userId of new Set(userIds.filter((value): value is string => Boolean(value)))) {
     revalidateProfileOverviewPage(userId);
     revalidatePublicProfilePage(userId);
+  }
+}
+
+function revalidateFriendsPages(userIds: Array<string | null | undefined>) {
+  for (const userId of new Set(userIds.filter((value): value is string => Boolean(value)))) {
+    revalidateFriendsPage(userId);
+  }
+}
+
+async function ensureParticipantsAreFriends(input: {
+  game: GameForPlayPage;
+  inviterId: string;
+}) {
+  const participants = input.game.players
+    .map((player) => player.user)
+    .filter((user) => !user.isGuest && !user.mergedIntoUserId);
+
+  for (let index = 0; index < participants.length; index += 1) {
+    const participant = participants[index];
+
+    if (!participant) {
+      continue;
+    }
+
+    for (let compareIndex = index + 1; compareIndex < participants.length; compareIndex += 1) {
+      const otherParticipant = participants[compareIndex];
+
+      if (!otherParticipant) {
+        continue;
+      }
+
+      await ensureFriendshipExists({
+        userAId: participant.id,
+        userBId: otherParticipant.id,
+        inviterId: input.inviterId,
+      });
+    }
   }
 }
 
@@ -309,6 +386,12 @@ export async function getPlayGameSnapshot(gameId: string) {
             listGuestsCreatedByUser(viewer.id),
           ])
         : [[], []];
+      const [shareToken, pendingJoinRequests] = canManageLiveGame
+        ? await Promise.all([
+            getOrCreateGameShareToken(game.id),
+            listPendingJoinRequestsForGame(game.id),
+          ])
+        : [game.shareToken ?? null, []];
       const playerRankDeltas = await listPlayerRankGameDeltasForGame(gameId);
 
       return {
@@ -316,6 +399,8 @@ export async function getPlayGameSnapshot(gameId: string) {
         isCreator,
         isManager,
         canManageLiveGame,
+        gameSharePath: shareToken ? buildGameSharePath(shareToken) : null,
+        pendingJoinRequests,
         playerOptions: [...friends, ...guests],
         playerRankDeltas,
         game,
@@ -325,9 +410,264 @@ export async function getPlayGameSnapshot(gameId: string) {
       canManageLiveGame: result.canManageLiveGame,
       isCreator: result.isCreator,
       isManager: result.isManager,
+      pendingJoinRequestCount: result.pendingJoinRequests.length,
       playerOptionCount: result.playerOptions.length,
       playerRankDeltaCount: result.playerRankDeltas.length,
       playerCount: result.game.players.length,
+    }),
+  );
+}
+
+type EnterSharedGameResult =
+  | { status: "joined"; gameId: string }
+  | { status: "already_joined"; gameId: string }
+  | { status: "own_game"; gameId: string }
+  | { status: "requested"; gameId: string; requestId: string }
+  | { status: "request_pending"; gameId: string; requestId: string }
+  | { status: "unavailable"; reason: string };
+
+export async function enterSharedGame(input: {
+  shareToken: string;
+}): Promise<EnterSharedGameResult> {
+  const meta: LogMeta = {
+    actorUserId: null,
+    shareTokenPresent: Boolean(input.shareToken),
+  };
+
+  return runGameAction(
+    "shared_link.enter",
+    meta,
+    async () => {
+      const user = await requireCurrentUser();
+      meta.actorUserId = user.id;
+      const game = await getGameByShareToken(input.shareToken);
+
+      if (!game || game.completedAt) {
+        return {
+          status: "unavailable",
+          reason: "This shared game is no longer available.",
+        } satisfies EnterSharedGameResult;
+      }
+
+      meta.gameId = game.id;
+
+      if (game.creatorId === user.id) {
+        return {
+          status: "own_game",
+          gameId: game.id,
+        } satisfies EnterSharedGameResult;
+      }
+
+      if (game.players.some((player) => player.userId === user.id)) {
+        return {
+          status: "already_joined",
+          gameId: game.id,
+        } satisfies EnterSharedGameResult;
+      }
+
+      const gameStarted = hasGameStarted(game);
+
+      if (game.inviteUsersEnabled && !gameStarted) {
+        await ensureFriendshipExists({
+          userAId: game.creatorId,
+          userBId: user.id,
+          inviterId: game.creatorId,
+        });
+        await addPlayerToGame(game.id, user.id);
+
+        const pendingRequest = await getPendingJoinRequest(game.id, user.id);
+
+        if (pendingRequest) {
+          await resolveGameJoinRequest({
+            id: pendingRequest.id,
+            resolvedByUserId: game.creatorId,
+            status: "approved",
+          });
+        }
+
+        revalidateDashboardPages([...getDashboardUserIdsForGame(game), user.id]);
+        revalidateGameHistoryPages([...getDashboardUserIdsForGame(game), user.id]);
+        revalidateFriendsPages([game.creatorId, user.id]);
+
+        return {
+          status: "joined",
+          gameId: game.id,
+        } satisfies EnterSharedGameResult;
+      }
+
+      const existingRequest = await getPendingJoinRequest(game.id, user.id);
+
+      if (existingRequest) {
+        return {
+          status: "request_pending",
+          gameId: game.id,
+          requestId: existingRequest.id,
+        } satisfies EnterSharedGameResult;
+      }
+
+      const request = await createGameJoinRequest({
+        gameId: game.id,
+        requesterUserId: user.id,
+        status: "pending",
+      });
+
+      return {
+        status: "requested",
+        gameId: game.id,
+        requestId: request.id,
+      } satisfies EnterSharedGameResult;
+    },
+    (result) => ({
+      resultStatus: result.status,
+      gameId: "gameId" in result ? result.gameId : null,
+    }),
+  );
+}
+
+export async function setGameInviteUsersEnabled(input: {
+  gameId: string;
+  enabled: boolean;
+}) {
+  const meta: LogMeta = {
+    actorUserId: null,
+    gameId: input.gameId,
+    enabled: input.enabled,
+  };
+
+  return runGameAction(
+    "share_link.toggle",
+    meta,
+    async () => {
+      const { user, game } = await requireGameLiveManager(input.gameId);
+      meta.actorUserId = user.id;
+
+      const updatedGame = await updateGame(game.id, {
+        inviteUsersEnabled: input.enabled,
+      });
+
+      revalidateDashboardPages(getDashboardUserIdsForGame(game));
+      return updatedGame;
+    },
+    (result) => ({
+      inviteUsersEnabled: result?.inviteUsersEnabled ?? null,
+    }),
+  );
+}
+
+export async function approveGameJoinRequest(input: {
+  requestId: string;
+  startingScoreMode?: GamePlayerStartingScoreMode;
+  startingScoreValue?: number | null;
+}) {
+  const meta: LogMeta = {
+    actorUserId: null,
+    requestId: input.requestId,
+  };
+
+  return runGameAction(
+    "join_request.approve",
+    meta,
+    async () => {
+      const request = await getGameJoinRequestFullById(input.requestId);
+
+      if (!request || request.status !== "pending") {
+        throw new Error("Join request not found");
+      }
+
+      const { user, game } = await requireGameLiveManager(request.gameId);
+      meta.actorUserId = user.id;
+      meta.gameId = game.id;
+      meta.subjectUserId = request.requesterUserId;
+
+      if (game.players.some((player) => player.userId === request.requesterUserId)) {
+        await resolveGameJoinRequest({
+          id: request.id,
+          resolvedByUserId: user.id,
+          status: "approved",
+        });
+
+        return {
+          requestId: request.id,
+          requesterUserId: request.requesterUserId,
+        };
+      }
+
+      await ensureFriendshipExists({
+        userAId: game.creatorId,
+        userBId: request.requesterUserId,
+        inviterId: game.creatorId,
+      });
+
+      if (hasGameStarted(game)) {
+        await addPlayerToGameWithStartingScore({
+          gameId: game.id,
+          userId: request.requesterUserId,
+          startingScoreMode: input.startingScoreMode,
+          startingScoreValue: input.startingScoreValue,
+        });
+      } else {
+        await addPlayerToGame(game.id, request.requesterUserId);
+      }
+
+      await resolveGameJoinRequest({
+        id: request.id,
+        resolvedByUserId: user.id,
+        status: "approved",
+      });
+
+      revalidateDashboardPages([
+        ...getDashboardUserIdsForGame(game),
+        request.requesterUserId,
+      ]);
+      revalidateGameHistoryPages([
+        ...getDashboardUserIdsForGame(game),
+        request.requesterUserId,
+      ]);
+      revalidateFriendsPages([game.creatorId, request.requesterUserId]);
+
+      return {
+        requestId: request.id,
+        requesterUserId: request.requesterUserId,
+      };
+    },
+    (result) => ({
+      requesterUserId: result.requesterUserId,
+    }),
+  );
+}
+
+export async function declineGameJoinRequest(input: { requestId: string }) {
+  const meta: LogMeta = {
+    actorUserId: null,
+    requestId: input.requestId,
+  };
+
+  return runGameAction(
+    "join_request.decline",
+    meta,
+    async () => {
+      const request = await getGameJoinRequestFullById(input.requestId);
+
+      if (!request || request.status !== "pending") {
+        throw new Error("Join request not found");
+      }
+
+      const { user, game } = await requireGameLiveManager(request.gameId);
+      meta.actorUserId = user.id;
+      meta.gameId = game.id;
+      meta.subjectUserId = request.requesterUserId;
+
+      await resolveGameJoinRequest({
+        id: request.id,
+        resolvedByUserId: user.id,
+        status: "declined",
+      });
+
+      return request;
+    },
+    (result) => ({
+      gameId: result.gameId,
+      requesterUserId: result.requesterUserId,
     }),
   );
 }
@@ -720,6 +1060,8 @@ export async function commitGameRound(input: {
         throw new Error("Game is already complete");
       }
 
+      assertGameIsNotPaused(game);
+
       const activeRoundNumber = game.completedRounds + 1;
       const existingRound =
         game.rounds.find((round) => round.roundNumber === activeRoundNumber) ??
@@ -798,12 +1140,18 @@ export async function commitGameRound(input: {
             acquiredFromUserId: user.id,
           });
         }
+
+        await ensureParticipantsAreFriends({
+          game,
+          inviterId: game.creatorId,
+        });
       }
 
       revalidateDashboardPages(getDashboardUserIdsForGame(game));
       revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
 
       if (input.completeGame) {
+        revalidateFriendsPages(getDashboardUserIdsForGame(game));
         revalidateTitlesPages(getDashboardUserIdsForGame(game));
         revalidateRankRelatedPages(getDashboardUserIdsForGame(game));
       }
@@ -836,6 +1184,8 @@ export async function reopenCompletedGame(input: { gameId: string }) {
 
       const updatedGame = await updateGame(game.id, {
         completedAt: null,
+        pausedAt: null,
+        pausedNextUserId: null,
       });
 
       await replaceGameWinners({
@@ -864,6 +1214,89 @@ export async function reopenCompletedGame(input: { gameId: string }) {
   );
 }
 
+export async function pauseGame(input: {
+  gameId: string;
+  nextUserId?: string | null;
+}) {
+  const meta: LogMeta = {
+    gameId: input.gameId,
+    actorUserId: null,
+    subjectUserId: input.nextUserId ?? null,
+  };
+
+  return runGameAction(
+    "pause",
+    meta,
+    async () => {
+      const { user, game } = await requireGameLiveManager(input.gameId);
+      meta.actorUserId = user.id;
+
+      if (game.completedAt) {
+        throw new Error("Game is already complete");
+      }
+
+      const nextUserId = input.nextUserId?.trim() || null;
+
+      if (
+        nextUserId !== null &&
+        !game.players.some((player) => player.userId === nextUserId)
+      ) {
+        throw new Error("Choose a player in this game");
+      }
+
+      const updatedGame = await updateGame(game.id, {
+        pausedAt: nowIso(),
+        pausedNextUserId: nextUserId,
+      });
+
+      revalidateDashboardPages(getDashboardUserIdsForGame(game));
+      revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
+      return updatedGame;
+    },
+    (result) => ({
+      pausedAt: result?.pausedAt ?? null,
+      pausedNextUserId: result?.pausedNextUserId ?? null,
+    }),
+  );
+}
+
+export async function resumeGame(input: { gameId: string }) {
+  const meta: LogMeta = {
+    gameId: input.gameId,
+    actorUserId: null,
+  };
+
+  return runGameAction(
+    "resume",
+    meta,
+    async () => {
+      const { user, game } = await requireGameLiveManager(input.gameId);
+      meta.actorUserId = user.id;
+
+      if (game.completedAt) {
+        throw new Error("Game is already complete");
+      }
+
+      if (!game.pausedAt) {
+        throw new Error("Game is already active");
+      }
+
+      const updatedGame = await updateGame(game.id, {
+        pausedAt: null,
+        pausedNextUserId: null,
+      });
+
+      revalidateDashboardPages(getDashboardUserIdsForGame(game));
+      revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
+      return updatedGame;
+    },
+    (result) => ({
+      pausedAt: result?.pausedAt ?? null,
+      pausedNextUserId: result?.pausedNextUserId ?? null,
+    }),
+  );
+}
+
 export async function upsertActiveRoundScore(input: {
   gameId: string;
   userId: string;
@@ -886,6 +1319,8 @@ export async function upsertActiveRoundScore(input: {
       if (game.completedAt) {
         throw new Error("Game is already complete");
       }
+
+      assertGameIsNotPaused(game);
 
       if (!Number.isFinite(input.scoreDelta)) {
         throw new Error("Round scores must be valid numbers");
@@ -950,6 +1385,12 @@ export async function upsertActiveRoundScore(input: {
         score: player.score + (normalizedDelta - (existingScore?.scoreDelta ?? 0)),
       });
 
+      if (game.inviteUsersEnabled) {
+        await updateGame(game.id, {
+          inviteUsersEnabled: false,
+        });
+      }
+
       revalidateDashboardPages(getDashboardUserIdsForGame(game));
       revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
       return result;
@@ -985,6 +1426,8 @@ export async function updateRecordedRoundScore(input: {
       if (game.completedAt) {
         throw new Error("Game is already complete");
       }
+
+      assertGameIsNotPaused(game);
 
       if (!Number.isFinite(input.scoreDelta)) {
         throw new Error("Round scores must be valid numbers");
@@ -1040,6 +1483,12 @@ export async function updateRecordedRoundScore(input: {
         score: player.score + (normalizedDelta - (existingScore?.scoreDelta ?? 0)),
       });
 
+      if (game.inviteUsersEnabled) {
+        await updateGame(game.id, {
+          inviteUsersEnabled: false,
+        });
+      }
+
       revalidateDashboardPages(getDashboardUserIdsForGame(game));
       revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
       return result;
@@ -1089,6 +1538,7 @@ export async function addGamePlayer(input: {
 }
 
 export async function addGuestGamePlayer(input: {
+  color?: string;
   gameId: string;
   firstName: string;
   lastName?: string;
@@ -1114,6 +1564,7 @@ export async function addGuestGamePlayer(input: {
       }
 
       const guest = await createUser({
+        color: input.color,
         firstName: trimmedFirstName,
         lastName: lastName?.trim() || null,
         isGuest: true,
@@ -1587,15 +2038,13 @@ export async function saveGameTitleImage(input: {
     "title_image.update",
     meta,
     async () => {
-      const user = await requireCurrentUser();
+      const user = await requireAdminUser();
       meta.actorUserId = user.id;
       const gameTitle = await getGameTitleById(input.gameTitleId);
 
       if (!gameTitle) {
         throw new Error("Title not found");
       }
-
-      assertCanManageGameTitle({ user, gameTitle });
 
       const normalizedImageUrl = normalizeTitleImageUrl(input.imageUrl);
       const nextColor = normalizedImageUrl
@@ -1626,6 +2075,175 @@ export async function saveGameTitleImage(input: {
 
       revalidateTitlesPage(user.id);
       return result;
+    },
+  );
+}
+
+async function savePreparedGameTitleImageAsAdmin(input: {
+  actorUserId: string;
+  gameTitleId: string;
+  source: "upload" | "openai";
+  buffer: Buffer | Uint8Array;
+  mimeType?: string | null;
+}) {
+  const gameTitle = await getGameTitleById(input.gameTitleId);
+
+  if (!gameTitle) {
+    throw new Error("Title not found");
+  }
+
+  const preparedAsset = await prepareTitleImageAsset({
+    buffer: input.buffer,
+    mimeType: input.mimeType,
+  });
+  const imageUrl = await uploadGameTitleImageToS3({
+    gameTitleId: gameTitle.id,
+    buffer: preparedAsset.buffer,
+    contentType: preparedAsset.mimeType,
+  });
+  const result = await updateGameTitleImageAndColor(gameTitle.id, {
+    imageUrl,
+    color: preparedAsset.color,
+  });
+
+  if (!result) {
+    throw new Error("Could not update title image");
+  }
+
+  const affectedUserIds = await listAffectedUserIdsForGameTitle(gameTitle.id);
+
+  revalidateTitlesGlobal();
+  revalidateDashboardPages(affectedUserIds);
+  revalidateGameHistoryPages(affectedUserIds);
+  revalidateTitlesPages(affectedUserIds);
+
+  for (const affectedUserId of affectedUserIds) {
+    revalidateProfileOverviewPage(affectedUserId);
+    revalidatePublicProfilePage(affectedUserId);
+  }
+
+  revalidateTitlesPage(input.actorUserId);
+
+  return {
+    result,
+    gameTitle,
+    imageUrl,
+    color: preparedAsset.color,
+    source: input.source,
+  };
+}
+
+export async function generateGameTitleImage(input: {
+  gameTitleId: string;
+  gameName: string;
+  prompt?: string | null;
+}) {
+  const meta: LogMeta = {
+    actorUserId: null,
+    gameTitleId: input.gameTitleId,
+  };
+
+  return runGameAction(
+    "title_image.generate",
+    meta,
+    async () => {
+      const user = await requireAdminUser();
+      meta.actorUserId = user.id;
+
+      const gameTitle = await getGameTitleById(input.gameTitleId);
+
+      if (!gameTitle) {
+        throw new Error("Title not found");
+      }
+
+      const candidate = await generateGameTitleImageCandidate({
+        gameName: input.gameName,
+        prompt: input.prompt,
+      });
+
+      meta.isUniversalTitle = gameTitle.isUniversal;
+      meta.hasImageUrl = Boolean(candidate.previewUrl);
+      meta.nextColor = candidate.color;
+
+      return candidate;
+    },
+    (result) => ({
+      hasImageUrl: Boolean(result.previewUrl),
+      nextColor: result.color,
+    }),
+  );
+}
+
+export async function saveUploadedGameTitleImage(formData: FormData) {
+  const gameTitleId = getFormDataString(formData, "gameTitleId").trim();
+  const fileEntry = formData.get("file");
+  const meta: LogMeta = {
+    actorUserId: null,
+    gameTitleId,
+  };
+
+  return runGameAction(
+    "title_image.upload",
+    meta,
+    async () => {
+      const user = await requireAdminUser();
+      meta.actorUserId = user.id;
+
+      if (!gameTitleId) {
+        throw new Error("Title id is required");
+      }
+
+      if (!(fileEntry instanceof File)) {
+        throw new Error("Choose an image file first");
+      }
+
+      const saved = await savePreparedGameTitleImageAsAdmin({
+        actorUserId: user.id,
+        gameTitleId,
+        source: "upload",
+        buffer: Buffer.from(await fileEntry.arrayBuffer()),
+        mimeType: fileEntry.type,
+      });
+
+      meta.isUniversalTitle = saved.gameTitle.isUniversal;
+      meta.hasImageUrl = true;
+      meta.nextColor = saved.color;
+
+      return saved.result;
+    },
+  );
+}
+
+export async function saveGeneratedGameTitleImage(input: {
+  gameTitleId: string;
+  previewUrl: string;
+}) {
+  const meta: LogMeta = {
+    actorUserId: null,
+    gameTitleId: input.gameTitleId,
+  };
+
+  return runGameAction(
+    "title_image.save_generated",
+    meta,
+    async () => {
+      const user = await requireAdminUser();
+      meta.actorUserId = user.id;
+
+      const parsed = parseTitleImageDataUrl(input.previewUrl);
+      const saved = await savePreparedGameTitleImageAsAdmin({
+        actorUserId: user.id,
+        gameTitleId: input.gameTitleId,
+        source: "openai",
+        buffer: parsed.buffer,
+        mimeType: parsed.mimeType,
+      });
+
+      meta.isUniversalTitle = saved.gameTitle.isUniversal;
+      meta.hasImageUrl = true;
+      meta.nextColor = saved.color;
+
+      return saved.result;
     },
   );
 }

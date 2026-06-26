@@ -28,6 +28,7 @@ function formatDisplayName(input: {
 
 export function ProfileHeroCard() {
   const { user, setActiveTab, activeTab } = useProfileOverview();
+  const isSettingsActive = activeTab === "settings";
 
   return (
     <div className="flex flex-col gap-4 relative">
@@ -45,8 +46,9 @@ export function ProfileHeroCard() {
         </div>
         <Button
           size="icon-lg"
-          variant={activeTab === "settings" ? "default" : "outline"}
-          onClick={() => setActiveTab("settings")}
+          variant={isSettingsActive ? "default" : "outline"}
+          aria-label="Profile settings"
+          onClick={() => setActiveTab(isSettingsActive ? "stats" : "settings")}
         >
           <Settings />
         </Button>

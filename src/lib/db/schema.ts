@@ -48,6 +48,14 @@ export type GameEndingMode = (typeof gameEndingModes)[number];
 export const gameScoreThresholdDirections = ["at_least", "at_most"] as const;
 export type GameScoreThresholdDirection =
   (typeof gameScoreThresholdDirections)[number];
+export const gameJoinRequestStatuses = [
+  "pending",
+  "approved",
+  "declined",
+  "cancelled",
+] as const;
+export type GameJoinRequestStatus =
+  (typeof gameJoinRequestStatuses)[number];
 export const userRoles = ["user", "admin"] as const;
 export type UserRole = (typeof userRoles)[number];
 export const playerRankConfigVersions = ["v1"] as const;
@@ -282,7 +290,15 @@ export const games = sqliteTable("games", {
   scoreThresholdDirection: text(
     "score_threshold_direction",
   ).$type<GameScoreThresholdDirection>(),
+  shareToken: text("share_token").unique(),
+  inviteUsersEnabled: integer("invite_users_enabled", { mode: "boolean" })
+    .notNull()
+    .default(true),
   completedRounds: integer("completed_rounds").notNull().default(0),
+  pausedAt: text("paused_at"),
+  pausedNextUserId: text("paused_next_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
@@ -382,6 +398,40 @@ export const gameRoundScores = sqliteTable(
   },
   (table) => [
     check("game_round_score_non_null", sql`${table.scoreDelta} IS NOT NULL`),
+  ],
+);
+
+export const gameJoinRequests = sqliteTable(
+  "game_join_requests",
+  {
+    id: text("id")
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    gameId: text("game_id")
+      .notNull()
+      .references(() => games.id, { onDelete: "cascade" }),
+    requesterUserId: text("requester_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: text("status")
+      .$type<GameJoinRequestStatus>()
+      .notNull()
+      .default("pending"),
+    requestedAt: text("requested_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    resolvedAt: text("resolved_at"),
+    resolvedByUserId: text("resolved_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    index("game_join_requests_game_status_idx").on(table.gameId, table.status),
+    index("game_join_requests_requester_status_idx").on(
+      table.requesterUserId,
+      table.status,
+    ),
   ],
 );
 
@@ -587,6 +637,7 @@ export const gamesRelations = relations(games, ({ one, many }) => ({
   resultPlacements: many(gameResultPlacements),
   playerRankResults: many(gamePlayerRankResults),
   cardDrops: many(cardDrops),
+  joinRequests: many(gameJoinRequests),
 }));
 
 export const gameTitleRelations = relations(gameTitle, ({ one, many }) => ({
@@ -652,6 +703,26 @@ export const gameRoundScoresRelations = relations(
     user: one(users, {
       fields: [gameRoundScores.userId],
       references: [users.id],
+    }),
+  }),
+);
+
+export const gameJoinRequestsRelations = relations(
+  gameJoinRequests,
+  ({ one }) => ({
+    game: one(games, {
+      fields: [gameJoinRequests.gameId],
+      references: [games.id],
+    }),
+    requester: one(users, {
+      fields: [gameJoinRequests.requesterUserId],
+      references: [users.id],
+      relationName: "gameJoinRequester",
+    }),
+    resolvedBy: one(users, {
+      fields: [gameJoinRequests.resolvedByUserId],
+      references: [users.id],
+      relationName: "gameJoinResolvedBy",
     }),
   }),
 );

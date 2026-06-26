@@ -13,6 +13,7 @@ import {
 import {
   createFriendship,
   createInvitation,
+  findPendingInvitationForLinkTarget,
   deleteFriendship,
   findPendingInvitationForUserTarget,
   getFriendshipByUsers,
@@ -57,6 +58,31 @@ async function ensureNotAlreadyFriends(userAId: string, userBId: string) {
   }
 
   return friendship;
+}
+
+async function requireOwnedClaimableGuest(input: {
+  actorUserId: string;
+  guestUserId: string;
+}) {
+  const guest = await getUserById(input.guestUserId);
+
+  if (!guest) {
+    throw new Error("Guest profile not found");
+  }
+
+  if (!guest.isGuest) {
+    throw new Error("Claim links can only be generated for guests");
+  }
+
+  if (guest.mergedIntoUserId) {
+    throw new Error("This guest profile has already been claimed");
+  }
+
+  if (guest.created_by_user_id !== input.actorUserId) {
+    throw new Error("You can only share claim links for guests you created");
+  }
+
+  return guest;
 }
 
 function revalidateFriendsViews(inviteToken?: string | null) {
@@ -198,6 +224,39 @@ export async function createFriendInvitationLink(
     const user = await requireCurrentUser();
     actorUserId = user.id;
 
+    if (guestUserId) {
+      await requireOwnedClaimableGuest({
+        actorUserId: user.id,
+        guestUserId,
+      });
+
+      const existing = await findPendingInvitationForLinkTarget({
+        inviterUserId: user.id,
+        guestUserId,
+        kind: "claim_guest",
+      });
+
+      if (existing) {
+        revalidateOwnFriendsData(user.id);
+        revalidateFriendsViews(existing.inviteToken);
+
+        logFriendsActionSuccess("invitation_link.create", {
+          actorUserId: user.id,
+          invitationId: existing.id,
+          guestUserId,
+          inviteTokenCreated: Boolean(existing.inviteToken),
+          reusedExistingInvitation: true,
+        });
+
+        return {
+          invitationId: existing.id,
+          invitePath: existing.inviteToken
+            ? buildInvitePath(existing.inviteToken)
+            : null,
+        };
+      }
+    }
+
     const invitation = await createInvitation({
       inviterUserId: user.id,
       targetType: "link",
@@ -215,6 +274,7 @@ export async function createFriendInvitationLink(
       invitationId: invitation.id,
       guestUserId,
       inviteTokenCreated: Boolean(invitation.inviteToken),
+      reusedExistingInvitation: false,
     });
 
     return {

@@ -44,6 +44,15 @@ const optionalClerk = z.object({
   CLERK_SIGN_UP_URL: z.string().optional(),
 });
 
+const optionalTitleImageServices = z.object({
+  OPENAI_API_KEY: z.string().optional(),
+  S3_BUCKET: z.string().optional(),
+  S3_REGION: z.string().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  S3_PUBLIC_BASE_URL: z.string().optional(),
+});
+
 function isRemoteLibsqlUrl(databaseUrl: string): boolean {
   return (
     databaseUrl.startsWith("libsql://") || databaseUrl.startsWith("https://")
@@ -61,6 +70,7 @@ const devSchema = z
     TURSO_AUTH_TOKEN: z.string().optional(),
   })
   .merge(optionalClerk)
+  .merge(optionalTitleImageServices)
   .superRefine((env, ctx) => {
     if (isRemoteLibsqlUrl(env.DATABASE_URL) && !env.TURSO_AUTH_TOKEN) {
       ctx.addIssue({
@@ -80,6 +90,7 @@ const testSchema = z
     TURSO_AUTH_TOKEN: z.string().optional(),
   })
   .merge(optionalClerk)
+  .merge(optionalTitleImageServices)
   .superRefine((env, ctx) => {
     if (isRemoteLibsqlUrl(env.DATABASE_URL) && !env.TURSO_AUTH_TOKEN) {
       ctx.addIssue({
@@ -91,17 +102,21 @@ const testSchema = z
     }
   });
 
-const prodSchema = z.object({
-  APP_ENV: z.literal("production"),
-  DATABASE_URL: z.string().min(1),
-  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1),
-  CLERK_SECRET_KEY: z.string().min(1),
-  CLERK_WEBHOOK_SIGNING_SECRET: z.string().optional(),
-  NEXT_PUBLIC_APP_ENV: z.literal("production").optional(),
-  CLERK_SIGN_IN_URL: z.string().optional(),
-  CLERK_SIGN_UP_URL: z.string().optional(),
-  TURSO_AUTH_TOKEN: z.string().min(1),
-});
+const prodSchema = z
+  .object({
+    APP_ENV: z.literal("production"),
+    DATABASE_URL: z.string().min(1),
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1),
+    CLERK_SECRET_KEY: z.string().min(1),
+    CLERK_WEBHOOK_SIGNING_SECRET: z.string().optional(),
+    NEXT_PUBLIC_APP_ENV: z.literal("production").optional(),
+    CLERK_SIGN_IN_URL: z.string().optional(),
+    CLERK_SIGN_UP_URL: z.string().optional(),
+    TURSO_AUTH_TOKEN: z.string().min(1),
+  })
+  .merge(optionalTitleImageServices.extend({
+    S3_PUBLIC_BASE_URL: z.string().url().optional(),
+  }));
 
 export type DevEnv = z.infer<typeof devSchema>;
 export type TestEnv = z.infer<typeof testSchema>;
@@ -203,6 +218,30 @@ function syncToProcessEnv(config: AppEnvConfig): void {
 
   if ("CLERK_SIGN_UP_URL" in config) {
     syncOptionalEnv("CLERK_SIGN_UP_URL", config.CLERK_SIGN_UP_URL);
+  }
+
+  if ("OPENAI_API_KEY" in config) {
+    syncOptionalEnv("OPENAI_API_KEY", config.OPENAI_API_KEY);
+  }
+
+  if ("S3_BUCKET" in config) {
+    syncOptionalEnv("S3_BUCKET", config.S3_BUCKET);
+  }
+
+  if ("S3_REGION" in config) {
+    syncOptionalEnv("S3_REGION", config.S3_REGION);
+  }
+
+  if ("S3_ACCESS_KEY_ID" in config) {
+    syncOptionalEnv("S3_ACCESS_KEY_ID", config.S3_ACCESS_KEY_ID);
+  }
+
+  if ("S3_SECRET_ACCESS_KEY" in config) {
+    syncOptionalEnv("S3_SECRET_ACCESS_KEY", config.S3_SECRET_ACCESS_KEY);
+  }
+
+  if ("S3_PUBLIC_BASE_URL" in config) {
+    syncOptionalEnv("S3_PUBLIC_BASE_URL", config.S3_PUBLIC_BASE_URL);
   }
 }
 

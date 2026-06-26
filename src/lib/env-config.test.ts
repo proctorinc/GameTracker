@@ -47,6 +47,7 @@ describe("validateEnv", () => {
     const env = validateEnv(true);
     expect(env.APP_ENV).toBe("production");
     expect(env.CLERK_SECRET_KEY).toBe("sk_test_123");
+    expect(env.OPENAI_API_KEY).toBeUndefined();
   });
 
   it("applies test defaults", () => {

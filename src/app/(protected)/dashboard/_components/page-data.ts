@@ -1,6 +1,8 @@
 import "server-only";
 
 import { unstable_cache } from "next/cache";
+import { getFriendsPageCollections } from "@/app/actions/pages/friends";
+import { buildFriendRankSummaries } from "@/app/(protected)/activity/_components/leaderboard-utils";
 import { getDashboardPageCollections } from "@/app/actions/pages/dashboard";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
 import { getDashboardTag, getPlayerRankTag } from "@/lib/cache-tags";
@@ -8,7 +10,7 @@ import {
   getActivePlayerRankConfig,
   getPlayerRankRecentChangeSummary,
   listPlayerRankGameDeltasByGameIds,
-  getUserPlayerRankSummary,
+  listPlayerRankStandings,
 } from "@/lib/db/store/player-rank.store";
 import { formatPlayerRankTotal } from "@/lib/player-rank";
 import { isNextRedirectError } from "@/lib/next-navigation-errors";
@@ -26,12 +28,33 @@ export async function getDashboardOverviewPageData() {
       returnPath: "/dashboard",
     });
     const data = await getDashboardOverviewPageDataCached(user.id);
-    const [playerRankSummary, playerRankConfig, playerRankRecentChangeSummary] =
+    const [
+      friendCollections,
+      standings,
+      playerRankSummary,
+      playerRankConfig,
+      playerRankRecentChangeSummary,
+    ] =
       await Promise.all([
-        getUserPlayerRankSummary(user.id),
+        getFriendsPageCollections({ userId: user.id }),
+        listPlayerRankStandings(),
+        listPlayerRankStandings().then((rows) =>
+          rows.find((row) => row.userId === user.id) ?? null,
+        ),
         getActivePlayerRankConfig(),
         getPlayerRankRecentChangeSummary(user.id),
       ]);
+    const friendRankSummary = buildFriendRankSummaries({
+      currentUser: {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        color: user.color,
+        playerRankLeaderboardDisabled: user.playerRankLeaderboardDisabled,
+      },
+      friends: friendCollections.friends,
+      standings,
+    }).find((row) => row.user.id === user.id);
     const playerRankDeltasByGameId = await listPlayerRankGameDeltasByGameIds(
       data.recentCompletedGames.map((game) => game.id),
     );
@@ -56,7 +79,7 @@ export async function getDashboardOverviewPageData() {
       })),
       canViewPlayerRank: Boolean(playerRankConfig),
       playerRankTotal: playerRankSummary?.playerRankTotal ?? null,
-      playerRankPosition: playerRankSummary?.playerRankPosition ?? null,
+      playerRankPosition: friendRankSummary?.friendPosition ?? null,
       playerRankWindowLabel: playerRankSummary?.playerRankWindowLabel ?? null,
       playerRankGamesCount: playerRankSummary?.playerRankGamesCount ?? null,
       topThreeFinishes: playerRankSummary?.topThreeFinishes ?? null,

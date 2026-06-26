@@ -188,6 +188,29 @@ export async function findPendingInvitationForUserTarget(input: {
   return invitation ?? null;
 }
 
+export async function findPendingInvitationForLinkTarget(input: {
+  inviterUserId: string;
+  guestUserId?: string | null;
+  kind?: "friend" | "claim_guest";
+}): Promise<InvitationBase | null> {
+  const invitation = await db.query.invitations.findFirst({
+    where: and(
+      eq(invitations.inviterUserId, input.inviterUserId),
+      eq(invitations.targetType, "link"),
+      eq(invitations.status, "pending"),
+      eq(
+        invitations.kind,
+        input.kind ?? (input.guestUserId ? "claim_guest" : "friend"),
+      ),
+      input.guestUserId
+        ? eq(invitations.guestUserId, input.guestUserId)
+        : isNull(invitations.guestUserId),
+    ),
+  });
+
+  return invitation ?? null;
+}
+
 export async function updateInvitation(
   id: string,
   input: InvitationUpdate,

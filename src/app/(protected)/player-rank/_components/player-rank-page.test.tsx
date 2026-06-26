@@ -21,7 +21,7 @@ function buildData() {
         isCurrentUser: true,
         currentRankTotal: "180",
         currentRankTotalMinor: 18_000,
-        currentPosition: 3,
+        currentPosition: 1,
         friendPosition: 1,
         playerRankGamesCount: 4,
         topThreeFinishes: 2,
@@ -109,7 +109,7 @@ function buildData() {
         displayName: "Maya Viewer",
         color: "#22c55e",
         rankTotal: "180",
-        rankPosition: 3,
+        rankPosition: 1,
         rankGamesCount: 4,
         topThreeFinishes: 2,
         recentChangeSummary: {
@@ -176,7 +176,7 @@ describe("PlayerRankPageView", () => {
     expect(
       screen.getByRole("button", { name: /^Filter$/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText("#3")).toBeInTheDocument();
+    expect(screen.getByText("#1")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("player-rank-series-user-2"));
     expect(screen.getAllByText("Amy Ace").length).toBeGreaterThan(0);
@@ -193,7 +193,7 @@ describe("PlayerRankPageView", () => {
 
     fireEvent.click(screen.getByTestId("player-rank-avatar-user-1"));
     expect(screen.getAllByText("Maya Viewer").length).toBeGreaterThan(0);
-    expect(screen.getByText("#3")).toBeInTheDocument();
+    expect(screen.getByText("#1")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /^Highlight$/i }));
     expect(
@@ -213,6 +213,6 @@ describe("PlayerRankPageView", () => {
 
     expect(screen.queryByTestId("player-rank-series-user-2")).not.toBeInTheDocument();
     expect(screen.getAllByText("Maya Viewer").length).toBeGreaterThan(0);
-    expect(screen.getByText("#3")).toBeInTheDocument();
+    expect(screen.getByText("#1")).toBeInTheDocument();
   });
 });

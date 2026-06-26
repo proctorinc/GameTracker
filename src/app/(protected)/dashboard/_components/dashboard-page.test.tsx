@@ -51,7 +51,7 @@ function createDashboardPageData(): DashboardPageData {
     incomingInvitations: [],
     canViewPlayerRank: true,
     playerRankTotal: "270",
-    playerRankPosition: 2,
+    playerRankPosition: 1,
     playerRankWindowLabel: "6-month rolling rank",
     playerRankGamesCount: 4,
     topThreeFinishes: 3,
@@ -220,16 +220,16 @@ describe("DashboardPageView", () => {
 
     expect(markup).toContain("Hi, Alex!");
     expect(markup).toContain("Player Rank");
-    expect(markup).toContain("#2");
+    expect(markup).toContain("#1");
     expect(markup).toContain("Recent up");
     expect(markup).toContain("View full standings");
-    expect(markup).toContain("History");
+    expect(markup).toContain("Recent games");
     expect(markup).toContain("Continue Playing");
     expect(markup).toContain("Play");
     expect(markup).toContain("12");
     expect(markup).toContain("28");
     expect(markup).toContain("Recent games");
-    expect(markup).toContain("+50 Rank");
+    expect(markup).toContain("+50");
     expect(markup).toContain("1st");
     expect(markup).toContain("Rematch");
     expect(markup).toContain("2nd");

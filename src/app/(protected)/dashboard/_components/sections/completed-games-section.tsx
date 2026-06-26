@@ -1,6 +1,7 @@
 "use client";
 
 import GameTitleImage from "@/components/game/game-title-image";
+import RankChip from "@/components/player-rank/RankChip";
 import {
   sectionActionClassName,
   sectionItemClassName,
@@ -91,9 +92,11 @@ export function CompletedGamesSection() {
                       </h3>
                       {game.currentUserRankDelta &&
                       game.currentUserRankDelta.deltaMinor !== 0 ? (
-                        <span className="shrink-0 text-[11px] font-semibold text-white/80">
-                          {game.currentUserRankDelta.deltaFormatted} Rank
-                        </span>
+                        <RankChip
+                          className="shrink-0"
+                          delta={game.currentUserRankDelta.deltaFormatted}
+                          size="sm"
+                        />
                       ) : null}
                     </div>
                     <div

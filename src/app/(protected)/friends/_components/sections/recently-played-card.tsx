@@ -30,7 +30,7 @@ export function RecentlyPlayedCard() {
   const {
     data,
     isPending,
-    openRecentPlayerDialog,
+    openGuestShareDrawer,
     showAllRecentlyPlayed,
     toggleShowAllRecentlyPlayed,
     visibleRecentlyPlayed,
@@ -40,20 +40,24 @@ export function RecentlyPlayedCard() {
   const { recentlyPlayedWith } = data;
 
   function isReshareableGuestInvitation(
-    pendingInvitation: typeof visibleRecentlyPlayed[number]["pendingInvitation"],
+    pendingInvitation: (typeof visibleRecentlyPlayed)[number]["pendingInvitation"],
   ) {
     return Boolean(
       pendingInvitation &&
-        pendingInvitation.kind === "claim_guest" &&
-        pendingInvitation.targetType === "link" &&
-        pendingInvitation.inviteToken,
+      pendingInvitation.kind === "claim_guest" &&
+      pendingInvitation.targetType === "link" &&
+      pendingInvitation.inviteToken,
     );
+  }
+
+  function isOwnedGuest(entry: (typeof visibleRecentlyPlayed)[number]) {
+    return entry.user.isGuest && entry.user.created_by_user_id === data.user.id;
   }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Recently Played With</CardTitle>
+        <CardTitle>Manage my guests</CardTitle>
         {recentlyPlayedWith.length > 3 ? (
           <CardAction>
             <Button
@@ -80,16 +84,20 @@ export function RecentlyPlayedCard() {
                 key={entry.user.id}
                 className={`flex items-center gap-3 ${sectionItemClassName}`}
               >
-                <button
-                  type="button"
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                  onClick={() =>
-                    entry.user.isGuest
-                      ? openRecentPlayerDialog(entry)
-                      : undefined
-                  }
-                >
-                  <ProfilePicture user={entry.user} size="sm" />
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  {isOwnedGuest(entry) ? (
+                    <button
+                      type="button"
+                      className="rounded-full"
+                      disabled={isPending}
+                      aria-label={`Share claim link for ${getDisplayName(entry.user)}`}
+                      onClick={() => openGuestShareDrawer(entry)}
+                    >
+                      <ProfilePicture user={entry.user} size="sm" />
+                    </button>
+                  ) : (
+                    <ProfilePicture user={entry.user} size="sm" />
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className={sectionItemTitleClassName}>
                       {getDisplayName(entry.user)}
@@ -97,11 +105,14 @@ export function RecentlyPlayedCard() {
                     <p className={sectionItemMetaClassName}>
                       {isReshareableGuestInvitation(entry.pendingInvitation)
                         ? "Invitation link shared"
-                        : formatLastPlayedAt(entry.lastPlayedAt, dateFormatting)}
+                        : formatLastPlayedAt(
+                            entry.lastPlayedAt,
+                            dateFormatting,
+                          )}
                     </p>
                   </div>
-                </button>
-                {entry.user.isGuest &&
+                </div>
+                {isOwnedGuest(entry) &&
                 isReshareableGuestInvitation(entry.pendingInvitation) ? (
                   <Button
                     size="icon-sm"
@@ -121,17 +132,17 @@ export function RecentlyPlayedCard() {
                     <Share2 />
                     <span className="sr-only">Reshare invitation link</span>
                   </Button>
-                ) : entry.user.isGuest ? (
+                ) : isOwnedGuest(entry) ? (
                   <Button
                     size="icon-sm"
                     variant="ghost"
                     disabled={isPending}
-                    onClick={() => openRecentPlayerDialog(entry)}
+                    onClick={() => openGuestShareDrawer(entry)}
                   >
-                    <UserPlus />
-                    <span className="sr-only">Open guest actions</span>
+                    <Share2 />
+                    <span className="sr-only">Open guest claim share</span>
                   </Button>
-                ) : entry.pendingInvitation ? (
+                ) : entry.user.isGuest ? null : entry.pendingInvitation ? (
                   <Badge variant="outline">Pending</Badge>
                 ) : (
                   <Button

@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { ChevronDown, Info } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Card } from "@/components/ui/card";
@@ -14,6 +14,7 @@ export type PlayerRankSummaryCardProps = {
   rankTotal: string | null;
   rankPosition: number | null;
   rankPositionLabel?: string;
+  showRankPosition?: boolean;
   windowLabel: string | null;
   rankGamesCount: number | null;
   topThreeFinishes: number | null;
@@ -36,6 +37,7 @@ export function PlayerRankSummaryCard({
   rankTotal,
   rankPosition,
   rankPositionLabel = "Ranking",
+  showRankPosition = true,
   windowLabel,
   rankGamesCount,
   topThreeFinishes,
@@ -60,7 +62,7 @@ export function PlayerRankSummaryCard({
         .join(" ")
         .trim()) ||
     null;
-  const rankTotalLabel = rankTotal ? Number(rankTotal).toFixed(0) : "0";
+  const rankTotalLabel = rankTotal ? `${Math.floor(Number(rankTotal))}` : "0";
   const detailCopy = displayName
     ? `${displayName}'s Player Rank reflects their top 3 finishes within the last ${resolvedWindowLabel.replace(" rolling rank", "")} period.`
     : `Your Player Rank reflects your top 3 finishes within the last ${resolvedWindowLabel.replace(" rolling rank", "")} period. Keep playing to keep your rank.`;
@@ -69,7 +71,12 @@ export function PlayerRankSummaryCard({
     <Card className={cn("overflow-hidden p-0", className)}>
       <button
         type="button"
-        className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 px-5 pt-3 text-left"
+        className={cn(
+          "grid w-full cursor-pointer items-center gap-4 px-5 pt-3 text-left",
+          showRankPosition
+            ? "grid-cols-[minmax(0,1fr)_auto_auto]"
+            : "grid-cols-[minmax(0,1fr)_auto]",
+        )}
         aria-expanded={isExpanded}
         aria-controls={detailsId}
         onClick={() => setIsExpanded((current) => !current)}
@@ -102,16 +109,18 @@ export function PlayerRankSummaryCard({
             Player Rank
           </p>
         </div>
-        <div className="text-right">
-          <div className="min-w-0">
-            <p className="text-2xl font-black tracking-tight text-foreground">
-              {rankPosition ? `#${rankPosition}` : "--"}
-            </p>
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              {rankPositionLabel}
-            </p>
+        {showRankPosition ? (
+          <div className="text-right">
+            <div className="min-w-0">
+              <p className="text-2xl font-black tracking-tight text-foreground">
+                {rankPosition ? `#${rankPosition}` : "--"}
+              </p>
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                {rankPositionLabel}
+              </p>
+            </div>
           </div>
-        </div>
+        ) : null}
         <span className="pointer-events-none flex items-center self-center">
           <ChevronDown
             className={cn(

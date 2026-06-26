@@ -85,7 +85,7 @@ export async function getPublicProfilePageData(
     ...profileData,
     canViewPlayerRank: Boolean(playerRankConfig),
     playerRankTotal: playerRankSummary?.playerRankTotal ?? null,
-    playerRankPosition: playerRankSummary?.playerRankPosition ?? null,
+    playerRankPosition: null,
     playerRankWindowLabel: playerRankSummary?.playerRankWindowLabel ?? null,
     playerRankGamesCount: playerRankSummary?.playerRankGamesCount ?? null,
     topThreeFinishes: playerRankSummary?.topThreeFinishes ?? null,

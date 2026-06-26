@@ -15,6 +15,7 @@ export default async function TitleDetailsPage({ params }: PageProps) {
   const data = await getGameTitleStatsPageData({
     userId: user.id,
     gameTitleId,
+    allowAdminAccess: user.role === "admin",
   });
 
   if (!data) {
@@ -24,10 +25,12 @@ export default async function TitleDetailsPage({ params }: PageProps) {
   const canManageDefaults = data.title.isUniversal
     ? user.role === "admin"
     : data.title.createdByUserId === user.id;
+  const canManageTitleArtwork = user.role === "admin";
 
   return (
     <GameTitlePage
       canManageDefaults={canManageDefaults}
+      canManageTitleArtwork={canManageTitleArtwork}
       data={data}
     />
   );

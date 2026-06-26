@@ -1,13 +1,18 @@
 "use client";
 
 import {
+  approveGameJoinRequest,
   addGamePlayer,
   addGuestGamePlayer,
   commitGameRound,
+  declineGameJoinRequest,
   deleteCreatedGame,
   getPlayGameSnapshot,
+  pauseGame,
   reopenCompletedGame,
   removeGamePlayer,
+  resumeGame,
+  setGameInviteUsersEnabled,
   setGamePlayerManager,
   updateRecordedRoundScore,
   upsertActiveRoundScore,
@@ -17,11 +22,16 @@ import GameTitleImage from "@/components/game/game-title-image";
 import { PlayerRankDeltaBadge } from "@/components/player-rank/player-rank-delta-badge";
 import { PlayerRankPodium } from "@/components/player-rank/player-rank-podium";
 import { getProfileColorSurfaceStyles } from "@/components/profile/profile-color-styles";
-import { ProfileColorSelector } from "@/components/profile/profile-color-selector";
+import {
+  PROFILE_COLORS,
+  ProfileColorSelector,
+} from "@/components/profile/profile-color-selector";
+import { ShareQrPanel } from "@/components/profile/friend-invite-share-card";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardEmpty, CardHeader } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { RematchButton } from "@/components/game/rematch-button";
 import {
@@ -50,6 +60,7 @@ import {
 } from "@/components/ui/drawer";
 import type { GameForPlayPage } from "@/lib/db/store/game.store";
 import type { GamePlayerStartingScoreMode } from "@/lib/db/store/game.store";
+import type { GameJoinRequestFull } from "@/lib/db/store/game-join-request.store";
 import type { PlayerRankGameDelta } from "@/lib/db/store/player-rank.store";
 import type { UserBase } from "@/lib/db/store/user.store";
 import {
@@ -70,7 +81,6 @@ import {
   summarizeRemotePlayGameEvents,
 } from "@/components/game/play-game-live-updates";
 import {
-  ChevronDown,
   Check,
   Delete,
   DoorOpen,
@@ -78,14 +88,16 @@ import {
   ListChecks,
   LoaderCircle,
   Minus,
+  Pause,
   Plus,
+  Play,
   Settings2,
   Trash2,
   Trophy,
-  Undo2,
   UserPlus,
   Users,
   X,
+  Send,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -107,8 +119,10 @@ import { cn } from "@/lib/utils";
 type PlayGameProps = {
   canManageLiveGame: boolean;
   currentUserId: string;
+  gameSharePath: string | null;
   isCreator: boolean;
   isManager: boolean;
+  pendingJoinRequests: GameJoinRequestFull[];
   playerOptions: UserBase[];
   playerRankDeltas: PlayerRankGameDelta[];
   game: GameForPlayPage;
@@ -135,6 +149,8 @@ type PendingMutationEntry = {
   mutation: PlayGameMutation;
 };
 
+const PAUSE_WITHOUT_NEXT_PLAYER = "__pause-without-next-player__";
+
 type AddPlayerSelection =
   | {
       type: "existing";
@@ -142,6 +158,7 @@ type AddPlayerSelection =
     }
   | {
       type: "guest";
+      color: string;
       firstName: string;
       lastName?: string;
       rawName: string;
@@ -368,8 +385,10 @@ function buildInitialSnapshot(props: PlayGameProps): PlayGameSnapshot {
   return {
     canManageLiveGame: props.canManageLiveGame,
     currentUserId: props.currentUserId,
+    gameSharePath: props.gameSharePath,
     isCreator: props.isCreator,
     isManager: props.isManager,
+    pendingJoinRequests: props.pendingJoinRequests,
     playerOptions: props.playerOptions,
     playerRankDeltas: props.playerRankDeltas,
     game: props.game,
@@ -377,6 +396,7 @@ function buildInitialSnapshot(props: PlayGameProps): PlayGameSnapshot {
 }
 
 function createTemporaryGuestUser(input: {
+  color: string;
   currentUserId: string;
   firstName: string;
   lastName?: string;
@@ -388,7 +408,7 @@ function createTemporaryGuestUser(input: {
     clerkUserId: null,
     friendInviteToken: null,
     profileCardId: null,
-    color: "#FFFFFF",
+    color: input.color,
     role: "user" as const,
     email: null,
     avatarUrl: null,
@@ -407,6 +427,10 @@ function createTemporaryGuestUser(input: {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function getDefaultGuestColor() {
+  return PROFILE_COLORS[0] ?? "#2563eb";
 }
 
 function normalizeScoreAmountInput(value: string) {
@@ -480,6 +504,7 @@ export default function PlayGame(props: PlayGameProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [isDeleteGamePending, startDeleteGameTransition] = useTransition();
+  const [isInviteTogglePending, startInviteToggleTransition] = useTransition();
   const [scoreDialogState, setScoreDialogState] =
     useState<ScoreDialogState | null>(null);
   const [isScoreDrawerOpen, setIsScoreDrawerOpen] = useState(false);
@@ -492,14 +517,22 @@ export default function PlayGame(props: PlayGameProps) {
   const [removePlayerUserId, setRemovePlayerUserId] = useState<string | null>(
     null,
   );
+  const [isPauseDialogOpen, setIsPauseDialogOpen] = useState(false);
+  const [pausedNextUserIdSelection, setPausedNextUserIdSelection] =
+    useState<string>(PAUSE_WITHOUT_NEXT_PLAYER);
   const [isRoundDialogOpen, setIsRoundDialogOpen] = useState(false);
   const [roundDialogIntent, setRoundDialogIntent] =
     useState<RoundDialogIntent>("round");
   const [isRoundHistoryOpen, setIsRoundHistoryOpen] = useState(false);
-  const [isExitConfirmOpen, setIsExitConfirmOpen] = useState(false);
   const [isHeaderDrawerOpen, setIsHeaderDrawerOpen] = useState(false);
+  const [isShareDrawerOpen, setIsShareDrawerOpen] = useState(false);
   const [isDeleteGameDialogOpen, setIsDeleteGameDialogOpen] = useState(false);
   const [isReopenConfirmOpen, setIsReopenConfirmOpen] = useState(false);
+  const [pendingJoinRequestApprovalId, setPendingJoinRequestApprovalId] =
+    useState<string | null>(null);
+  const [pendingJoinRequestIds, setPendingJoinRequestIds] = useState<string[]>(
+    [],
+  );
   const [colorDialogPlayerId, setColorDialogPlayerId] = useState<string | null>(
     null,
   );
@@ -581,6 +614,8 @@ export default function PlayGame(props: PlayGameProps) {
   const canManageLiveGame = snapshot.canManageLiveGame;
   const game = snapshot.game;
   const currentUserId = snapshot.currentUserId;
+  const gameSharePath = snapshot.gameSharePath;
+  const pendingJoinRequests = snapshot.pendingJoinRequests;
   const playerRankDeltasByUserId = useMemo(
     () =>
       new Map(
@@ -593,6 +628,7 @@ export default function PlayGame(props: PlayGameProps) {
   const isCreator = snapshot.isCreator;
   const isManager = snapshot.isManager;
   const isCompleted = Boolean(game.completedAt);
+  const isPaused = Boolean(game.pausedAt);
   const pendingKeySet = useMemo(
     () => new Set(pendingMutations.map((entry) => entry.key)),
     [pendingMutations],
@@ -602,9 +638,26 @@ export default function PlayGame(props: PlayGameProps) {
     () => new Set(game.players.map((player) => player.userId)),
     [game.players],
   );
+  const pausedNextPlayer = useMemo(
+    () =>
+      game.pausedNextUserId
+        ? (game.players.find(
+            (player) => player.userId === game.pausedNextUserId,
+          ) ?? null)
+        : null,
+    [game.pausedNextUserId, game.players],
+  );
   const winnerIds = useMemo(
     () => new Set(game.winners.map((winner) => winner.userId)),
     [game.winners],
+  );
+  const highlightedPlayerIdSet = useMemo(
+    () => new Set(liveHighlights.playerIds),
+    [liveHighlights.playerIds],
+  );
+  const highlightedScoreUserIdSet = useMemo(
+    () => new Set(liveHighlights.scoreUserIds),
+    [liveHighlights.scoreUserIds],
   );
   const isNoScoreMode = game.scoringMode === "no_score";
   const isFreePlay = game.endingMode === "none";
@@ -648,6 +701,8 @@ export default function PlayGame(props: PlayGameProps) {
       game.rounds.some((round) => round.scores.length > 0),
     [game.players, game.rounds],
   );
+  const gameHasStarted = hasAnyRecordedScores || game.completedRounds > 0;
+  const shareJoinOpen = game.inviteUsersEnabled && !gameHasStarted;
   const availablePlayers = useMemo(
     () =>
       snapshot.playerOptions.filter(
@@ -684,6 +739,7 @@ export default function PlayGame(props: PlayGameProps) {
     game.players.some((player) => getPlayerTotalScore(player) !== 0);
   const canOfferStartingScoreOptions =
     !isCompleted &&
+    !isPaused &&
     showsRounds &&
     game.players.length > 0 &&
     hasStartedRoundScoring;
@@ -1026,6 +1082,51 @@ export default function PlayGame(props: PlayGameProps) {
     startTransition(update);
   }
 
+  function buildLocalMutationKeySet() {
+    pruneRecentLocalMutationKeys();
+
+    return new Set([
+      ...pendingMutationsRef.current.map((entry) => entry.key),
+      ...recentLocalMutationKeysRef.current.map((entry) => entry.key),
+    ]);
+  }
+
+  function showRemoteEvents(nextBaseSnapshot: PlayGameSnapshot) {
+    const remoteEvents = filterLocalRemotePlayGameEvents({
+      events: deriveRemotePlayGameEvents({
+        previousSnapshot: baseSnapshotRef.current,
+        nextSnapshot: nextBaseSnapshot,
+      }),
+      localKeys: buildLocalMutationKeySet(),
+    });
+
+    if (remoteEvents.length === 0) {
+      return;
+    }
+
+    const nextHighlightState = getRemoteHighlightTarget(remoteEvents);
+    const summaries = summarizeRemotePlayGameEvents(remoteEvents);
+
+    if (clearLiveHighlightsTimeoutRef.current) {
+      clearTimeout(clearLiveHighlightsTimeoutRef.current);
+    }
+
+    setLiveHighlights(nextHighlightState);
+    clearLiveHighlightsTimeoutRef.current = setTimeout(() => {
+      setLiveHighlights({
+        gameStatus: false,
+        playerIds: [],
+        roster: false,
+        scoreUserIds: [],
+      });
+      clearLiveHighlightsTimeoutRef.current = null;
+    }, REMOTE_HIGHLIGHT_DURATION_MS);
+
+    for (const summary of summaries) {
+      toast.message(summary);
+    }
+  }
+
   async function reconcileSnapshotNow() {
     if (reconcileInFlightRef.current) {
       return;
@@ -1087,6 +1188,7 @@ export default function PlayGame(props: PlayGameProps) {
   useEffect(() => {
     if (
       !canManageLiveGame ||
+      isPaused ||
       !isRoundScoringReady ||
       isRoundDialogOpen ||
       !activeRound
@@ -1107,7 +1209,9 @@ export default function PlayGame(props: PlayGameProps) {
   }, [
     activeRound,
     canManageLiveGame,
+    game,
     game.winners,
+    isPaused,
     isRoundDialogOpen,
     isRoundScoringReady,
   ]);
@@ -1143,51 +1247,6 @@ export default function PlayGame(props: PlayGameProps) {
         expiresAt: now + RECENT_LOCAL_MUTATION_MS,
       },
     ];
-  }
-
-  function buildLocalMutationKeySet() {
-    pruneRecentLocalMutationKeys();
-
-    return new Set([
-      ...pendingMutationsRef.current.map((entry) => entry.key),
-      ...recentLocalMutationKeysRef.current.map((entry) => entry.key),
-    ]);
-  }
-
-  function showRemoteEvents(nextBaseSnapshot: PlayGameSnapshot) {
-    const remoteEvents = filterLocalRemotePlayGameEvents({
-      events: deriveRemotePlayGameEvents({
-        previousSnapshot: baseSnapshotRef.current,
-        nextSnapshot: nextBaseSnapshot,
-      }),
-      localKeys: buildLocalMutationKeySet(),
-    });
-
-    if (remoteEvents.length === 0) {
-      return;
-    }
-
-    const nextHighlightState = getRemoteHighlightTarget(remoteEvents);
-    const summaries = summarizeRemotePlayGameEvents(remoteEvents);
-
-    if (clearLiveHighlightsTimeoutRef.current) {
-      clearTimeout(clearLiveHighlightsTimeoutRef.current);
-    }
-
-    setLiveHighlights(nextHighlightState);
-    clearLiveHighlightsTimeoutRef.current = setTimeout(() => {
-      setLiveHighlights({
-        gameStatus: false,
-        playerIds: [],
-        roster: false,
-        scoreUserIds: [],
-      });
-      clearLiveHighlightsTimeoutRef.current = null;
-    }, REMOTE_HIGHLIGHT_DURATION_MS);
-
-    for (const summary of summaries) {
-      toast.message(summary);
-    }
   }
 
   async function finalizeSuccessfulMutation(entry: PendingMutationEntry) {
@@ -1255,7 +1314,7 @@ export default function PlayGame(props: PlayGameProps) {
   }
 
   function openScoreDialog(player: GameForPlayPage["players"][number]) {
-    if (!canManageLiveGame || isCompleted || isNoScoreMode) {
+    if (!canManageLiveGame || isCompleted || isPaused || isNoScoreMode) {
       return;
     }
 
@@ -1279,7 +1338,7 @@ export default function PlayGame(props: PlayGameProps) {
     playerId: string;
     roundNumber: number;
   }) {
-    if (!canManageLiveGame || isCompleted || isNoScoreMode) {
+    if (!canManageLiveGame || isCompleted || isPaused || isNoScoreMode) {
       return;
     }
 
@@ -1316,6 +1375,7 @@ export default function PlayGame(props: PlayGameProps) {
   function resetAddPlayerFlow() {
     setAddPlayerSelection(null);
     setIsAddPlayerMode(false);
+    setPendingJoinRequestApprovalId(null);
     setPlayerSearch("");
     setCustomStartingScoreInput("0");
   }
@@ -1363,38 +1423,62 @@ export default function PlayGame(props: PlayGameProps) {
 
     const [firstName, ...rest] = rawName.split(/\s+/);
     const lastName = rest.join(" ").trim() || undefined;
+    const color = getDefaultGuestColor();
     const optimisticGuest = createTemporaryGuestUser({
+      color,
       currentUserId,
       firstName,
       lastName,
     });
 
-    if (canOfferStartingScoreOptions) {
-      setCustomStartingScoreInput("0");
-      setAddPlayerSelection({
-        type: "guest",
-        firstName,
-        lastName,
-        rawName,
-        optimisticUser: optimisticGuest,
-      });
+    setCustomStartingScoreInput("0");
+    setAddPlayerSelection({
+      type: "guest",
+      color,
+      firstName,
+      lastName,
+      rawName,
+      optimisticUser: optimisticGuest,
+    });
+  }
+
+  function handlePendingGuestColorSelect(nextColor: string) {
+    setAddPlayerSelection((currentSelection) => {
+      if (!currentSelection || currentSelection.type !== "guest") {
+        return currentSelection;
+      }
+
+      return {
+        ...currentSelection,
+        color: nextColor,
+        optimisticUser: {
+          ...currentSelection.optimisticUser,
+          color: nextColor,
+        },
+      };
+    });
+  }
+
+  function handleAddGuestPlayer() {
+    if (!addPlayerSelection || addPlayerSelection.type !== "guest") {
       return;
     }
 
     runMutation({
-      key: `add-guest:${normalizeValue(rawName)}`,
+      key: `add-guest:${normalizeValue(addPlayerSelection.rawName)}`,
       mutation: {
         type: "add-guest",
-        user: optimisticGuest,
-        gamePlayerId: `optimistic-game-player-${optimisticGuest.id}`,
+        user: addPlayerSelection.optimisticUser,
+        gamePlayerId: `optimistic-game-player-${addPlayerSelection.optimisticUser.id}`,
         startingScore: 0,
         previousRoundNumber: null,
       },
       action: () =>
         addGuestGamePlayer({
+          color: addPlayerSelection.color,
           gameId: game.id,
-          firstName,
-          lastName,
+          firstName: addPlayerSelection.firstName,
+          lastName: addPlayerSelection.lastName,
         }),
       onOptimistic: () => {
         resetAddPlayerFlow();
@@ -1426,6 +1510,40 @@ export default function PlayGame(props: PlayGameProps) {
 
     if (addPlayerSelection.type === "existing") {
       const userId = addPlayerSelection.user.id;
+
+      if (pendingJoinRequestApprovalId) {
+        setPendingJoinRequestIds((current) => [
+          ...current,
+          pendingJoinRequestApprovalId,
+        ]);
+
+        startTransition(async () => {
+          try {
+            await approveGameJoinRequest({
+              requestId: pendingJoinRequestApprovalId,
+              startingScoreMode: mode,
+              startingScoreValue:
+                mode === "custom" ? customStartingScore : undefined,
+            });
+            await reconcileSnapshotNow();
+            resetAddPlayerFlow();
+            setIsAddPlayerOpen(false);
+            toast.success("Player added to the game");
+          } catch (error) {
+            toast.error(
+              error instanceof Error
+                ? error.message
+                : "Could not approve the join request",
+            );
+          } finally {
+            setPendingJoinRequestIds((current) =>
+              current.filter((entry) => entry !== pendingJoinRequestApprovalId),
+            );
+          }
+        });
+
+        return;
+      }
 
       runMutation({
         key: `add-player:${userId}:${mode}`,
@@ -1463,6 +1581,7 @@ export default function PlayGame(props: PlayGameProps) {
       },
       action: () =>
         addGuestGamePlayer({
+          color: addPlayerSelection.color,
           gameId: game.id,
           firstName: addPlayerSelection.firstName,
           lastName: addPlayerSelection.lastName,
@@ -1473,6 +1592,83 @@ export default function PlayGame(props: PlayGameProps) {
       onOptimistic: () => {
         resetAddPlayerFlow();
       },
+    });
+  }
+
+  function handleInviteUsersToggle(nextEnabled: boolean) {
+    startInviteToggleTransition(async () => {
+      try {
+        await setGameInviteUsersEnabled({
+          gameId: game.id,
+          enabled: nextEnabled,
+        });
+        await reconcileSnapshotNow();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Could not update link joining",
+        );
+      }
+    });
+  }
+
+  function openJoinRequestApproval(request: GameJoinRequestFull) {
+    if (!canOfferStartingScoreOptions) {
+      setPendingJoinRequestIds((current) => [...current, request.id]);
+
+      startTransition(async () => {
+        try {
+          await approveGameJoinRequest({
+            requestId: request.id,
+          });
+          await reconcileSnapshotNow();
+          toast.success("Player added to the game");
+        } catch (error) {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "Could not approve the join request",
+          );
+        } finally {
+          setPendingJoinRequestIds((current) =>
+            current.filter((entry) => entry !== request.id),
+          );
+        }
+      });
+
+      return;
+    }
+
+    setPendingJoinRequestApprovalId(request.id);
+    setCustomStartingScoreInput("0");
+    setAddPlayerSelection({
+      type: "existing",
+      user: request.requester,
+    });
+    setIsAddPlayerMode(true);
+    setIsAddPlayerOpen(true);
+    setIsShareDrawerOpen(false);
+  }
+
+  function handleDeclineJoinRequest(requestId: string) {
+    setPendingJoinRequestIds((current) => [...current, requestId]);
+
+    startTransition(async () => {
+      try {
+        await declineGameJoinRequest({ requestId });
+        await reconcileSnapshotNow();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Could not decline the join request",
+        );
+      } finally {
+        setPendingJoinRequestIds((current) =>
+          current.filter((entry) => entry !== requestId),
+        );
+      }
     });
   }
 
@@ -1562,7 +1758,7 @@ export default function PlayGame(props: PlayGameProps) {
   function handleScoreSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!scoreDialogPlayer) {
+    if (!scoreDialogPlayer || isPaused) {
       return;
     }
 
@@ -1608,6 +1804,10 @@ export default function PlayGame(props: PlayGameProps) {
 
   function handleScoreDrawerOpenChange(open: boolean) {
     if (open) {
+      if (isPaused) {
+        return;
+      }
+
       setIsScoreDrawerOpen(true);
       return;
     }
@@ -1618,6 +1818,10 @@ export default function PlayGame(props: PlayGameProps) {
   }
 
   function handleCommitRound(completeGame: boolean) {
+    if (!canManageLiveGame || isCompleted || isPaused) {
+      return;
+    }
+
     const finishedAt = nowIso();
     const placementSelections =
       completeGame && isNoScoreMode
@@ -1701,6 +1905,10 @@ export default function PlayGame(props: PlayGameProps) {
   }
 
   function openRoundDialog(intent: RoundDialogIntent = "round") {
+    if (!canManageLiveGame || isCompleted || isPaused) {
+      return;
+    }
+
     setSelectedNoScorePlacements(createNoScorePlacementsFromGame(game));
     setActiveNoScorePlacement(1);
     setConfirmedNoScorePlacements([]);
@@ -1735,17 +1943,59 @@ export default function PlayGame(props: PlayGameProps) {
     });
   }
 
-  function openExitConfirmation() {
-    setIsExitConfirmOpen(true);
+  function openPauseDialog() {
+    setPausedNextUserIdSelection(
+      game.pausedNextUserId ?? PAUSE_WITHOUT_NEXT_PLAYER,
+    );
+    setIsPauseDialogOpen(true);
   }
 
-  function closeExitConfirmation() {
-    setIsExitConfirmOpen(false);
+  function handlePauseGame() {
+    if (!canManageLiveGame || isCompleted) {
+      return;
+    }
+
+    const pausedAt = nowIso();
+    const pausedNextUserId =
+      pausedNextUserIdSelection === PAUSE_WITHOUT_NEXT_PLAYER
+        ? null
+        : pausedNextUserIdSelection;
+
+    runMutation({
+      key: "pause-game",
+      mutation: {
+        type: "pause-game",
+        pausedAt,
+        pausedNextUserId,
+      },
+      action: () =>
+        pauseGame({
+          gameId: game.id,
+          nextUserId: pausedNextUserId,
+        }),
+      fallbackError: "Could not pause game",
+      onOptimistic: () => {
+        setIsPauseDialogOpen(false);
+      },
+    });
   }
 
-  function handleExitHome() {
-    closeExitConfirmation();
-    router.push("/dashboard");
+  function handleResumeGame() {
+    if (!canManageLiveGame || isCompleted || !isPaused) {
+      return;
+    }
+
+    runMutation({
+      key: "resume-game",
+      mutation: {
+        type: "resume-game",
+      },
+      action: () =>
+        resumeGame({
+          gameId: game.id,
+        }),
+      fallbackError: "Could not resume game",
+    });
   }
 
   function handleDeleteGame() {
@@ -1801,6 +2051,8 @@ export default function PlayGame(props: PlayGameProps) {
   }
 
   const commitRoundPending = pendingKeySet.has("commit-round");
+  const pauseMutationPending = pendingKeySet.has("pause-game");
+  const resumeMutationPending = pendingKeySet.has("resume-game");
   const scoreMutationPending = scoreDialogState
     ? pendingKeySet.has(
         scoreDialogState.mode === "history"
@@ -1816,14 +2068,23 @@ export default function PlayGame(props: PlayGameProps) {
   );
   const addPlayerSelectionPending = addPlayerSelection
     ? addPlayerSelection.type === "existing"
-      ? startingScoreOptions.some((option) =>
-          pendingKeySet.has(
-            `add-player:${addPlayerSelection.user.id}:${option.mode}`,
+      ? Boolean(
+          (pendingJoinRequestApprovalId &&
+            pendingJoinRequestIds.includes(pendingJoinRequestApprovalId)) ||
+          startingScoreOptions.some((option) =>
+            pendingKeySet.has(
+              `add-player:${addPlayerSelection.user.id}:${option.mode}`,
+            ),
           ),
         )
-      : startingScoreOptions.some((option) =>
+      : Boolean(
           pendingKeySet.has(
-            `add-guest:${normalizeValue(addPlayerSelection.rawName)}:${option.mode}`,
+            `add-guest:${normalizeValue(addPlayerSelection.rawName)}`,
+          ) ||
+          startingScoreOptions.some((option) =>
+            pendingKeySet.has(
+              `add-guest:${normalizeValue(addPlayerSelection.rawName)}:${option.mode}`,
+            ),
           ),
         )
     : false;
@@ -1849,14 +2110,6 @@ export default function PlayGame(props: PlayGameProps) {
       router.push(`/profile/${encodeURIComponent(player.user.id)}`);
     }
   }
-  const highlightedPlayerIdSet = useMemo(
-    () => new Set(liveHighlights.playerIds),
-    [liveHighlights.playerIds],
-  );
-  const highlightedScoreUserIdSet = useMemo(
-    () => new Set(liveHighlights.scoreUserIds),
-    [liveHighlights.scoreUserIds],
-  );
 
   return (
     <div
@@ -1871,104 +2124,103 @@ export default function PlayGame(props: PlayGameProps) {
               game.gameTitle?.color ?? "#64748b",
           }}
         >
-          <details className="group">
-            <summary className="flex cursor-pointer list-none items-stretch pr-4">
-              <GameTitleImage
-                className="w-20 shrink-0"
-                color={game.gameTitle?.color}
-                imageUrl={game.gameTitle?.imageUrl}
-              />
-              <div className="flex min-w-0 min-h-18 flex-1 items-center gap-3 px-4 py-3">
-                <div className="min-w-0 flex-1 space-y-1">
-                  <h1 className="truncate text-lg font-black tracking-tight text-foreground">
-                    {game.gameTitle?.title ?? "Untitled game"}
-                  </h1>
-                  {showsRounds && (
-                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-foreground/60">
-                      Round {currentRoundLabel}
-                    </p>
-                  )}
-                </div>
-                <ChevronDown className="mt-1 size-4 shrink-0 self-center text-muted-foreground transition-transform group-open:rotate-180" />
+          <GameTitleImage
+            className="w-full"
+            color={game.gameTitle?.color}
+            contentClassName="px-4 py-3.5"
+            imageUrl={game.gameTitle?.imageUrl}
+            variant="card"
+          >
+            <div className="relative flex min-h-24 items-center justify-between">
+              <div className="min-w-0">
+                <h1 className="truncate text-2xl font-black tracking-tight text-white">
+                  {game.gameTitle?.title ?? "Untitled game"}
+                </h1>
+                {showsRounds ? (
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-white/72">
+                    Round {currentRoundLabel}
+                  </p>
+                ) : null}
               </div>
-            </summary>
-            <div className="flex flex-col border-t border-border px-4 py-4 gap-3">
-              <div className="flex flex-wrap gap-2">
-                <Badge
-                  className="border-border/70 bg-background/75 text-foreground backdrop-blur-md dark:bg-background/60"
-                  variant="outline"
-                >
-                  {formatScoringSummary(game)}
-                </Badge>
-                <Badge
-                  className="border-border/70 bg-background/75 text-foreground backdrop-blur-md dark:bg-background/60"
-                  variant="outline"
-                >
-                  {formatEndingSummary(game)}
-                </Badge>
-                {isCompleted && (
-                  <Badge className="winner-badge" variant="outline">
-                    Complete
-                  </Badge>
-                )}
-              </div>
-              <div className="flex w-full justify-between items-end">
-                <div className="flex flex-col text-xs text-muted-foreground">
-                  <div className="flex flex-col gap-1">
-                    {game.completedAt ? (
-                      <p>Completed {formatGameMetaDate(game.completedAt)}</p>
-                    ) : null}
-                    <p>Created by {getDisplayName(game.creator)}</p>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <p>Started {formatGameMetaDate(game.createdAt)}</p>
-                  </div>
-                </div>
-                {canManageLiveGame ? (
-                  <div className="flex items-center gap-2">
-                    <Drawer
-                      onOpenChange={setIsHeaderDrawerOpen}
-                      open={isHeaderDrawerOpen}
+              {canManageLiveGame ? (
+                <div className="absolute right-0 top-1/2 -translate-y-1/2">
+                  <Drawer
+                    onOpenChange={setIsHeaderDrawerOpen}
+                    open={isHeaderDrawerOpen}
+                  >
+                    <DrawerTrigger
+                      render={
+                        <Button
+                          aria-label="Game options"
+                          className="shrink-0 rounded-full border-white/20 bg-white/15 text-white shadow-none backdrop-blur-sm hover:bg-white/22 hover:text-white dark:border-white/15 dark:bg-black/15 dark:hover:bg-black/25"
+                          type="button"
+                          variant="outline"
+                        />
+                      }
                     >
-                      <DrawerTrigger
-                        render={
-                          <Button
-                            aria-label="Game options"
-                            className="cursor-pointer"
-                            type="button"
-                            variant="outline"
-                          />
-                        }
-                      >
-                        <Settings2 className="size-5" />
-                      </DrawerTrigger>
-                      <DrawerContent className="gap-4 pb-28">
-                        <DrawerHeader>
-                          <DrawerTitle className="text-xl font-black">
-                            Game options
-                          </DrawerTitle>
-                          <DrawerDescription>
-                            Quick actions for this game.
-                          </DrawerDescription>
-                        </DrawerHeader>
-                        <div className="flex flex-col gap-2">
+                      <Settings2 className="size-5" />
+                    </DrawerTrigger>
+                    <DrawerContent className="gap-4 pb-28">
+                      <DrawerHeader>
+                        <DrawerTitle className="text-xl font-black">
+                          Game options
+                        </DrawerTitle>
+                        <DrawerDescription>
+                          Manage the game settings and players.
+                        </DrawerDescription>
+                      </DrawerHeader>
+                      <div className="flex flex-col gap-4 px-4">
+                        <div className="rounded-3xl border border-border bg-muted/40 p-4">
+                          <div className="flex flex-wrap gap-2">
+                            <Badge
+                              className="border-border/70 bg-background/75 text-foreground backdrop-blur-md dark:bg-background/60"
+                              variant="outline"
+                            >
+                              {formatScoringSummary(game)}
+                            </Badge>
+                            <Badge
+                              className="border-border/70 bg-background/75 text-foreground backdrop-blur-md dark:bg-background/60"
+                              variant="outline"
+                            >
+                              {formatEndingSummary(game)}
+                            </Badge>
+                            {isCompleted ? (
+                              <Badge className="winner-badge" variant="outline">
+                                Complete
+                              </Badge>
+                            ) : null}
+                          </div>
+                          <div className="mt-3 flex flex-col gap-1 text-sm text-muted-foreground">
+                            {game.completedAt ? (
+                              <p>
+                                Completed {formatGameMetaDate(game.completedAt)}
+                              </p>
+                            ) : null}
+                            <p>Created by {getDisplayName(game.creator)}</p>
+                            <p>Started {formatGameMetaDate(game.createdAt)}</p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
                           {isCreator ? (
                             <Link
+                              className="block aspect-square"
                               href={`/game/${game.id}/settings`}
                               onClick={() => setIsHeaderDrawerOpen(false)}
                             >
                               <Button
-                                className="w-full justify-start"
+                                aria-label="Change game settings"
+                                className="h-full w-full flex-col justify-center gap-2 rounded-[1.6rem] px-3 py-4 text-center text-[0.68rem] font-semibold uppercase tracking-[0.12em]"
                                 type="button"
                                 variant="outline"
                               >
-                                <Settings2 className="size-4" />
-                                Change game settings
+                                <Settings2 className="size-7" />
+                                Settings
                               </Button>
                             </Link>
                           ) : null}
                           <Button
-                            className="w-full justify-start"
+                            aria-label="Manage players"
+                            className="aspect-square h-auto w-full flex-col justify-center gap-2 rounded-[1.6rem] px-3 py-4 text-center text-[0.68rem] font-semibold uppercase tracking-[0.12em]"
                             disabled={isCompleted}
                             onClick={() => {
                               setIsHeaderDrawerOpen(false);
@@ -1978,12 +2230,28 @@ export default function PlayGame(props: PlayGameProps) {
                             type="button"
                             variant="outline"
                           >
-                            <Users className="size-4" />
-                            Manage players
+                            <Users className="size-7" />
+                            Players
+                          </Button>
+                          <Button
+                            aria-label="Share invite link"
+                            className="aspect-square h-auto w-full flex-col justify-center gap-2 rounded-[1.6rem] px-3 py-4 text-center text-[0.68rem] font-semibold uppercase tracking-[0.12em]"
+                            onClick={() => {
+                              setIsHeaderDrawerOpen(false);
+                              setIsShareDrawerOpen(true);
+                            }}
+                            type="button"
+                            variant="outline"
+                          >
+                            <Send className="size-7" />
+                            Share
                           </Button>
                           {!isCompleted || isCreator ? (
                             <Button
-                              className="w-full justify-start"
+                              aria-label={
+                                isCompleted ? "Reopen game" : "End game"
+                              }
+                              className="aspect-square h-auto w-full flex-col justify-center gap-2 rounded-[1.6rem] px-3 py-4 text-center text-[0.68rem] font-semibold uppercase tracking-[0.12em]"
                               onClick={() => {
                                 setIsHeaderDrawerOpen(false);
                                 if (isCompleted) {
@@ -1996,11 +2264,13 @@ export default function PlayGame(props: PlayGameProps) {
                               type="button"
                               variant="outline"
                             >
-                              <Trophy className="size-4" />
-                              {isCompleted ? "Reopen game" : "End game"}
+                              <Trophy className="size-7" />
+                              {isCompleted ? "Reopen" : "End game"}
                             </Button>
                           ) : null}
-                          {isCreator ? (
+                        </div>
+                        {isCreator ? (
+                          <div className="flex flex-col gap-2">
                             <Button
                               className="w-full justify-start"
                               disabled={isCompleted || isDeleteGamePending}
@@ -2014,15 +2284,15 @@ export default function PlayGame(props: PlayGameProps) {
                               <Trash2 className="size-4" />
                               Delete game
                             </Button>
-                          ) : null}
-                        </div>
-                      </DrawerContent>
-                    </Drawer>
-                  </div>
-                ) : null}
-              </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </DrawerContent>
+                  </Drawer>
+                </div>
+              ) : null}
             </div>
-          </details>
+          </GameTitleImage>
         </Card>
 
         {isCompleted ? (
@@ -2302,14 +2572,31 @@ export default function PlayGame(props: PlayGameProps) {
           data-live-highlighted={liveHighlights.gameStatus || undefined}
         >
           <div className="flex justify-between gap-2">
-            {!isCompleted && (
+            {showsRounds && !isNoScoreMode ? (
               <Button
                 className="h-16 w-fit min-w-20 flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase"
-                onClick={openExitConfirmation}
+                disabled={isPaused}
+                onClick={() => setIsRoundHistoryOpen(true)}
                 variant="outline"
               >
-                <Undo2 className="size-5" />
-                Exit
+                <ListChecks className="size-5" />
+                Scores
+              </Button>
+            ) : null}
+
+            {!isCompleted && canManageLiveGame && (
+              <Button
+                className="h-16 w-fit min-w-20 flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase"
+                disabled={pauseMutationPending || resumeMutationPending}
+                onClick={openPauseDialog}
+                variant="outline"
+              >
+                {pauseMutationPending ? (
+                  <LoaderCircle className="size-5 animate-spin" />
+                ) : (
+                  <Pause className="size-5" />
+                )}
+                Pause
               </Button>
             )}
 
@@ -2324,13 +2611,18 @@ export default function PlayGame(props: PlayGameProps) {
                 </Button>
               </Link>
             )}
+
+            {!isCompleted && !canManageLiveGame ? (
+              <div className="h-16 min-w-20" aria-hidden />
+            ) : null}
+
             {canManageLiveGame ? (
               <Button
                 className={cn(
                   "h-16 w-fit min-w-20 flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase",
                   isRoundScoringReady && "bg-primary text-primary-foreground",
                 )}
-                disabled={isCompleted || commitRoundPending}
+                disabled={isCompleted || isPaused || commitRoundPending}
                 onClick={() => openRoundDialog()}
                 variant={isRoundScoringReady ? "default" : "outline"}
               >
@@ -2348,17 +2640,6 @@ export default function PlayGame(props: PlayGameProps) {
                       : isFreePlay
                         ? "Score"
                         : "Round"}
-              </Button>
-            ) : null}
-
-            {showsRounds && !isNoScoreMode ? (
-              <Button
-                className="h-16 w-fit min-w-20 flex-col gap-1 rounded-[1.4rem] text-[0.68rem] font-semibold tracking-[0.08em] uppercase"
-                onClick={() => setIsRoundHistoryOpen(true)}
-                variant="outline"
-              >
-                <ListChecks className="size-5" />
-                Score
               </Button>
             ) : null}
           </div>
@@ -2395,26 +2676,54 @@ export default function PlayGame(props: PlayGameProps) {
         </DialogContent>
       </Dialog>
 
-      <Dialog onOpenChange={setIsExitConfirmOpen} open={isExitConfirmOpen}>
+      <Dialog
+        onOpenChange={setIsPauseDialogOpen}
+        open={isPauseDialogOpen && !isPaused}
+      >
         <DialogContent className="max-w-[calc(100%-1.5rem)] rounded-[2rem] p-5">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black">
-              Exit this game?
+              Need to pause?
             </DialogTitle>
             <DialogDescription className="text-base">
-              {isCompleted
-                ? "You're just leaving the play screen. This game will still be here later if you want to review it again."
-                : "You're just leaving the play screen. You can always resume the game later."}
+              Select the player who's turn is next so that you remember when you
+              pick it up again.
             </DialogDescription>
           </DialogHeader>
+          <div className="grid gap-2">
+            {game.players.map((player) => (
+              <Button
+                className="justify-between rounded-2xl px-4 py-6"
+                key={player.userId}
+                onClick={() => setPausedNextUserIdSelection(player.userId)}
+                type="button"
+                variant={
+                  pausedNextUserIdSelection === player.userId
+                    ? "default"
+                    : "outline"
+                }
+              >
+                <span>{getDisplayName(player.user)}</span>
+                {pausedNextUserIdSelection === player.userId ? (
+                  <Check className="size-4" />
+                ) : null}
+              </Button>
+            ))}
+          </div>
           <DialogFooter className="bg-transparent p-0 pt-2">
             <Button
-              onClick={() => setIsExitConfirmOpen(false)}
+              disabled={pauseMutationPending}
+              onClick={() => setIsPauseDialogOpen(false)}
               variant="outline"
             >
-              Stay here
+              Cancel
             </Button>
-            <Button onClick={handleExitHome}>Leave</Button>
+            <Button disabled={pauseMutationPending} onClick={handlePauseGame}>
+              {pauseMutationPending ? (
+                <LoaderCircle className="animate-spin" />
+              ) : null}
+              Pause game
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2448,12 +2757,45 @@ export default function PlayGame(props: PlayGameProps) {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={isPaused}>
+        <DialogContent
+          className="max-w-[calc(100%-1.5rem)] rounded-[2rem] p-5"
+          showCloseButton={false}
+        >
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black">
+              Game paused
+            </DialogTitle>
+            <DialogDescription className="text-base">
+              {pausedNextPlayer
+                ? `${getDisplayName(pausedNextPlayer.user)}'s turn is next.`
+                : "Tap continue when you are ready"}
+            </DialogDescription>
+          </DialogHeader>
+          {canManageLiveGame ? (
+            <DialogFooter className="bg-transparent p-0 pt-2">
+              <Button
+                disabled={resumeMutationPending}
+                onClick={handleResumeGame}
+              >
+                {resumeMutationPending ? (
+                  <LoaderCircle className="animate-spin" />
+                ) : (
+                  <Play className="size-4" />
+                )}
+                Continue
+              </Button>
+            </DialogFooter>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       <Drawer
         onOpenChange={handleScoreDrawerOpenChange}
-        open={isScoreDrawerOpen}
+        open={isScoreDrawerOpen && !isPaused}
       >
         <DrawerContent
-          className="left-1/2 right-auto max-h-[92vh] w-full max-w-sm -translate-x-1/2 gap-0 overflow-hidden rounded-t-[2rem] p-0 text-[color:var(--profile-surface-text)] duration-150 data-open:slide-in-from-bottom-3 data-closed:slide-out-to-bottom-3"
+          className="max-h-[92vh] gap-0 overflow-hidden rounded-t-[2rem] p-0 text-[color:var(--profile-surface-text)] duration-150 data-open:slide-in-from-bottom-3 data-closed:slide-out-to-bottom-3"
           style={
             scoreDialogPlayer
               ? getProfileColorSurfaceStyles(scoreDialogPlayer.user.color)
@@ -2549,7 +2891,7 @@ export default function PlayGame(props: PlayGameProps) {
                       key={digit}
                       aria-label={`Enter ${digit}`}
                       className="h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[clamp(0.95rem,4vw,1.5rem)] font-black text-[color:var(--profile-surface-text)] shadow-sm"
-                      disabled={isCompleted || scoreMutationPending}
+                      disabled={isCompleted || isPaused || scoreMutationPending}
                       onClick={() =>
                         setScoreAmountInput(
                           appendScoreAmountDigit(scoreAmountInput, digit),
@@ -2564,7 +2906,7 @@ export default function PlayGame(props: PlayGameProps) {
                   <Button
                     aria-label="Toggle positive or negative"
                     className="h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[clamp(0.85rem,3.6vw,1.25rem)] font-black text-[color:var(--profile-surface-text)] shadow-sm"
-                    disabled={scoreMutationPending}
+                    disabled={isPaused || scoreMutationPending}
                     onClick={() =>
                       setScoreAmountInput(
                         toggleScoreAmountSign(scoreAmountInput),
@@ -2578,7 +2920,7 @@ export default function PlayGame(props: PlayGameProps) {
                   <Button
                     aria-label="Enter 0"
                     className="h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[clamp(0.95rem,4vw,1.5rem)] font-black text-[color:var(--profile-surface-text)] shadow-sm"
-                    disabled={isCompleted || scoreMutationPending}
+                    disabled={isCompleted || isPaused || scoreMutationPending}
                     onClick={() =>
                       setScoreAmountInput(
                         appendScoreAmountDigit(scoreAmountInput, 0),
@@ -2592,7 +2934,7 @@ export default function PlayGame(props: PlayGameProps) {
                   <Button
                     aria-label="Delete digit"
                     className="h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[clamp(0.85rem,3.6vw,1.25rem)] font-black text-[color:var(--profile-surface-text)] shadow-sm"
-                    disabled={isCompleted || scoreMutationPending}
+                    disabled={isCompleted || isPaused || scoreMutationPending}
                     onClick={() =>
                       setScoreAmountInput(
                         removeScoreAmountDigit(scoreAmountInput),
@@ -2607,7 +2949,7 @@ export default function PlayGame(props: PlayGameProps) {
                 <Button
                   aria-label="Confirm"
                   className="mt-3 h-[var(--key-height)] min-h-0 w-full rounded-[1.5rem] border-[var(--profile-surface-panel-border)] !bg-[var(--profile-surface-panel)] text-[clamp(1rem,4vw,1.25rem)] font-black !text-[color:var(--profile-surface-text)] shadow-sm hover:!bg-[var(--profile-surface-panel)] active:!bg-[var(--profile-surface-panel)]"
-                  disabled={scoreMutationPending}
+                  disabled={isPaused || scoreMutationPending}
                   type="submit"
                   variant="outline"
                 >
@@ -2656,6 +2998,61 @@ export default function PlayGame(props: PlayGameProps) {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <Drawer onOpenChange={setIsShareDrawerOpen} open={isShareDrawerOpen}>
+        <DrawerContent className="gap-4 pb-28">
+          <DrawerHeader>
+            <DrawerTitle className="text-xl font-black">
+              Share this game
+            </DrawerTitle>
+            <DrawerDescription>
+              {shareJoinOpen
+                ? "Players who open this link before the game starts can join right away."
+                : "Link joins currently require manager approval."}
+            </DrawerDescription>
+          </DrawerHeader>
+          <Card className="rounded-[1.6rem] border-border/70">
+            <CardContent className="flex items-center gap-3 p-4">
+              <Checkbox
+                className="size-8 rounded-xl"
+                checked={game.inviteUsersEnabled}
+                disabled={isInviteTogglePending || isCompleted}
+                onCheckedChange={(checked) => {
+                  handleInviteUsersToggle(Boolean(checked));
+                }}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-foreground">
+                  {game.inviteUsersEnabled
+                    ? "Join link enabled"
+                    : "Join link disabled"}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {gameHasStarted
+                    ? "This game has started, so new joiners need approval even when the link is enabled."
+                    : "Before the game starts, enabled links let players join immediately."}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          {gameSharePath ? (
+            <div className="rounded-[1.6rem] border border-border/70 bg-card p-4">
+              <ShareQrPanel
+                blurQrCode={!game.inviteUsersEnabled}
+                initialPath={gameSharePath}
+                qrTitle="Game share QR code"
+                qrBlurLabel="Enable join link to reveal QR code"
+                shareButtonLabel="Share game"
+                shareErrorMessage="Unable to share the game link"
+                sharePayload={{
+                  title: `${game.gameTitle?.title ?? "Game"} invite`,
+                  text: `Join my game on ${game.gameTitle?.title ?? "Score Loser"}.`,
+                }}
+              />
+            </div>
+          ) : null}
+        </DrawerContent>
+      </Drawer>
 
       <Dialog
         onOpenChange={(open) => {
@@ -2714,69 +3111,98 @@ export default function PlayGame(props: PlayGameProps) {
                           </div>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        {startingScoreOptions.map((option) =>
-                          option.mode === "custom" ? (
-                            <div
-                              key={option.mode}
-                              className="col-span-2 rounded-[1.4rem] border border-border/70 bg-background px-4 py-4"
-                            >
-                              <div className="flex items-center justify-between gap-3">
-                                <span className="font-semibold">Custom</span>
-                                <span className="text-sm text-muted-foreground">
-                                  Enter an amount
-                                </span>
-                              </div>
-                              <div className="mt-3 flex items-center gap-3">
-                                <Input
-                                  inputMode="numeric"
-                                  onChange={(event) =>
-                                    setCustomStartingScoreInput(
-                                      normalizeScoreAmountInput(
-                                        event.target.value,
-                                      ),
-                                    )
-                                  }
-                                  placeholder="0"
-                                  value={customStartingScoreInput}
-                                />
-                                <Button
-                                  disabled={
-                                    addPlayerSelectionPending ||
-                                    parseScoreAmountInput(
-                                      customStartingScoreInput,
-                                    ) === null
-                                  }
-                                  onClick={() =>
-                                    handleAddPlayerWithStartingScore("custom")
-                                  }
-                                  type="button"
-                                >
-                                  Apply
-                                </Button>
-                              </div>
-                            </div>
+                      {addPlayerSelection.type === "guest" ? (
+                        <div className="rounded-[1.4rem] border border-border/70 bg-background px-4 py-4">
+                          <ProfileColorSelector
+                            color={addPlayerSelection.color}
+                            description="Pick a badge color before adding this guest"
+                            disabled={addPlayerSelectionPending}
+                            onSelect={handlePendingGuestColorSelect}
+                            title="Guest color"
+                          />
+                        </div>
+                      ) : null}
+                      {!canOfferStartingScoreOptions &&
+                      addPlayerSelection.type === "guest" ? (
+                        <Button
+                          className="h-12 w-full rounded-[1.4rem]"
+                          disabled={addPlayerSelectionPending}
+                          onClick={handleAddGuestPlayer}
+                          type="button"
+                        >
+                          {addPlayerSelectionPending ? (
+                            <LoaderCircle className="animate-spin" />
                           ) : (
-                            <Button
-                              key={option.mode}
-                              className="h-32 flex-col items-center justify-center rounded-[1.4rem] px-4 py-3 text-center"
-                              disabled={addPlayerSelectionPending}
-                              onClick={() =>
-                                handleAddPlayerWithStartingScore(option.mode)
-                              }
-                              type="button"
-                              variant="outline"
-                            >
-                              <span className="text-4xl font-black leading-none">
-                                {option.value}
-                              </span>
-                              <span className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                                {option.label}
-                              </span>
-                            </Button>
-                          ),
-                        )}
-                      </div>
+                            <Plus className="size-5" />
+                          )}
+                          Add guest
+                        </Button>
+                      ) : null}
+                      {canOfferStartingScoreOptions ? (
+                        <div className="grid grid-cols-2 gap-3">
+                          {startingScoreOptions.map((option) =>
+                            option.mode === "custom" ? (
+                              <div
+                                key={option.mode}
+                                className="col-span-2 rounded-[1.4rem] border border-border/70 bg-background px-4 py-4"
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="font-semibold">Custom</span>
+                                  <span className="text-sm text-muted-foreground">
+                                    Enter an amount
+                                  </span>
+                                </div>
+                                <div className="mt-3 flex items-center gap-3">
+                                  <Input
+                                    inputMode="numeric"
+                                    onChange={(event) =>
+                                      setCustomStartingScoreInput(
+                                        normalizeScoreAmountInput(
+                                          event.target.value,
+                                        ),
+                                      )
+                                    }
+                                    placeholder="0"
+                                    value={customStartingScoreInput}
+                                  />
+                                  <Button
+                                    disabled={
+                                      addPlayerSelectionPending ||
+                                      parseScoreAmountInput(
+                                        customStartingScoreInput,
+                                      ) === null
+                                    }
+                                    onClick={() =>
+                                      handleAddPlayerWithStartingScore("custom")
+                                    }
+                                    type="button"
+                                  >
+                                    Apply
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <Button
+                                key={option.mode}
+                                className="h-32 flex-col items-center justify-center rounded-[1.4rem] px-4 py-3 text-center"
+                                disabled={addPlayerSelectionPending}
+                                onClick={() =>
+                                  handleAddPlayerWithStartingScore(option.mode)
+                                }
+                                type="button"
+                                variant="outline"
+                              >
+                                <span className="text-4xl font-black leading-none">
+                                  {option.value}
+                                </span>
+                                <span className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                                  {option.label}
+                                </span>
+                              </Button>
+                            ),
+                          )}
+                        </div>
+                      ) : null}
                     </div>
                   ) : (
                     <>
@@ -2995,6 +3421,66 @@ export default function PlayGame(props: PlayGameProps) {
                       </Card>
                     );
                   })}
+                  {pendingJoinRequests.map((request) => {
+                    const requestPending = pendingJoinRequestIds.includes(
+                      request.id,
+                    );
+
+                    return (
+                      <Card
+                        key={request.id}
+                        className="rounded-[1.6rem] border-border/50 bg-muted/20 p-0 text-muted-foreground"
+                      >
+                        <CardContent className="flex items-center justify-between gap-3 p-0 px-3 py-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <ProfilePicture
+                              className="border-none opacity-75"
+                              size="xs"
+                              user={request.requester}
+                            />
+                            <div className="min-w-0 self-center">
+                              <p className="truncate text-sm font-bold text-foreground/75">
+                                {getDisplayName(request.requester)}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Join request
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2 self-center">
+                            <Button
+                              aria-label={`Approve ${getDisplayName(request.requester)}`}
+                              className="rounded-xl"
+                              disabled={requestPending}
+                              onClick={() => openJoinRequestApproval(request)}
+                              size="sm"
+                              type="button"
+                              variant="outline"
+                            >
+                              {requestPending ? (
+                                <LoaderCircle className="animate-spin" />
+                              ) : (
+                                <Check className="size-4" />
+                              )}
+                            </Button>
+                            <Button
+                              aria-label={`Decline ${getDisplayName(request.requester)}`}
+                              className="rounded-xl"
+                              disabled={requestPending}
+                              onClick={() =>
+                                handleDeclineJoinRequest(request.id)
+                              }
+                              size="sm"
+                              type="button"
+                              variant="outline"
+                            >
+                              <X className="size-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               </div>
               <DialogFooter className="pt-4">
@@ -3005,6 +3491,17 @@ export default function PlayGame(props: PlayGameProps) {
                   variant="outline"
                 >
                   Back to game
+                </Button>
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    setIsAddPlayerOpen(false);
+                    setIsShareDrawerOpen(true);
+                  }}
+                  type="button"
+                  variant="outline"
+                >
+                  Share invite link
                 </Button>
                 <Button
                   className="w-full"
@@ -3072,7 +3569,7 @@ export default function PlayGame(props: PlayGameProps) {
             setConfirmedNoScorePlacements([]);
           }
         }}
-        open={isRoundDialogOpen}
+        open={isRoundDialogOpen && !isPaused}
       >
         <DialogContent className="max-w-[calc(100%-1.5rem)] rounded-[2rem] p-5">
           <DialogHeader>
@@ -3270,6 +3767,7 @@ export default function PlayGame(props: PlayGameProps) {
             {roundDialogIntent === "end-game" ? (
               <Button
                 disabled={
+                  isPaused ||
                   commitRoundPending ||
                   (isNoScoreMode && selectedWinnerUserIds.length === 0)
                 }
@@ -3284,7 +3782,7 @@ export default function PlayGame(props: PlayGameProps) {
               <>
                 {!isNoScoreMode || showsRounds ? (
                   <Button
-                    disabled={commitRoundPending}
+                    disabled={isPaused || commitRoundPending}
                     onClick={() => handleCommitRound(false)}
                     variant="outline"
                   >
@@ -3296,6 +3794,7 @@ export default function PlayGame(props: PlayGameProps) {
                 ) : null}
                 <Button
                   disabled={
+                    isPaused ||
                     commitRoundPending ||
                     (isNoScoreMode && selectedWinnerUserIds.length === 0)
                   }
@@ -3310,7 +3809,7 @@ export default function PlayGame(props: PlayGameProps) {
             ) : (
               <Button
                 className="h-14 w-full rounded-[1.4rem]"
-                disabled={commitRoundPending}
+                disabled={isPaused || commitRoundPending}
                 onClick={() => handleCommitRound(false)}
               >
                 {commitRoundPending ? (
@@ -3329,7 +3828,7 @@ export default function PlayGame(props: PlayGameProps) {
 
       <Dialog
         onOpenChange={setIsRoundHistoryOpen}
-        open={showsRounds && isRoundHistoryOpen}
+        open={showsRounds && isRoundHistoryOpen && !isPaused}
       >
         <DialogContent className="max-w-[calc(100%-1.5rem)] rounded-[2rem] p-5">
           <DialogHeader>

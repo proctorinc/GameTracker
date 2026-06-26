@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Trophy, Users } from "lucide-react";
+import { Trophy } from "lucide-react";
 import GameTitleImage from "@/components/game/game-title-image";
 import ProfilePicture from "@/components/profile/profile-picture";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardEmpty } from "@/components/ui/card";
+import { CardEmpty } from "@/components/ui/card";
 import { getPlayersOrderedByPlacement } from "@/app/(protected)/dashboard/_components/utils";
 import { cn } from "@/lib/utils";
 import { useActivityPage } from "../activity-page-provider";
@@ -75,41 +73,7 @@ function getPlayedBySummary(
   return `${labels[0]}, and ${labels.length - 1} others`;
 }
 
-const ACTIVITY_CHUNK_DAYS = 7;
-const ACTIVITY_CHUNK_SIZE = 20;
-const DAY_IN_MS = 24 * 60 * 60 * 1000;
-
-function getActivityChunkEndIndex(
-  games: ReturnType<typeof useActivityPage>["data"]["friendActivity"],
-  startIndex: number,
-) {
-  const chunkStart = games[startIndex];
-
-  if (!chunkStart) {
-    return startIndex;
-  }
-
-  const chunkStartTime = new Date(chunkStart.createdAt).getTime();
-  const chunkEndBoundary =
-    chunkStartTime - (ACTIVITY_CHUNK_DAYS - 1) * DAY_IN_MS;
-  let endIndex = startIndex;
-
-  while (endIndex < games.length) {
-    if (endIndex - startIndex >= ACTIVITY_CHUNK_SIZE) {
-      break;
-    }
-
-    const activityTime = new Date(games[endIndex].createdAt).getTime();
-
-    if (activityTime < chunkEndBoundary) {
-      break;
-    }
-
-    endIndex += 1;
-  }
-
-  return endIndex;
-}
+const MAX_ACTIVITY_ITEMS = 20;
 
 function groupActivity(
   games: ReturnType<typeof useActivityPage>["data"]["friendActivity"],
@@ -142,17 +106,8 @@ export function FriendActivityCard() {
   const { data } = useActivityPage();
   const dateFormatting = useClientDateFormatting();
   const friendIds = new Set(data.friends.map((friend) => friend.id));
-  const [visibleCount, setVisibleCount] = useState(() =>
-    getActivityChunkEndIndex(data.friendActivity, 0),
-  );
-
-  useEffect(() => {
-    setVisibleCount(getActivityChunkEndIndex(data.friendActivity, 0));
-  }, [data.friendActivity]);
-
-  const visibleActivity = data.friendActivity.slice(0, visibleCount);
+  const visibleActivity = data.friendActivity.slice(0, MAX_ACTIVITY_ITEMS);
   const groups = groupActivity(visibleActivity, dateFormatting);
-  const hasMoreActivity = visibleCount < data.friendActivity.length;
 
   return (
     <div className="flex flex-1 flex-col">
@@ -249,20 +204,6 @@ export function FriendActivityCard() {
               </div>
             </div>
           ))}
-          {hasMoreActivity ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="self-center px-4"
-              onClick={() => {
-                setVisibleCount((currentCount) =>
-                  getActivityChunkEndIndex(data.friendActivity, currentCount),
-                );
-              }}
-            >
-              Show more
-            </Button>
-          ) : null}
         </div>
       )}
     </div>

@@ -4,6 +4,7 @@ export * from "./cards.store";
 export * from "./card-drops.store";
 export * from "./decks.store";
 export * from "./friendship.store";
+export * from "./game-join-request.store";
 export * from "./game-players.store";
 export * from "./game.store";
 export * from "./invitation.store";

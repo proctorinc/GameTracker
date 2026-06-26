@@ -15,12 +15,55 @@ import {
   listPlayerRankHistorySeries,
   listPlayerRankStandings,
   summarizePlayerRankRecentChanges,
+  type PlayerRankChartPoint,
+  type PlayerRankRecentChangeSummary,
 } from "@/lib/db/store/player-rank.store";
 import { formatPlayerRankTotal } from "@/lib/player-rank";
 
 const PLAYER_RANK_PAGE_REVALIDATE_SECONDS = 15;
 
-export type PlayerRankPageData = Awaited<ReturnType<typeof getPlayerRankPageData>>;
+export type PlayerRankPageComparisonSeries = {
+  userId: string;
+  firstName: string | null;
+  lastName: string | null;
+  color: string;
+  displayName: string;
+  isCurrentUser: boolean;
+  currentRankTotal: string;
+  currentRankTotalMinor: number;
+  currentPosition: number | null;
+  friendPosition: number;
+  playerRankGamesCount: number;
+  topThreeFinishes: number;
+  chartPoints: PlayerRankChartPoint[];
+  hasHistory: boolean;
+};
+
+export type PlayerRankPageSummary = {
+  userId: string;
+  firstName: string | null;
+  lastName: string | null;
+  displayName: string;
+  color: string;
+  rankTotal: string;
+  rankPosition: number | null;
+  rankGamesCount: number;
+  topThreeFinishes: number;
+  recentChangeSummary: PlayerRankRecentChangeSummary;
+};
+
+export type PlayerRankPageData = {
+  canViewPlayerRank: boolean;
+  playerRankWindowLabel: string;
+  twoPlayerPrizePool: string | null;
+  threePlayerPrizePool: string | null;
+  sixPlusPlayerPrizePool: string | null;
+  currentUserId: string;
+  comparisonSeries: PlayerRankPageComparisonSeries[];
+  summaryByUserId: Record<string, PlayerRankPageSummary>;
+  defaultSelectedUserIds: string[];
+  historyDateKeys: string[];
+};
 
 export async function getPlayerRankPageData() {
   const user = await loadCurrentUser({
@@ -78,7 +121,7 @@ async function getPlayerRankPageDataCached(userId: string) {
           isCurrentUser: row.user.id === userId,
           currentRankTotal: row.playerRankTotal,
           currentRankTotalMinor: row.playerRankTotalMinor,
-          currentPosition: row.globalPosition,
+          currentPosition: row.friendPosition,
           friendPosition: row.friendPosition,
           playerRankGamesCount: row.playerRankGamesCount,
           topThreeFinishes: row.topThreeFinishes,

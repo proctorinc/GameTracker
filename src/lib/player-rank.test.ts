@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { assignDensePlayerRankPositions, computePlayerRankPayouts } from "./player-rank";
+import {
+  assignDensePlayerRankPositions,
+  computePlayerRankPayouts,
+  formatPlayerRankTotal,
+} from "./player-rank";
 
 const baseConfig = {
   id: "config-1",
@@ -152,5 +156,12 @@ describe("assignDensePlayerRankPositions", () => {
     ]);
 
     expect(standings.map((row) => row.playerRankPosition)).toEqual([1, 1, 2]);
+  });
+});
+
+describe("formatPlayerRankTotal", () => {
+  it("floors minor totals to whole displayed points", () => {
+    expect(formatPlayerRankTotal(22_099)).toBe("220");
+    expect(formatPlayerRankTotal(22_000)).toBe("220");
   });
 });

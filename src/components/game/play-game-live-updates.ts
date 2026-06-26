@@ -42,6 +42,20 @@ export type RemotePlayGameEvent =
       userId: string;
       color: string;
       localKeys: string[];
+    }
+  | {
+      type: "game-paused";
+      pausedNextUserId: string | null;
+      localKeys: string[];
+    }
+  | {
+      type: "game-resumed";
+      localKeys: string[];
+    }
+  | {
+      type: "paused-next-turn-updated";
+      userId: string | null;
+      localKeys: string[];
     };
 
 export type RemoteHighlightTarget = {
@@ -127,6 +141,33 @@ export function deriveRemotePlayGameEvents(input: {
       type: "round-committed",
       roundNumber: input.nextSnapshot.game.completedRounds,
       localKeys: ["commit-round"],
+    });
+  }
+
+  if (!input.previousSnapshot.game.pausedAt && input.nextSnapshot.game.pausedAt) {
+    events.push({
+      type: "game-paused",
+      pausedNextUserId: input.nextSnapshot.game.pausedNextUserId ?? null,
+      localKeys: ["pause-game"],
+    });
+  } else if (
+    input.previousSnapshot.game.pausedAt &&
+    !input.nextSnapshot.game.pausedAt
+  ) {
+    events.push({
+      type: "game-resumed",
+      localKeys: ["resume-game"],
+    });
+  } else if (
+    input.previousSnapshot.game.pausedAt &&
+    input.nextSnapshot.game.pausedAt &&
+    input.previousSnapshot.game.pausedNextUserId !==
+      input.nextSnapshot.game.pausedNextUserId
+  ) {
+    events.push({
+      type: "paused-next-turn-updated",
+      userId: input.nextSnapshot.game.pausedNextUserId ?? null,
+      localKeys: ["pause-game"],
     });
   }
 
@@ -220,7 +261,16 @@ export function getRemoteHighlightTarget(events: RemotePlayGameEvent[]) {
       case "round-committed":
       case "game-completed":
       case "game-reopened":
+      case "game-paused":
+      case "game-resumed":
+      case "paused-next-turn-updated":
         gameStatus = true;
+        if (event.type === "game-paused" && event.pausedNextUserId) {
+          playerIds.add(event.pausedNextUserId);
+        }
+        if (event.type === "paused-next-turn-updated" && event.userId) {
+          playerIds.add(event.userId);
+        }
         break;
       default:
         break;
@@ -241,6 +291,11 @@ export function summarizeRemotePlayGameEvents(events: RemotePlayGameEvent[]) {
   const hasRoundCommit = events.some((event) => event.type === "round-committed");
   const hasGameCompleted = events.some((event) => event.type === "game-completed");
   const hasGameReopened = events.some((event) => event.type === "game-reopened");
+  const hasGamePaused = events.some((event) => event.type === "game-paused");
+  const hasGameResumed = events.some((event) => event.type === "game-resumed");
+  const hasPausedNextTurnUpdate = events.some(
+    (event) => event.type === "paused-next-turn-updated",
+  );
   const hasPlayerAdded = events.some((event) => event.type === "player-added");
   const hasPlayerRemoved = events.some((event) => event.type === "player-removed");
   const hasManagerChanged = events.some((event) => event.type === "manager-changed");
@@ -252,8 +307,16 @@ export function summarizeRemotePlayGameEvents(events: RemotePlayGameEvent[]) {
     summaries.push("Game completed");
   } else if (hasGameReopened) {
     summaries.push("Game reopened");
+  } else if (hasGamePaused) {
+    summaries.push("Game paused");
+  } else if (hasGameResumed) {
+    summaries.push("Game resumed");
   } else if (hasRoundCommit) {
     summaries.push("Round completed");
+  }
+
+  if (hasPausedNextTurnUpdate) {
+    summaries.push("Next turn updated");
   }
 
   if (hasScoreUpdate) {

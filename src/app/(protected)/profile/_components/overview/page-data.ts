@@ -1,5 +1,6 @@
 import "server-only";
 
+import { buildFriendRankSummaries } from "@/app/(protected)/activity/_components/leaderboard-utils";
 import { unstable_cache } from "next/cache";
 import { getFriendConnectionsPageData } from "@/app/(protected)/friends/_components/page-data";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
@@ -14,6 +15,7 @@ import {
   getActivePlayerRankConfig,
   getPlayerRankRecentChangeSummary,
   getUserPlayerRankSummary,
+  listPlayerRankStandings,
 } from "@/lib/db/store/player-rank.store";
 import { formatPlayerRankTotal } from "@/lib/player-rank";
 import { getOwnProfileStatsPageData } from "../../[id]/page-data";
@@ -71,12 +73,29 @@ async function getProfileOverviewPageDataCached(input: {
         throw new Error("Authenticated user not found");
       }
 
-      const [playerRankSummary, playerRankConfig, playerRankRecentChangeSummary] =
+      const [
+        playerRankSummary,
+        playerRankConfig,
+        playerRankRecentChangeSummary,
+        standings,
+      ] =
         await Promise.all([
           getUserPlayerRankSummary(input.userId),
           getActivePlayerRankConfig(),
           getPlayerRankRecentChangeSummary(input.userId),
+          listPlayerRankStandings(),
         ]);
+      const friendRankSummary = buildFriendRankSummaries({
+        currentUser: {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          color: user.color,
+          playerRankLeaderboardDisabled: user.playerRankLeaderboardDisabled,
+        },
+        friends: socialData.friends,
+        standings,
+      }).find((row) => row.user.id === input.userId);
 
       return {
         user: {
@@ -90,7 +109,7 @@ async function getProfileOverviewPageDataCached(input: {
         profile: publicProfile.profile,
         canViewPlayerRank: Boolean(playerRankConfig),
         playerRankTotal: playerRankSummary?.playerRankTotal ?? null,
-        playerRankPosition: playerRankSummary?.playerRankPosition ?? null,
+        playerRankPosition: friendRankSummary?.friendPosition ?? null,
         playerRankWindowLabel: playerRankSummary?.playerRankWindowLabel ?? null,
         playerRankGamesCount: playerRankSummary?.playerRankGamesCount ?? null,
         topThreeFinishes: playerRankSummary?.topThreeFinishes ?? null,

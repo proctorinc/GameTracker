@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildActivityLeaderboard } from "./leaderboard-utils";
+import {
+  buildActivityLeaderboard,
+  buildFriendRankSummaries,
+} from "./leaderboard-utils";
 
 function createFriend(
   id: string,
@@ -95,8 +98,59 @@ describe("buildActivityLeaderboard", () => {
 
     expect(rows.map((row) => row.user.id)).toEqual(["u1", "u2"]);
     expect(rows.map((row) => row.friendPosition)).toEqual([1, 2]);
-    expect(rows[1]?.globalPosition).toBeNull();
+    expect(rows[1]?.friendPosition).toBe(2);
     expect(rows[1]?.playerRankTotal).toBe("0");
+  });
+
+  it("breaks ties with podiums, then ranked games, then a deterministic fallback", () => {
+    const rows = buildFriendRankSummaries({
+      friends: [
+        createFriend("u2", "Amy"),
+        createFriend("u3", "Ben"),
+        createFriend("u1", "Cara"),
+      ],
+      standings: [
+        {
+          userId: "u1",
+          firstName: "Cara",
+          lastName: "Player",
+          displayName: "Cara Player",
+          playerRankTotal: "220",
+          playerRankTotalMinor: 22_000,
+          playerRankPosition: 4,
+          playerRankWindowLabel: "6-month rolling rank",
+          playerRankGamesCount: 3,
+          topThreeFinishes: 2,
+        },
+        {
+          userId: "u2",
+          firstName: "Amy",
+          lastName: "Player",
+          displayName: "Amy Player",
+          playerRankTotal: "220",
+          playerRankTotalMinor: 22_000,
+          playerRankPosition: 5,
+          playerRankWindowLabel: "6-month rolling rank",
+          playerRankGamesCount: 3,
+          topThreeFinishes: 2,
+        },
+        {
+          userId: "u3",
+          firstName: "Ben",
+          lastName: "Player",
+          displayName: "Ben Player",
+          playerRankTotal: "220",
+          playerRankTotalMinor: 22_000,
+          playerRankPosition: 6,
+          playerRankWindowLabel: "6-month rolling rank",
+          playerRankGamesCount: 4,
+          topThreeFinishes: 2,
+        },
+      ],
+    });
+
+    expect(rows.map((row) => row.user.id)).toEqual(["u3", "u1", "u2"]);
+    expect(rows.map((row) => row.friendPosition)).toEqual([1, 2, 3]);
   });
 
   it("chooses a last-week rank surge over raw volume", () => {

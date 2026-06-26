@@ -20,6 +20,7 @@ import { logError, logInfo } from "@/lib/server-log";
 import { getServerRequestContext } from "@/lib/server-request-context";
 import {
   buildActivityLeaderboard,
+  buildFriendRankSummaries,
   type ActivityLeaderboardFriend,
 } from "./leaderboard-utils";
 import { isNextRedirectError } from "@/lib/next-navigation-errors";
@@ -121,6 +122,19 @@ async function getActivityPageDataCached(
       );
       const currentUserChartPoints = historySeries.pointsByUserId[userId] ?? [];
 
+      const leaderboardFriends = buildActivityLeaderboard({
+        currentUser,
+        friends: collections.friends,
+        friendActivity: collections.friendActivity,
+        playerRankDeltasByGameId,
+        standings,
+      });
+      const friendRankSummary = buildFriendRankSummaries({
+        currentUser,
+        friends: collections.friends,
+        standings,
+      }).find((row) => row.user.id === userId);
+
       return {
         friends: collections.friends,
         friendActivity: collections.friendActivity.map((game) => ({
@@ -129,17 +143,11 @@ async function getActivityPageDataCached(
             playerRankDeltasByGameId[game.id]?.find((delta) => delta.userId === userId) ??
             null,
         })),
-        leaderboardFriends: buildActivityLeaderboard({
-          currentUser,
-          friends: collections.friends,
-          friendActivity: collections.friendActivity,
-          playerRankDeltasByGameId,
-          standings,
-        }),
+        leaderboardFriends,
         playerRankTrend: playerRankSummary
           ? {
               rankTotal: playerRankSummary.playerRankTotal,
-              rankPosition: playerRankSummary.playerRankPosition,
+              rankPosition: friendRankSummary?.friendPosition ?? null,
               windowLabel: playerRankSummary.playerRankWindowLabel,
               chartPoints: currentUserChartPoints,
               hasHistory: currentUserChartPoints.some((point) => point.hasSnapshot),

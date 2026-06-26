@@ -1,4 +1,5 @@
 import type { GameForPlayPage } from "@/lib/db/store/game.store";
+import type { GameJoinRequestFull } from "@/lib/db/store/game-join-request.store";
 import type { PlayerRankGameDelta } from "@/lib/db/store/player-rank.store";
 import type { UserBase } from "@/lib/db/store/user.store";
 import {
@@ -10,8 +11,10 @@ import {
 export type PlayGameSnapshot = {
   canManageLiveGame: boolean;
   currentUserId: string;
+  gameSharePath: string | null;
   isCreator: boolean;
   isManager: boolean;
+  pendingJoinRequests: GameJoinRequestFull[];
   playerOptions: UserBase[];
   playerRankDeltas: PlayerRankGameDelta[];
   game: GameForPlayPage;
@@ -59,6 +62,14 @@ export type PlayGameMutation =
       type: "update-color";
       userId: string;
       color: string;
+    }
+  | {
+      type: "pause-game";
+      pausedAt: string;
+      pausedNextUserId: string | null;
+    }
+  | {
+      type: "resume-game";
     };
 
 export function applyPlayGameMutations(
@@ -86,6 +97,10 @@ export function applyPlayGameMutation(
       return applyOptimisticPlayerRemoval(snapshot, mutation);
     case "update-color":
       return applyOptimisticColor(snapshot, mutation);
+    case "pause-game":
+      return applyOptimisticPause(snapshot, mutation);
+    case "resume-game":
+      return applyOptimisticResume(snapshot);
     default:
       return snapshot;
   }
@@ -366,6 +381,39 @@ function applyOptimisticColor(
             : score,
         ),
       })),
+    },
+  };
+}
+
+function applyOptimisticPause(
+  snapshot: PlayGameSnapshot,
+  mutation: Extract<PlayGameMutation, { type: "pause-game" }>,
+) {
+  if (snapshot.game.completedAt) {
+    return snapshot;
+  }
+
+  return {
+    ...snapshot,
+    game: {
+      ...snapshot.game,
+      pausedAt: mutation.pausedAt,
+      pausedNextUserId: mutation.pausedNextUserId,
+    },
+  };
+}
+
+function applyOptimisticResume(snapshot: PlayGameSnapshot) {
+  if (snapshot.game.completedAt || !snapshot.game.pausedAt) {
+    return snapshot;
+  }
+
+  return {
+    ...snapshot,
+    game: {
+      ...snapshot.game,
+      pausedAt: null,
+      pausedNextUserId: null,
     },
   };
 }

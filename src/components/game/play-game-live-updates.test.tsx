@@ -44,8 +44,10 @@ function createSnapshot(): PlayGameSnapshot {
   return {
     canManageLiveGame: true,
     currentUserId: creator.id,
+    gameSharePath: null,
     isCreator: true,
     isManager: false,
+    pendingJoinRequests: [],
     playerOptions: [creator, opponent],
     game: {
       id: "game-1",
@@ -59,6 +61,8 @@ function createSnapshot(): PlayGameSnapshot {
       scoreThreshold: null,
       scoreThresholdDirection: null,
       completedRounds: 0,
+      pausedAt: null,
+      pausedNextUserId: null,
       createdAt: "2025-01-01T00:00:00.000Z",
       completedAt: null,
       creator,
@@ -260,6 +264,54 @@ describe("play-game-live-updates", () => {
     );
   });
 
+  it("detects paused state changes", () => {
+    const previousSnapshot = createSnapshot();
+    const pausedSnapshot: PlayGameSnapshot = {
+      ...previousSnapshot,
+      game: {
+        ...previousSnapshot.game,
+        pausedAt: "2025-01-01T00:10:00.000Z",
+        pausedNextUserId: "user-2",
+      },
+    };
+
+    expect(
+      deriveRemotePlayGameEvents({
+        previousSnapshot,
+        nextSnapshot: pausedSnapshot,
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "game-paused",
+          pausedNextUserId: "user-2",
+        }),
+      ]),
+    );
+
+    const nextTurnSnapshot: PlayGameSnapshot = {
+      ...pausedSnapshot,
+      game: {
+        ...pausedSnapshot.game,
+        pausedNextUserId: null,
+      },
+    };
+
+    expect(
+      deriveRemotePlayGameEvents({
+        previousSnapshot: pausedSnapshot,
+        nextSnapshot: nextTurnSnapshot,
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "paused-next-turn-updated",
+          userId: null,
+        }),
+      ]),
+    );
+  });
+
   it("filters events that match local mutation keys", () => {
     const events = [
       {
@@ -314,5 +366,31 @@ describe("play-game-live-updates", () => {
       "Round completed",
       "Score updated",
     ]);
+  });
+
+  it("summarizes pause lifecycle events", () => {
+    expect(
+      summarizeRemotePlayGameEvents([
+        {
+          type: "game-paused",
+          pausedNextUserId: "user-2",
+          localKeys: ["pause-game"],
+        },
+      ]),
+    ).toEqual(["Game paused"]);
+
+    expect(
+      summarizeRemotePlayGameEvents([
+        {
+          type: "game-resumed",
+          localKeys: ["resume-game"],
+        },
+        {
+          type: "paused-next-turn-updated",
+          userId: null,
+          localKeys: ["pause-game"],
+        },
+      ]),
+    ).toEqual(["Game resumed", "Next turn updated"]);
   });
 });

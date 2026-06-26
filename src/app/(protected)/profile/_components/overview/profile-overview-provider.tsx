@@ -17,6 +17,10 @@ import type {
 const PROFILE_TAB_STORAGE_KEY = "page-tab:/profile";
 const PROFILE_TABS = ["stats", "friends", "settings"] as const;
 
+function normalizeStoredProfileTab(tab: ProfileOverviewTab): ProfileOverviewTab {
+  return tab === "settings" ? "stats" : tab;
+}
+
 type ProfileOverviewContextValue = {
   data: ProfileOverviewPageData;
   user: ProfileOverviewUser;
@@ -47,6 +51,7 @@ export function ProfileOverviewProvider({
       storageKey: PROFILE_TAB_STORAGE_KEY,
       initialValue: initialData.initialTab,
       validTabs: PROFILE_TABS,
+      normalizeStoredTab: normalizeStoredProfileTab,
       preferInitialValue:
         typeof window !== "undefined" &&
         new URLSearchParams(window.location.search).has("tab"),

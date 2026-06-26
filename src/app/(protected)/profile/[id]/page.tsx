@@ -68,6 +68,7 @@ export default async function PublicProfilePage({
           <PlayerRankSummaryCard
             rankGamesCount={data.playerRankGamesCount}
             rankPosition={data.playerRankPosition}
+            showRankPosition={false}
             recentChangeSummary={data.playerRankRecentChangeSummary}
             rankTotal={data.playerRankTotal}
             topThreeFinishes={data.topThreeFinishes}

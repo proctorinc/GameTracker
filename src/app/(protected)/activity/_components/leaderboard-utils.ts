@@ -11,16 +11,18 @@ type ActivityLeaderboardUser = Pick<
   "id" | "firstName" | "lastName" | "color" | "playerRankLeaderboardDisabled"
 >;
 
-export type ActivityLeaderboardFriend = {
+export type FriendRankSummary = {
   user: ActivityLeaderboardUser;
   isCurrentUser: boolean;
   friendPosition: number;
   playerRankTotal: string;
   playerRankTotalMinor: number;
-  globalPosition: number | null;
   playerRankWindowLabel: string | null;
   playerRankGamesCount: number;
   topThreeFinishes: number;
+};
+
+export type ActivityLeaderboardFriend = FriendRankSummary & {
   recentRankedGameAt: string | null;
   recentActivityCount: number;
   headlineStat: {
@@ -29,13 +31,6 @@ export type ActivityLeaderboardFriend = {
   };
   supportingStats: string[];
 };
-
-function getDisplayName(input: {
-  firstName?: string | null;
-  lastName?: string | null;
-}) {
-  return [input.firstName, input.lastName].filter(Boolean).join(" ").trim();
-}
 
 function getDaysSince(input: { timestamp: string; now: Date }) {
   return Math.floor(
@@ -162,6 +157,103 @@ function buildRecentStats(input: {
   };
 }
 
+function getEligibleLeaderboardParticipants(input: {
+  currentUser?: ActivityLeaderboardUser | null;
+  friends: FriendConnectionsCollections["friends"];
+}) {
+  const participants = [
+    ...(input.currentUser ? [input.currentUser] : []),
+    ...input.friends,
+  ].filter(
+    (participant, index, collection) =>
+      collection.findIndex((entry) => entry.id === participant.id) === index,
+  );
+
+  return participants.filter(
+    (participant) =>
+      participant.id === input.currentUser?.id ||
+      !participant.playerRankLeaderboardDisabled,
+  );
+}
+
+type FriendRankBaseRow = {
+  user: ActivityLeaderboardUser;
+  isCurrentUser: boolean;
+  playerRankTotal: string;
+  playerRankTotalMinor: number;
+  playerRankWindowLabel: string | null;
+  playerRankGamesCount: number;
+  topThreeFinishes: number;
+};
+
+export function compareFriendRankRows(
+  left: Pick<
+    FriendRankBaseRow,
+    | "playerRankGamesCount"
+    | "playerRankTotalMinor"
+    | "topThreeFinishes"
+    | "user"
+  >,
+  right: Pick<
+    FriendRankBaseRow,
+    | "playerRankGamesCount"
+    | "playerRankTotalMinor"
+    | "topThreeFinishes"
+    | "user"
+  >,
+) {
+  if (right.playerRankTotalMinor !== left.playerRankTotalMinor) {
+    return right.playerRankTotalMinor - left.playerRankTotalMinor;
+  }
+
+  if (right.topThreeFinishes !== left.topThreeFinishes) {
+    return right.topThreeFinishes - left.topThreeFinishes;
+  }
+
+  if (right.playerRankGamesCount !== left.playerRankGamesCount) {
+    return right.playerRankGamesCount - left.playerRankGamesCount;
+  }
+
+  return left.user.id.localeCompare(right.user.id);
+}
+
+export function buildFriendRankSummaries(input: {
+  currentUser?: ActivityLeaderboardUser | null;
+  friends: FriendConnectionsCollections["friends"];
+  standings: PlayerRankStandingRow[];
+}) {
+  const eligibleParticipants = getEligibleLeaderboardParticipants(input);
+  const standingsByUserId = new Map(
+    input.standings.map((row) => [row.userId, row] as const),
+  );
+
+  return eligibleParticipants
+    .map((participant) => {
+      const standing = standingsByUserId.get(participant.id);
+
+      return {
+        user: participant,
+        isCurrentUser: participant.id === input.currentUser?.id,
+        playerRankTotal: standing?.playerRankTotal ?? "0",
+        playerRankTotalMinor: standing?.playerRankTotalMinor ?? 0,
+        playerRankWindowLabel: standing?.playerRankWindowLabel ?? null,
+        playerRankGamesCount: standing?.playerRankGamesCount ?? 0,
+        topThreeFinishes: standing?.topThreeFinishes ?? 0,
+      } satisfies FriendRankBaseRow;
+    })
+    .sort(compareFriendRankRows)
+    .map((row, index) => ({
+      user: row.user,
+      isCurrentUser: row.isCurrentUser,
+      friendPosition: index + 1,
+      playerRankTotal: row.playerRankTotal,
+      playerRankTotalMinor: row.playerRankTotalMinor,
+      playerRankWindowLabel: row.playerRankWindowLabel,
+      playerRankGamesCount: row.playerRankGamesCount,
+      topThreeFinishes: row.topThreeFinishes,
+    }));
+}
+
 export function buildActivityLeaderboard(input: {
   currentUser?: ActivityLeaderboardUser | null;
   friends: FriendConnectionsCollections["friends"];
@@ -177,21 +269,11 @@ export function buildActivityLeaderboard(input: {
   now?: Date;
 }) {
   const now = input.now ?? new Date();
-  const participants = [
-    ...(input.currentUser ? [input.currentUser] : []),
-    ...input.friends,
-  ].filter(
-    (participant, index, collection) =>
-      collection.findIndex((entry) => entry.id === participant.id) === index,
-  );
-  const eligibleParticipants = participants.filter(
-    (participant) =>
-      participant.id === input.currentUser?.id ||
-      !participant.playerRankLeaderboardDisabled,
-  );
-  const standingsByUserId = new Map(
-    input.standings.map((row) => [row.userId, row] as const),
-  );
+  const friendRankSummaries = buildFriendRankSummaries({
+    currentUser: input.currentUser,
+    friends: input.friends,
+    standings: input.standings,
+  });
   const activitySummaryByUserId = new Map<
     string,
     {
@@ -207,8 +289,8 @@ export function buildActivityLeaderboard(input: {
     }
   >();
 
-  for (const participant of eligibleParticipants) {
-    activitySummaryByUserId.set(participant.id, {
+  for (const row of friendRankSummaries) {
+    activitySummaryByUserId.set(row.user.id, {
       count: 0,
       recentRankedGameAt: null,
       gamesLast3Days: 0,
@@ -273,9 +355,8 @@ export function buildActivityLeaderboard(input: {
     }
   }
 
-  const rows = eligibleParticipants.map((participant) => {
-    const standing = standingsByUserId.get(participant.id);
-    const activitySummary = activitySummaryByUserId.get(participant.id) ?? {
+  return friendRankSummaries.map((summary) => {
+    const activitySummary = activitySummaryByUserId.get(summary.user.id) ?? {
       count: 0,
       recentRankedGameAt: null,
       gamesLast3Days: 0,
@@ -300,64 +381,11 @@ export function buildActivityLeaderboard(input: {
     });
 
     return {
-      user: participant,
-      isCurrentUser: participant.id === input.currentUser?.id,
-      displayName: getDisplayName(participant),
-      playerRankTotal: standing?.playerRankTotal ?? "0",
-      playerRankTotalMinor: standing?.playerRankTotalMinor ?? 0,
-      globalPosition: standing?.playerRankPosition ?? null,
-      playerRankWindowLabel: standing?.playerRankWindowLabel ?? null,
-      playerRankGamesCount: standing?.playerRankGamesCount ?? 0,
-      topThreeFinishes: standing?.topThreeFinishes ?? 0,
+      ...summary,
       recentRankedGameAt: activitySummary.recentRankedGameAt,
       recentActivityCount: activitySummary.count,
       headlineStat: recentStats.headlineStat,
       supportingStats: recentStats.supportingStats,
     };
   });
-
-  const sortedRows = rows.sort((left, right) => {
-    if (right.playerRankTotalMinor !== left.playerRankTotalMinor) {
-      return right.playerRankTotalMinor - left.playerRankTotalMinor;
-    }
-
-    const leftHasActivity =
-      left.playerRankGamesCount > 0 || left.recentActivityCount > 0;
-    const rightHasActivity =
-      right.playerRankGamesCount > 0 || right.recentActivityCount > 0;
-
-    if (leftHasActivity !== rightHasActivity) {
-      return leftHasActivity ? -1 : 1;
-    }
-
-    if (left.globalPosition !== null && right.globalPosition !== null) {
-      return left.globalPosition - right.globalPosition;
-    }
-
-    if (left.globalPosition !== null) {
-      return -1;
-    }
-
-    if (right.globalPosition !== null) {
-      return 1;
-    }
-
-    return left.displayName.localeCompare(right.displayName);
-  });
-
-  return sortedRows.map((row, index) => ({
-    user: row.user,
-    isCurrentUser: row.isCurrentUser,
-    friendPosition: index + 1,
-    playerRankTotal: row.playerRankTotal,
-    playerRankTotalMinor: row.playerRankTotalMinor,
-    globalPosition: row.globalPosition,
-    playerRankWindowLabel: row.playerRankWindowLabel,
-    playerRankGamesCount: row.playerRankGamesCount,
-    topThreeFinishes: row.topThreeFinishes,
-    recentRankedGameAt: row.recentRankedGameAt,
-    recentActivityCount: row.recentActivityCount,
-    headlineStat: row.headlineStat,
-    supportingStats: row.supportingStats,
-  }));
 }
