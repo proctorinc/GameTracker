@@ -29,6 +29,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:test": "node --env-file=.env.test ./node_modules/drizzle-kit/bin.cjs migrate",
     "db:migrate:prod": "node --env-file=.env.production ./node_modules/drizzle-kit/bin.cjs migrate",
+    "db:repair:migrations": "node --import tsx scripts/repair-drizzle-migration-state.ts",
+    "db:repair:migrations:prod": "node --env-file=.env.production --import tsx scripts/repair-drizzle-migration-state.ts",
+    "db:repair:migrations:prod:apply": "node --env-file=.env.production --import tsx scripts/repair-drizzle-migration-state.ts --apply",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
