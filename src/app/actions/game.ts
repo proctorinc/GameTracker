@@ -32,7 +32,6 @@ import {
 import {
   addPlayerToGame,
   addPlayerToGameWithStartingScore,
-  createGameElimination,
   createGameRound,
   createGameRoundScores,
   createOrFindGameTitle,
@@ -54,8 +53,6 @@ import {
   promoteGameTitleToUniversal,
   replaceGameWinners,
   replaceGameResultPlacements,
-  replaceGameItemizedScoreCategories,
-  replaceGameItemizedScoreEntries,
   removePlayerFromGame,
   shareGameTitleWithUser,
   updateGameTitleImageAndColor,
@@ -77,17 +74,6 @@ import {
   gameSettingsToTitleDefaults,
   normalizeGameTitleDefaults,
 } from "@/lib/game/title-defaults";
-import {
-  getV2InitialPlayerScore,
-  isGameSettingsV2Elimination,
-  isGameSettingsV2Itemized,
-  parseGameSettingsV2,
-  projectV2SettingsToLegacy,
-  requiresRoundWinner,
-  serializeGameSettingsV2,
-  type GameSettingsV2,
-  validateGameSettingsV2,
-} from "@/lib/game/v2";
 import { pickRandomProfileColor } from "@/lib/profile-colors";
 import {
   parseTitleImageDataUrl,
@@ -120,57 +106,12 @@ function buildGameSharePath(shareToken: string) {
   return `/invite/game/${shareToken}`;
 }
 
-function hasGameStarted(game: Pick<GameForPlayPage, "completedRounds" | "rounds">) {
+function hasGameStarted(
+  game: Pick<GameForPlayPage, "completedRounds" | "rounds">,
+) {
   return (
     game.completedRounds > 0 ||
     game.rounds.some((round) => round.scores.length > 0)
-  );
-}
-
-function getGameSettingsV2FromGame(game: Pick<GameForPlayPage, "version" | "settingsJson">) {
-  return game.version === "v2" ? parseGameSettingsV2(game.settingsJson) : null;
-}
-
-function getGameSettingsV2FromTitle(
-  gameTitle:
-    | Pick<
-        NonNullable<Awaited<ReturnType<typeof getGameTitleById>>>,
-        "defaultSettingsVersion" | "defaultSettingsJson"
-      >
-    | null
-    | undefined,
-) {
-  if (!gameTitle || gameTitle.defaultSettingsVersion !== "v2") {
-    return null;
-  }
-
-  return parseGameSettingsV2(gameTitle.defaultSettingsJson);
-}
-
-function hasGameStartedWithSettings(game: Pick<
-  GameForPlayPage,
-  | "completedRounds"
-  | "rounds"
-  | "players"
-  | "version"
-  | "settingsJson"
-  | "eliminations"
-  | "itemizedScoreEntries"
->) {
-  const settings = getGameSettingsV2FromGame(game);
-
-  if (!settings) {
-    return hasGameStarted(game);
-  }
-
-  const initialScore = getV2InitialPlayerScore(settings);
-
-  return (
-    game.completedRounds > 0 ||
-    game.rounds.some((round) => round.scores.length > 0) ||
-    game.eliminations.length > 0 ||
-    game.itemizedScoreEntries.length > 0 ||
-    game.players.some((player) => player.score !== initialScore)
   );
 }
 
@@ -250,7 +191,9 @@ async function requireGameCreator(gameId: string) {
   return context;
 }
 
-function getDashboardUserIdsForGame(game: Awaited<ReturnType<typeof getGameForPlayPage>>) {
+function getDashboardUserIdsForGame(
+  game: Awaited<ReturnType<typeof getGameForPlayPage>>,
+) {
   return [
     game?.creatorId ?? null,
     ...(game?.players.map((player) => player.userId) ?? []),
@@ -262,14 +205,18 @@ function revalidateRankRelatedPages(userIds: Array<string | null | undefined>) {
   revalidatePlayerRankPages(userIds);
   revalidatePlayerRankStandings();
 
-  for (const userId of new Set(userIds.filter((value): value is string => Boolean(value)))) {
+  for (const userId of new Set(
+    userIds.filter((value): value is string => Boolean(value)),
+  )) {
     revalidateProfileOverviewPage(userId);
     revalidatePublicProfilePage(userId);
   }
 }
 
 function revalidateFriendsPages(userIds: Array<string | null | undefined>) {
-  for (const userId of new Set(userIds.filter((value): value is string => Boolean(value)))) {
+  for (const userId of new Set(
+    userIds.filter((value): value is string => Boolean(value)),
+  )) {
     revalidateFriendsPage(userId);
   }
 }
@@ -289,7 +236,11 @@ async function ensureParticipantsAreFriends(input: {
       continue;
     }
 
-    for (let compareIndex = index + 1; compareIndex < participants.length; compareIndex += 1) {
+    for (
+      let compareIndex = index + 1;
+      compareIndex < participants.length;
+      compareIndex += 1
+    ) {
       const otherParticipant = participants[compareIndex];
 
       if (!otherParticipant) {
@@ -333,18 +284,17 @@ type NoScorePlacementSelection = {
   userIds: string[];
 };
 
-type ItemizedScoreEntryInput = {
-  userId: string;
-  categoryId: string;
-  quantity: number;
-};
-
 function normalizeNoScorePlacementSelections(input: {
   participants: Array<{ userId: string }>;
-  placementSelections?: Array<{ placement: 1 | 2 | 3; userIds: string[] }> | null;
+  placementSelections?: Array<{
+    placement: 1 | 2 | 3;
+    userIds: string[];
+  }> | null;
   winnerUserIds?: string[] | null;
 }) {
-  const allowedUserIds = new Set(input.participants.map((player) => player.userId));
+  const allowedUserIds = new Set(
+    input.participants.map((player) => player.userId),
+  );
   const normalizedSelections =
     input.placementSelections && input.placementSelections.length > 0
       ? input.placementSelections
@@ -359,18 +309,22 @@ function normalizeNoScorePlacementSelections(input: {
       throw new Error("Only 1st, 2nd, and 3rd place can be recorded");
     }
 
-    const uniqueUserIds = Array.from(new Set(selection.userIds)).filter((userId) => {
-      if (!allowedUserIds.has(userId)) {
-        throw new Error("Only players in the game can be assigned a placement");
-      }
+    const uniqueUserIds = Array.from(new Set(selection.userIds)).filter(
+      (userId) => {
+        if (!allowedUserIds.has(userId)) {
+          throw new Error(
+            "Only players in the game can be assigned a placement",
+          );
+        }
 
-      if (seenUserIds.has(userId)) {
-        throw new Error("A player can only be assigned to one placement");
-      }
+        if (seenUserIds.has(userId)) {
+          throw new Error("A player can only be assigned to one placement");
+        }
 
-      seenUserIds.add(userId);
-      return true;
-    });
+        seenUserIds.add(userId);
+        return true;
+      },
+    );
 
     if (uniqueUserIds.length === 0) {
       continue;
@@ -398,7 +352,9 @@ function normalizeNoScorePlacementSelections(input: {
           }
         : null;
     })
-    .filter((selection): selection is NoScorePlacementSelection => selection !== null);
+    .filter(
+      (selection): selection is NoScorePlacementSelection => selection !== null,
+    );
 
   return {
     placements,
@@ -421,100 +377,10 @@ async function replaceNoScoreGameResults(input: {
   });
   await replaceGameWinners({
     gameId: input.gameId,
-    userIds: input.placementSelections.find((selection) => selection.placement === 1)?.userIds ?? [],
+    userIds:
+      input.placementSelections.find((selection) => selection.placement === 1)
+        ?.userIds ?? [],
   });
-}
-
-function deriveEliminationPlacements(input: {
-  players: Array<{ userId: string }>;
-  eliminatedUserIds: string[];
-}) {
-  const remainingUserIds = input.players
-    .map((player) => player.userId)
-    .filter((userId) => !input.eliminatedUserIds.includes(userId));
-  const placements = new Map<string, 1 | 2 | 3>();
-  const podiumUserIds: string[] = [];
-
-  if (remainingUserIds.length === 1) {
-    placements.set(remainingUserIds[0]!, 1);
-    podiumUserIds.push(remainingUserIds[0]!);
-  }
-
-  const reverseEliminations = [...input.eliminatedUserIds].reverse();
-  const placementOrder: Array<2 | 3> = [2, 3];
-
-  for (const placement of placementOrder) {
-    const userId = reverseEliminations.shift();
-
-    if (!userId) {
-      continue;
-    }
-
-    placements.set(userId, placement);
-    podiumUserIds.push(userId);
-  }
-
-  return Array.from(placements.entries())
-    .filter(([, placement]) => placement >= 1 && placement <= 3)
-    .map(([userId, placement]) => ({
-      userId,
-      placement,
-    }));
-}
-
-async function applyItemizedGameScores(input: {
-  game: GameForPlayPage;
-  entries: ItemizedScoreEntryInput[];
-}) {
-  const categories = input.game.itemizedScoreCategories;
-
-  if (categories.length === 0) {
-    throw new Error("No itemized score categories are configured for this game");
-  }
-
-  const categoryIds = new Set(categories.map((category) => category.id));
-  const playerIds = new Set(input.game.players.map((player) => player.userId));
-
-  for (const entry of input.entries) {
-    if (!categoryIds.has(entry.categoryId)) {
-      throw new Error("Choose a valid itemized score category");
-    }
-
-    if (!playerIds.has(entry.userId)) {
-      throw new Error("Only players in the game can receive itemized scores");
-    }
-  }
-
-  await replaceGameItemizedScoreEntries({
-    gameId: input.game.id,
-    entries: input.entries,
-  });
-
-  const totalsByUserId = new Map<string, number>();
-
-  for (const player of input.game.players) {
-    totalsByUserId.set(player.userId, 0);
-  }
-
-  for (const entry of input.entries) {
-    const category = categories.find((value) => value.id === entry.categoryId);
-
-    if (!category) {
-      continue;
-    }
-
-    totalsByUserId.set(
-      entry.userId,
-      (totalsByUserId.get(entry.userId) ?? 0) +
-        Math.max(0, Math.trunc(entry.quantity)) * category.value,
-    );
-  }
-
-  for (const player of input.game.players) {
-    await updateGamePlayer(player.id, {
-      score: totalsByUserId.get(player.userId) ?? 0,
-    });
-  }
 }
 
 export async function getPlayGameSnapshot(gameId: string) {
@@ -535,7 +401,7 @@ export async function getPlayGameSnapshot(gameId: string) {
       meta.actorUserId = viewer?.id ?? null;
       const isCreator = viewer ? game.creatorId === viewer.id : false;
       const currentGamePlayer = viewer
-        ? game.players.find((player) => player.userId === viewer.id) ?? null
+        ? (game.players.find((player) => player.userId === viewer.id) ?? null)
         : null;
       const isManager = currentGamePlayer?.isManager ?? false;
       const canManageLiveGame = isCreator || isManager;
@@ -644,8 +510,14 @@ export async function enterSharedGame(input: {
           });
         }
 
-        revalidateDashboardPages([...getDashboardUserIdsForGame(game), user.id]);
-        revalidateGameHistoryPages([...getDashboardUserIdsForGame(game), user.id]);
+        revalidateDashboardPages([
+          ...getDashboardUserIdsForGame(game),
+          user.id,
+        ]);
+        revalidateGameHistoryPages([
+          ...getDashboardUserIdsForGame(game),
+          user.id,
+        ]);
         revalidateFriendsPages([game.creatorId, user.id]);
 
         return {
@@ -738,7 +610,9 @@ export async function approveGameJoinRequest(input: {
       meta.gameId = game.id;
       meta.subjectUserId = request.requesterUserId;
 
-      if (game.players.some((player) => player.userId === request.requesterUserId)) {
+      if (
+        game.players.some((player) => player.userId === request.requesterUserId)
+      ) {
         await resolveGameJoinRequest({
           id: request.id,
           resolvedByUserId: user.id,
@@ -930,7 +804,10 @@ function validateGameSettings(input: {
   const targetRounds = normalizePositiveInteger(input.targetRounds);
   const scoreThreshold = normalizePositiveInteger(input.scoreThreshold);
 
-  if (input.scoringMode === "no_score" && input.endingMode === "score_threshold") {
+  if (
+    input.scoringMode === "no_score" &&
+    input.endingMode === "score_threshold"
+  ) {
     throw new Error("Score targets are not available when scores are hidden");
   }
 
@@ -949,13 +826,14 @@ function validateGameSettings(input: {
   }
 
   return {
-    trackRounds: input.endingMode === "none" ? Boolean(input.trackRounds) : true,
+    trackRounds:
+      input.endingMode === "none" ? Boolean(input.trackRounds) : true,
     targetRounds: input.endingMode === "round_count" ? targetRounds : null,
     scoreThreshold:
       input.endingMode === "score_threshold" ? scoreThreshold : null,
     scoreThresholdDirection:
       input.endingMode === "score_threshold"
-        ? input.scoreThresholdDirection ?? null
+        ? (input.scoreThresholdDirection ?? null)
         : null,
   };
 }
@@ -965,14 +843,12 @@ async function resolveGameTitleId(input: {
   gameTitleId?: string | null;
   gameTitleName?: string | null;
   defaultSettings?: ReturnType<typeof gameSettingsToTitleDefaults>;
-  defaultSettingsV2?: GameSettingsV2 | null;
 }) {
   if (input.gameTitleName?.trim()) {
     const gameTitle = await createOrFindGameTitle({
       title: input.gameTitleName,
       currentUserId: input.currentUserId,
       defaultSettings: input.defaultSettings,
-      defaultSettingsV2: input.defaultSettingsV2,
     });
 
     return gameTitle.id;
@@ -1003,8 +879,6 @@ export async function createConfiguredGame(input: {
   targetRounds?: number | null;
   scoreThreshold?: number | null;
   scoreThresholdDirection?: "at_least" | "at_most" | null;
-  version?: "v1" | "v2";
-  settingsV2?: Partial<GameSettingsV2> | null;
 }) {
   const meta: LogMeta = {
     actorUserId: null,
@@ -1020,32 +894,7 @@ export async function createConfiguredGame(input: {
     async () => {
       const user = await requireCurrentUser();
       meta.actorUserId = user.id;
-      const version = input.version ?? (input.settingsV2 ? "v2" : "v1");
-      const requestedGameTitle =
-        version === "v2" && input.gameTitleId
-          ? await getAccessibleGameTitleById({
-              userId: user.id,
-              gameTitleId: input.gameTitleId,
-            })
-          : null;
-      const validatedSettingsV2 =
-        version === "v2"
-          ? validateGameSettingsV2(
-              input.settingsV2 ?? getGameSettingsV2FromTitle(requestedGameTitle) ?? {},
-            )
-          : null;
-
-      if (
-        validatedSettingsV2 &&
-        isGameSettingsV2Itemized(validatedSettingsV2) &&
-        user.role !== "admin"
-      ) {
-        throw new Error("Admin access required for itemized scoring");
-      }
-      const validatedSettings =
-        version === "v2"
-          ? projectV2SettingsToLegacy(validatedSettingsV2!)
-          : validateGameSettings(input);
+      const validatedSettings = validateGameSettings(input);
       const resolvedGameTitleId = await resolveGameTitleId({
         currentUserId: user.id,
         gameTitleId: input.gameTitleId,
@@ -1061,50 +910,27 @@ export async function createConfiguredGame(input: {
                 validatedSettings.scoreThresholdDirection ?? "at_least",
             })
           : undefined,
-        defaultSettingsV2: input.gameTitleName?.trim() ? validatedSettingsV2 : undefined,
       });
 
       meta.gameTitleId = resolvedGameTitleId;
       meta.targetRounds = validatedSettings.targetRounds;
       meta.scoreThreshold = validatedSettings.scoreThreshold;
       meta.scoreThresholdDirection = validatedSettings.scoreThresholdDirection;
-      const scoringMode =
-        version === "v2"
-          ? projectV2SettingsToLegacy(validatedSettingsV2!).scoringMode
-          : input.scoringMode;
-      const endingMode =
-        version === "v2"
-          ? projectV2SettingsToLegacy(validatedSettingsV2!).endingMode
-          : input.endingMode;
 
       const game = await createGame({
         creatorId: user.id,
-        version,
+        version: "v1",
         gameTitleId: resolvedGameTitleId,
-        scoringMode,
-        endingMode,
+        scoringMode: input.scoringMode,
+        endingMode: input.endingMode,
         trackRounds: validatedSettings.trackRounds,
         targetRounds: validatedSettings.targetRounds,
         scoreThreshold: validatedSettings.scoreThreshold,
         scoreThresholdDirection: validatedSettings.scoreThresholdDirection,
-        settingsJson: validatedSettingsV2
-          ? serializeGameSettingsV2(validatedSettingsV2)
-          : null,
         completedRounds: 0,
       });
 
-      await addPlayerToGameWithStartingScore({
-        gameId: game.id,
-        userId: user.id,
-        gameSettingsV2: validatedSettingsV2,
-      });
-
-      if (validatedSettingsV2 && isGameSettingsV2Itemized(validatedSettingsV2)) {
-        await replaceGameItemizedScoreCategories({
-          gameId: game.id,
-          categories: validatedSettingsV2.itemizedCategories,
-        });
-      }
+      await addPlayerToGame(game.id, user.id);
 
       if (resolvedGameTitleId) {
         await grantGameTitleToGameParticipants({
@@ -1154,29 +980,16 @@ export async function createRematchGame(sourceGameId: string) {
         targetRounds: game.targetRounds,
         scoreThreshold: game.scoreThreshold,
         scoreThresholdDirection: game.scoreThresholdDirection,
-        settingsJson: game.settingsJson,
         completedRounds: 0,
       });
-
-      const gameSettingsV2 = getGameSettingsV2FromGame(game);
 
       const playerUserIds = Array.from(
         new Set(game.players.map((player) => player.userId)),
       );
 
       for (const player of game.players) {
-        await addPlayerToGameWithStartingScore({
-          gameId: rematch.id,
-          userId: player.userId,
+        await addPlayerToGame(rematch.id, player.userId, {
           isManager: player.isManager,
-          gameSettingsV2,
-        });
-      }
-
-      if (gameSettingsV2 && isGameSettingsV2Itemized(gameSettingsV2)) {
-        await replaceGameItemizedScoreCategories({
-          gameId: rematch.id,
-          categories: gameSettingsV2.itemizedCategories,
         });
       }
 
@@ -1236,10 +1049,14 @@ export async function updateGamePlayerScore(input: {
       }
 
       meta.gameId = gamePlayer.gameId;
-      const { user, game: fullGame } = await requireGameMembership(gamePlayer.gameId);
+      const { user, game: fullGame } = await requireGameMembership(
+        gamePlayer.gameId,
+      );
       meta.actorUserId = user.id;
 
-      const player = fullGame.players.find((entry) => entry.id === gamePlayerId);
+      const player = fullGame.players.find(
+        (entry) => entry.id === gamePlayerId,
+      );
 
       if (!player) {
         throw new Error("Game player not found");
@@ -1265,8 +1082,10 @@ export async function commitGameRound(input: {
   gameId: string;
   completeGame?: boolean;
   winnerUserIds?: string[] | null;
-  placementSelections?: Array<{ placement: 1 | 2 | 3; userIds: string[] }> | null;
-  eliminatedUserId?: string | null;
+  placementSelections?: Array<{
+    placement: 1 | 2 | 3;
+    userIds: string[];
+  }> | null;
 }) {
   const meta: LogMeta = {
     gameId: input.gameId,
@@ -1306,155 +1125,6 @@ export async function commitGameRound(input: {
         throw new Error("Could not create round");
       }
 
-      const gameSettingsV2 = getGameSettingsV2FromGame(game);
-      const roundScores = existingRound?.scores ?? [];
-
-      if (gameSettingsV2 && isGameSettingsV2Elimination(gameSettingsV2)) {
-        const eliminatedUserId = input.eliminatedUserId?.trim() ?? "";
-
-        if (!eliminatedUserId) {
-          throw new Error("Choose a player to eliminate");
-        }
-
-        if (!game.players.some((player) => player.userId === eliminatedUserId)) {
-          throw new Error("Choose a player in this game");
-        }
-
-        if (game.eliminations.some((entry) => entry.eliminatedUserId === eliminatedUserId)) {
-          throw new Error("That player has already been eliminated");
-        }
-
-        const finishedAt = nowIso();
-        const placement = game.players.length - game.eliminations.length;
-        await createGameElimination({
-          gameId: game.id,
-          eliminatedUserId,
-          placement,
-          roundNumber: activeRoundNumber,
-        });
-
-        const nextCompletedRounds = game.completedRounds + 1;
-        const remainingUserIds = game.players
-          .map((player) => player.userId)
-          .filter(
-            (userId) =>
-              userId !== eliminatedUserId &&
-              !game.eliminations.some((entry) => entry.eliminatedUserId === userId),
-          );
-        const shouldComplete = input.completeGame || remainingUserIds.length <= 1;
-        const updatedGame = await updateGame(game.id, {
-          completedRounds: nextCompletedRounds,
-          completedAt: shouldComplete ? finishedAt : game.completedAt,
-        });
-
-        await updateGameRound(round.id, {
-          completedAt: finishedAt,
-        });
-
-        if (shouldComplete) {
-          const eliminatedUserIds = [
-            ...game.eliminations.map((entry) => entry.eliminatedUserId),
-            eliminatedUserId,
-          ];
-          const placements = deriveEliminationPlacements({
-            players: game.players,
-            eliminatedUserIds,
-          });
-          const winnerUserIds = placements
-            .filter((placementEntry) => placementEntry.placement === 1)
-            .map((placementEntry) => placementEntry.userId);
-
-          await replaceGameResultPlacements({
-            gameId: game.id,
-            placements,
-          });
-          await replaceGameWinners({
-            gameId: game.id,
-            userIds: winnerUserIds,
-          });
-          await syncPlayerRankForCompletedGame({
-            gameId: game.id,
-            completedAt: finishedAt,
-            scoringMode: "no_score",
-            players: game.players.map((player) => ({
-              userId: player.userId,
-              score: player.score,
-            })),
-            winnerUserIds,
-            placementSelections: [1, 2, 3]
-              .map((placementValue) => {
-                const userIds = placements
-                  .filter((entry) => entry.placement === placementValue)
-                  .map((entry) => entry.userId);
-
-                return userIds.length > 0
-                  ? {
-                      placement: placementValue as 1 | 2 | 3,
-                      userIds,
-                    }
-                  : null;
-              })
-              .filter(
-                (
-                  value,
-                ): value is { placement: 1 | 2 | 3; userIds: string[] } => value !== null,
-              ),
-          });
-        }
-
-        revalidateDashboardPages(getDashboardUserIdsForGame(game));
-        revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
-
-        if (shouldComplete) {
-          revalidateFriendsPages(getDashboardUserIdsForGame(game));
-          revalidateTitlesPages(getDashboardUserIdsForGame(game));
-          revalidateRankRelatedPages(getDashboardUserIdsForGame(game));
-        }
-
-        return updatedGame;
-      }
-
-      if (gameSettingsV2 && requiresRoundWinner(gameSettingsV2)) {
-        const winnerUserIds = Array.from(new Set(input.winnerUserIds ?? []));
-
-        if (winnerUserIds.length !== 1) {
-          throw new Error("Choose exactly one round winner");
-        }
-
-        const winnerUserId = winnerUserIds[0]!;
-        const winnerPlayer = game.players.find((player) => player.userId === winnerUserId);
-
-        if (!winnerPlayer) {
-          throw new Error("Choose a player in this game");
-        }
-
-        const existingWinnerScore =
-          roundScores.find((score) => score.userId === winnerUserId) ??
-          (await getGameRoundScoreByRoundAndUser({
-            gameRoundId: round.id,
-            userId: winnerUserId,
-          }));
-
-        if (roundScores.some((score) => score.userId !== winnerUserId)) {
-          throw new Error("Round winner games only allow one winner per round");
-        }
-
-        if (existingWinnerScore) {
-          await updateGameRoundScore(existingWinnerScore.id, {
-            scoreDelta: 1,
-          });
-        } else {
-          await createGameRoundScores({
-            gameRoundId: round.id,
-            scores: [{ userId: winnerUserId, scoreDelta: 1 }],
-          });
-        }
-
-        await updateGamePlayer(winnerPlayer.id, {
-          score: winnerPlayer.score + (1 - (existingWinnerScore?.scoreDelta ?? 0)),
-        });
-      }
-
       const noScorePlacements =
         game.scoringMode === "no_score" && input.completeGame
           ? normalizeNoScorePlacementSelections({
@@ -1466,17 +1136,7 @@ export async function commitGameRound(input: {
       const nextWinningUserIds =
         game.scoringMode === "no_score"
           ? (noScorePlacements?.winnerUserIds ?? [])
-          : getWinningUserIds({
-              ...game,
-              players: game.players.map((player) => ({
-                userId: player.userId,
-                score:
-                  gameSettingsV2 && requiresRoundWinner(gameSettingsV2)
-                    ? player.score +
-                      (input.winnerUserIds?.includes(player.userId) ? 1 : 0)
-                    : player.score,
-              })),
-            });
+          : getWinningUserIds(game);
       const finishedAt = nowIso();
       meta.roundId = round.id;
       meta.roundNumber = activeRoundNumber;
@@ -1706,28 +1366,14 @@ export async function upsertActiveRoundScore(input: {
 
       assertGameIsNotPaused(game);
 
-      const gameSettingsV2 = getGameSettingsV2FromGame(game);
-
-      if (gameSettingsV2) {
-        if (requiresRoundWinner(gameSettingsV2)) {
-          throw new Error("Round winner games score by selecting the round winner");
-        }
-
-        if (isGameSettingsV2Elimination(gameSettingsV2)) {
-          throw new Error("Elimination games do not use manual score entry");
-        }
-
-        if (isGameSettingsV2Itemized(gameSettingsV2)) {
-          throw new Error("End-game tally games do not use live score entry");
-        }
-      }
-
       if (!Number.isFinite(input.scoreDelta)) {
         throw new Error("Round scores must be valid numbers");
       }
 
       const normalizedDelta = Math.trunc(input.scoreDelta);
-      const player = game.players.find((entry) => entry.userId === input.userId);
+      const player = game.players.find(
+        (entry) => entry.userId === input.userId,
+      );
 
       if (!player) {
         throw new Error("Game player not found");
@@ -1782,7 +1428,8 @@ export async function upsertActiveRoundScore(input: {
       }
 
       const result = await updateGamePlayer(player.id, {
-        score: player.score + (normalizedDelta - (existingScore?.scoreDelta ?? 0)),
+        score:
+          player.score + (normalizedDelta - (existingScore?.scoreDelta ?? 0)),
       });
 
       if (game.inviteUsersEnabled) {
@@ -1834,7 +1481,9 @@ export async function updateRecordedRoundScore(input: {
       }
 
       const normalizedDelta = Math.trunc(input.scoreDelta);
-      const player = game.players.find((entry) => entry.userId === input.userId);
+      const player = game.players.find(
+        (entry) => entry.userId === input.userId,
+      );
 
       if (!player) {
         throw new Error("Game player not found");
@@ -1880,7 +1529,8 @@ export async function updateRecordedRoundScore(input: {
       }
 
       const result = await updateGamePlayer(player.id, {
-        score: player.score + (normalizedDelta - (existingScore?.scoreDelta ?? 0)),
+        score:
+          player.score + (normalizedDelta - (existingScore?.scoreDelta ?? 0)),
       });
 
       if (game.inviteUsersEnabled) {
@@ -1911,7 +1561,7 @@ export async function addGamePlayer(input: {
     "player.add",
     meta,
     async () => {
-      const { user, game } = await requireGameLiveManager(gameId);
+      const { user } = await requireGameLiveManager(gameId);
       meta.actorUserId = user.id;
 
       const existing = await getGamePlayerByGameAndUserId(gameId, userId);
@@ -1925,8 +1575,8 @@ export async function addGamePlayer(input: {
         userId,
         startingScoreMode: input.startingScoreMode,
         startingScoreValue: input.startingScoreValue,
-        gameSettingsV2: getGameSettingsV2FromGame(game),
       });
+      const { game } = await requireGameMembership(gameId);
       revalidateDashboardPages([...getDashboardUserIdsForGame(game), userId]);
       revalidateGameHistoryPages([...getDashboardUserIdsForGame(game), userId]);
       return result;
@@ -1955,7 +1605,7 @@ export async function addGuestGamePlayer(input: {
     "guest_player.add",
     meta,
     async () => {
-      const { user, game } = await requireGameLiveManager(gameId);
+      const { user } = await requireGameLiveManager(gameId);
       meta.actorUserId = user.id;
       const trimmedFirstName = firstName.trim();
 
@@ -1980,8 +1630,8 @@ export async function addGuestGamePlayer(input: {
         userId: guest.id,
         startingScoreMode: input.startingScoreMode,
         startingScoreValue: input.startingScoreValue,
-        gameSettingsV2: getGameSettingsV2FromGame(game),
       });
+      const { game } = await requireGameMembership(gameId);
       revalidateDashboardPages(getDashboardUserIdsForGame(game));
       revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
       return result;
@@ -2027,7 +1677,10 @@ export async function removeGamePlayer(input: {
       const result = await removePlayerFromGame({ gameId, userId });
       const { game: updatedGame } = await requireGameMembership(gameId);
 
-      revalidateDashboardPages([...getDashboardUserIdsForGame(updatedGame), userId]);
+      revalidateDashboardPages([
+        ...getDashboardUserIdsForGame(updatedGame),
+        userId,
+      ]);
       revalidateGameHistoryPages([
         ...getDashboardUserIdsForGame(updatedGame),
         userId,
@@ -2168,8 +1821,6 @@ export async function updateGameSettings(input: {
   targetRounds?: number | null;
   scoreThreshold?: number | null;
   scoreThresholdDirection?: "at_least" | "at_most" | null;
-  version?: "v1" | "v2";
-  settingsV2?: Partial<GameSettingsV2> | null;
 }) {
   const meta: LogMeta = {
     actorUserId: null,
@@ -2189,14 +1840,12 @@ export async function updateGameSettings(input: {
         throw new Error("Completed games can't be changed");
       }
 
-      const existingSettingsV2 = getGameSettingsV2FromGame(game);
-      const hasRecordedActivity = hasGameStartedWithSettings(game);
+      const hasRecordedActivity =
+        game.completedRounds > 0 ||
+        game.players.some((player) => player.score !== 0) ||
+        game.rounds.some((round) => round.scores.length > 0);
 
-      if (hasRecordedActivity && existingSettingsV2) {
-        throw new Error("Settings can't be changed after scorekeeping has started");
-      }
-
-      if (hasRecordedActivity && !existingSettingsV2) {
+      if (hasRecordedActivity) {
         if (input.scoringMode !== game.scoringMode) {
           throw new Error(
             "Scoring mode can't be changed after scorekeeping has started",
@@ -2209,33 +1858,20 @@ export async function updateGameSettings(input: {
           );
         }
 
-        if (game.endingMode === "none" && input.trackRounds !== game.trackRounds) {
+        if (
+          game.endingMode === "none" &&
+          input.trackRounds !== game.trackRounds
+        ) {
           throw new Error(
             "Round tracking can't be changed after rounds or scores are recorded",
           );
         }
       }
 
-      const nextVersion = input.version ?? game.version;
-      const validatedSettingsV2 =
-        nextVersion === "v2"
-          ? validateGameSettingsV2(input.settingsV2 ?? existingSettingsV2 ?? {})
-          : null;
-      const validatedSettings =
-        nextVersion === "v2"
-          ? projectV2SettingsToLegacy(validatedSettingsV2!)
-          : validateGameSettings(input);
-      const scoringMode =
-        nextVersion === "v2"
-          ? projectV2SettingsToLegacy(validatedSettingsV2!).scoringMode
-          : input.scoringMode;
-      const endingMode =
-        nextVersion === "v2"
-          ? projectV2SettingsToLegacy(validatedSettingsV2!).endingMode
-          : input.endingMode;
+      const validatedSettings = validateGameSettings(input);
 
       if (
-        endingMode === "round_count" &&
+        input.endingMode === "round_count" &&
         validatedSettings.targetRounds !== null &&
         validatedSettings.targetRounds <= game.completedRounds
       ) {
@@ -2247,24 +1883,13 @@ export async function updateGameSettings(input: {
       meta.scoreThresholdDirection = validatedSettings.scoreThresholdDirection;
 
       const result = await updateGame(game.id, {
-        version: nextVersion,
-        scoringMode,
-        endingMode,
+        scoringMode: input.scoringMode,
+        endingMode: input.endingMode,
         trackRounds: validatedSettings.trackRounds,
         targetRounds: validatedSettings.targetRounds,
         scoreThreshold: validatedSettings.scoreThreshold,
         scoreThresholdDirection: validatedSettings.scoreThresholdDirection,
-        settingsJson: validatedSettingsV2
-          ? serializeGameSettingsV2(validatedSettingsV2)
-          : null,
       });
-
-      if (validatedSettingsV2 && isGameSettingsV2Itemized(validatedSettingsV2)) {
-        await replaceGameItemizedScoreCategories({
-          gameId: game.id,
-          categories: validatedSettingsV2.itemizedCategories,
-        });
-      }
 
       revalidateDashboardPages(getDashboardUserIdsForGame(game));
       revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
@@ -2280,8 +1905,10 @@ export async function updateGameSettings(input: {
 export async function completeGame(input: {
   gameId: string;
   winnerUserIds?: string[] | null;
-  placementSelections?: Array<{ placement: 1 | 2 | 3; userIds: string[] }> | null;
-  itemizedScoreEntries?: ItemizedScoreEntryInput[] | null;
+  placementSelections?: Array<{
+    placement: 1 | 2 | 3;
+    userIds: string[];
+  }> | null;
 }) {
   const { gameId } = input;
   const meta: LogMeta = { gameId, actorUserId: null };
@@ -2296,48 +1923,18 @@ export async function completeGame(input: {
         throw new Error("Game is already complete");
       }
 
-      const gameSettingsV2 = getGameSettingsV2FromGame(game);
-
-      if (gameSettingsV2 && isGameSettingsV2Itemized(gameSettingsV2)) {
-        await applyItemizedGameScores({
-          game,
-          entries: input.itemizedScoreEntries ?? [],
-        });
-      }
-
-      const refreshedGame = gameSettingsV2 && isGameSettingsV2Itemized(gameSettingsV2)
-        ? await getGameForPlayPage(gameId)
-        : game;
-
-      if (!refreshedGame) {
-        throw new Error("Game not found");
-      }
-
       const noScorePlacements =
-        refreshedGame.scoringMode === "no_score" ||
-        (gameSettingsV2?.tiePolicy.allowTies === false &&
-          Boolean(input.placementSelections?.length || input.winnerUserIds?.length))
+        game.scoringMode === "no_score"
           ? normalizeNoScorePlacementSelections({
-              participants: refreshedGame.players,
+              participants: game.players,
               placementSelections: input.placementSelections,
               winnerUserIds: input.winnerUserIds,
             })
           : null;
       const winningUserIds =
-        refreshedGame.scoringMode === "no_score"
+        game.scoringMode === "no_score"
           ? (noScorePlacements?.winnerUserIds ?? [])
-          : getWinningUserIds(refreshedGame);
-
-      if (
-        gameSettingsV2 &&
-        !gameSettingsV2.tiePolicy.allowTies &&
-        refreshedGame.scoringMode !== "no_score" &&
-        winningUserIds.length > 1 &&
-        !noScorePlacements
-      ) {
-        throw new Error("Choose an explicit winner or placements to break the tie");
-      }
-
+          : getWinningUserIds(game);
       meta.winnerCount = winningUserIds.length;
 
       const finishedAt = nowIso();
@@ -2345,7 +1942,7 @@ export async function completeGame(input: {
         completedAt: finishedAt,
       });
 
-      if (refreshedGame.scoringMode === "no_score") {
+      if (game.scoringMode === "no_score") {
         await replaceNoScoreGameResults({
           gameId,
           placementSelections: noScorePlacements?.placements ?? [],
@@ -2355,28 +1952,13 @@ export async function completeGame(input: {
           gameId,
           userIds: winningUserIds,
         });
-
-        if (noScorePlacements?.placements?.length) {
-          await replaceGameResultPlacements({
-            gameId,
-            placements: noScorePlacements.placements.flatMap((selection) =>
-              selection.userIds.map((userId) => ({
-                userId,
-                placement: selection.placement,
-              })),
-            ),
-          });
-        }
       }
 
       await syncPlayerRankForCompletedGame({
         gameId,
         completedAt: finishedAt,
-        scoringMode:
-          refreshedGame.scoringMode === "no_score" || noScorePlacements
-            ? "no_score"
-            : refreshedGame.scoringMode,
-        players: refreshedGame.players.map((player) => ({
+        scoringMode: game.scoringMode,
+        players: game.players.map((player) => ({
           userId: player.userId,
           score: player.score,
         })),
@@ -2384,19 +1966,19 @@ export async function completeGame(input: {
         placementSelections: noScorePlacements?.placements,
       });
 
-      if (refreshedGame.gameTitleId) {
+      if (game.gameTitleId) {
         await grantGameTitleToGameParticipants({
           gameId,
-          gameTitleId: refreshedGame.gameTitleId,
+          gameTitleId: game.gameTitleId,
           source: "played",
           acquiredFromUserId: user.id,
         });
       }
 
-      revalidateDashboardPages(getDashboardUserIdsForGame(refreshedGame));
-      revalidateGameHistoryPages(getDashboardUserIdsForGame(refreshedGame));
-      revalidateTitlesPages(getDashboardUserIdsForGame(refreshedGame));
-      revalidateRankRelatedPages(getDashboardUserIdsForGame(refreshedGame));
+      revalidateDashboardPages(getDashboardUserIdsForGame(game));
+      revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
+      revalidateTitlesPages(getDashboardUserIdsForGame(game));
+      revalidateRankRelatedPages(getDashboardUserIdsForGame(game));
 
       return updatedGame;
     },
@@ -2415,53 +1997,45 @@ export async function shareGameTitle(input: {
     gameTitleId: input.gameTitleId,
     targetUserId: input.targetUserId,
   };
-  return runGameAction(
-    "title.share",
-    meta,
-    async () => {
-      const user = await requireCurrentUser();
-      meta.actorUserId = user.id;
-      const gameTitle = await getAccessibleGameTitleById({
-        userId: user.id,
-        gameTitleId: input.gameTitleId,
-      });
+  return runGameAction("title.share", meta, async () => {
+    const user = await requireCurrentUser();
+    meta.actorUserId = user.id;
+    const gameTitle = await getAccessibleGameTitleById({
+      userId: user.id,
+      gameTitleId: input.gameTitleId,
+    });
 
-      if (!gameTitle) {
-        throw new Error("Choose a title from your library");
-      }
+    if (!gameTitle) {
+      throw new Error("Choose a title from your library");
+    }
 
-      const result = await shareGameTitleWithUser({
-        gameTitleId: gameTitle.id,
-        targetUserId: input.targetUserId,
-        sharedByUserId: user.id,
-      });
+    const result = await shareGameTitleWithUser({
+      gameTitleId: gameTitle.id,
+      targetUserId: input.targetUserId,
+      sharedByUserId: user.id,
+    });
 
-      revalidateTitlesPage(input.targetUserId);
-      revalidateGameHistoryPage(input.targetUserId);
-      return result;
-    },
-  );
+    revalidateTitlesPage(input.targetUserId);
+    revalidateGameHistoryPage(input.targetUserId);
+    return result;
+  });
 }
 
 export async function promoteTitleToUniversal(input: { gameTitleId: string }) {
   const meta: LogMeta = { actorUserId: null, gameTitleId: input.gameTitleId };
-  return runGameAction(
-    "title.promote_universal",
-    meta,
-    async () => {
-      const user = await requireAdminUser();
-      meta.actorUserId = user.id;
-      const gameTitle = await getGameTitleById(input.gameTitleId);
+  return runGameAction("title.promote_universal", meta, async () => {
+    const user = await requireAdminUser();
+    meta.actorUserId = user.id;
+    const gameTitle = await getGameTitleById(input.gameTitleId);
 
-      if (!gameTitle) {
-        throw new Error("Title not found");
-      }
+    if (!gameTitle) {
+      throw new Error("Title not found");
+    }
 
-      const result = await promoteGameTitleToUniversal(gameTitle.id);
-      revalidateTitlesGlobal();
-      return result;
-    },
-  );
+    const result = await promoteGameTitleToUniversal(gameTitle.id);
+    revalidateTitlesGlobal();
+    return result;
+  });
 }
 
 export async function saveGameTitleDefaults(input: {
@@ -2472,52 +2046,34 @@ export async function saveGameTitleDefaults(input: {
   defaultTargetRounds?: number | null;
   defaultScoreThreshold?: number | null;
   defaultScoreThresholdDirection?: "at_least" | "at_most" | null;
-  settingsV2?: Partial<GameSettingsV2> | null;
 }) {
   const meta: LogMeta = { actorUserId: null, gameTitleId: input.gameTitleId };
-  return runGameAction(
-    "title_defaults.update",
-    meta,
-    async () => {
-      const user = await requireCurrentUser();
-      meta.actorUserId = user.id;
-      const gameTitle = await getGameTitleById(input.gameTitleId);
+  return runGameAction("title_defaults.update", meta, async () => {
+    const user = await requireCurrentUser();
+    meta.actorUserId = user.id;
+    const gameTitle = await getGameTitleById(input.gameTitleId);
 
-      if (!gameTitle) {
-        throw new Error("Title not found");
-      }
+    if (!gameTitle) {
+      throw new Error("Title not found");
+    }
 
-      assertCanManageGameTitle({ user, gameTitle });
+    assertCanManageGameTitle({ user, gameTitle });
 
-      meta.isUniversalTitle = gameTitle.isUniversal;
-      const validatedSettingsV2 = input.settingsV2
-        ? validateGameSettingsV2(input.settingsV2)
-        : null;
-
-      if (
-        validatedSettingsV2 &&
-        isGameSettingsV2Itemized(validatedSettingsV2) &&
-        user.role !== "admin"
-      ) {
-        throw new Error("Admin access required for itemized scoring defaults");
-      }
-
-      const result = await updateGameTitleDefaults(
-        gameTitle.id,
-        normalizeGameTitleDefaults({
-          defaultScoringMode: input.defaultScoringMode,
-          defaultEndingMode: input.defaultEndingMode,
-          defaultTrackRounds: input.defaultTrackRounds,
-          defaultTargetRounds: input.defaultTargetRounds,
-          defaultScoreThreshold: input.defaultScoreThreshold,
-          defaultScoreThresholdDirection: input.defaultScoreThresholdDirection,
-        }),
-        validatedSettingsV2,
-      );
-      revalidateTitlesPage(user.id);
-      return result;
-    },
-  );
+    meta.isUniversalTitle = gameTitle.isUniversal;
+    const result = await updateGameTitleDefaults(
+      gameTitle.id,
+      normalizeGameTitleDefaults({
+        defaultScoringMode: input.defaultScoringMode,
+        defaultEndingMode: input.defaultEndingMode,
+        defaultTrackRounds: input.defaultTrackRounds,
+        defaultTargetRounds: input.defaultTargetRounds,
+        defaultScoreThreshold: input.defaultScoreThreshold,
+        defaultScoreThresholdDirection: input.defaultScoreThresholdDirection,
+      }),
+    );
+    revalidateTitlesPage(user.id);
+    return result;
+  });
 }
 
 export async function saveGameTitleImage(input: {
@@ -2525,49 +2081,45 @@ export async function saveGameTitleImage(input: {
   imageUrl: string | null;
 }) {
   const meta: LogMeta = { actorUserId: null, gameTitleId: input.gameTitleId };
-  return runGameAction(
-    "title_image.update",
-    meta,
-    async () => {
-      const user = await requireAdminUser();
-      meta.actorUserId = user.id;
-      const gameTitle = await getGameTitleById(input.gameTitleId);
+  return runGameAction("title_image.update", meta, async () => {
+    const user = await requireAdminUser();
+    meta.actorUserId = user.id;
+    const gameTitle = await getGameTitleById(input.gameTitleId);
 
-      if (!gameTitle) {
-        throw new Error("Title not found");
-      }
+    if (!gameTitle) {
+      throw new Error("Title not found");
+    }
 
-      const normalizedImageUrl = normalizeTitleImageUrl(input.imageUrl);
-      const nextColor = normalizedImageUrl
-        ? await deriveTitleColorFromImageUrl(normalizedImageUrl)
-        : pickRandomProfileColor();
+    const normalizedImageUrl = normalizeTitleImageUrl(input.imageUrl);
+    const nextColor = normalizedImageUrl
+      ? await deriveTitleColorFromImageUrl(normalizedImageUrl)
+      : pickRandomProfileColor();
 
-      meta.isUniversalTitle = gameTitle.isUniversal;
-      meta.clearedImage = normalizedImageUrl.length === 0;
-      meta.hasImageUrl = normalizedImageUrl.length > 0;
-      meta.previousColor = gameTitle.color;
-      meta.nextColor = nextColor;
+    meta.isUniversalTitle = gameTitle.isUniversal;
+    meta.clearedImage = normalizedImageUrl.length === 0;
+    meta.hasImageUrl = normalizedImageUrl.length > 0;
+    meta.previousColor = gameTitle.color;
+    meta.nextColor = nextColor;
 
-      const result = await updateGameTitleImageAndColor(gameTitle.id, {
-        imageUrl: normalizedImageUrl,
-        color: nextColor,
-      });
-      const affectedUserIds = await listAffectedUserIdsForGameTitle(gameTitle.id);
+    const result = await updateGameTitleImageAndColor(gameTitle.id, {
+      imageUrl: normalizedImageUrl,
+      color: nextColor,
+    });
+    const affectedUserIds = await listAffectedUserIdsForGameTitle(gameTitle.id);
 
-      revalidateTitlesGlobal();
-      revalidateDashboardPages(affectedUserIds);
-      revalidateGameHistoryPages(affectedUserIds);
-      revalidateTitlesPages(affectedUserIds);
+    revalidateTitlesGlobal();
+    revalidateDashboardPages(affectedUserIds);
+    revalidateGameHistoryPages(affectedUserIds);
+    revalidateTitlesPages(affectedUserIds);
 
-      for (const affectedUserId of affectedUserIds) {
-        revalidateProfileOverviewPage(affectedUserId);
-        revalidatePublicProfilePage(affectedUserId);
-      }
+    for (const affectedUserId of affectedUserIds) {
+      revalidateProfileOverviewPage(affectedUserId);
+      revalidatePublicProfilePage(affectedUserId);
+    }
 
-      revalidateTitlesPage(user.id);
-      return result;
-    },
-  );
+    revalidateTitlesPage(user.id);
+    return result;
+  });
 }
 
 async function savePreparedGameTitleImageAsAdmin(input: {
@@ -2673,36 +2225,32 @@ export async function saveUploadedGameTitleImage(formData: FormData) {
     gameTitleId,
   };
 
-  return runGameAction(
-    "title_image.upload",
-    meta,
-    async () => {
-      const user = await requireAdminUser();
-      meta.actorUserId = user.id;
+  return runGameAction("title_image.upload", meta, async () => {
+    const user = await requireAdminUser();
+    meta.actorUserId = user.id;
 
-      if (!gameTitleId) {
-        throw new Error("Title id is required");
-      }
+    if (!gameTitleId) {
+      throw new Error("Title id is required");
+    }
 
-      if (!(fileEntry instanceof File)) {
-        throw new Error("Choose an image file first");
-      }
+    if (!(fileEntry instanceof File)) {
+      throw new Error("Choose an image file first");
+    }
 
-      const saved = await savePreparedGameTitleImageAsAdmin({
-        actorUserId: user.id,
-        gameTitleId,
-        source: "upload",
-        buffer: Buffer.from(await fileEntry.arrayBuffer()),
-        mimeType: fileEntry.type,
-      });
+    const saved = await savePreparedGameTitleImageAsAdmin({
+      actorUserId: user.id,
+      gameTitleId,
+      source: "upload",
+      buffer: Buffer.from(await fileEntry.arrayBuffer()),
+      mimeType: fileEntry.type,
+    });
 
-      meta.isUniversalTitle = saved.gameTitle.isUniversal;
-      meta.hasImageUrl = true;
-      meta.nextColor = saved.color;
+    meta.isUniversalTitle = saved.gameTitle.isUniversal;
+    meta.hasImageUrl = true;
+    meta.nextColor = saved.color;
 
-      return saved.result;
-    },
-  );
+    return saved.result;
+  });
 }
 
 export async function saveGeneratedGameTitleImage(input: {
@@ -2714,29 +2262,25 @@ export async function saveGeneratedGameTitleImage(input: {
     gameTitleId: input.gameTitleId,
   };
 
-  return runGameAction(
-    "title_image.save_generated",
-    meta,
-    async () => {
-      const user = await requireAdminUser();
-      meta.actorUserId = user.id;
+  return runGameAction("title_image.save_generated", meta, async () => {
+    const user = await requireAdminUser();
+    meta.actorUserId = user.id;
 
-      const parsed = parseTitleImageDataUrl(input.previewUrl);
-      const saved = await savePreparedGameTitleImageAsAdmin({
-        actorUserId: user.id,
-        gameTitleId: input.gameTitleId,
-        source: "openai",
-        buffer: parsed.buffer,
-        mimeType: parsed.mimeType,
-      });
+    const parsed = parseTitleImageDataUrl(input.previewUrl);
+    const saved = await savePreparedGameTitleImageAsAdmin({
+      actorUserId: user.id,
+      gameTitleId: input.gameTitleId,
+      source: "openai",
+      buffer: parsed.buffer,
+      mimeType: parsed.mimeType,
+    });
 
-      meta.isUniversalTitle = saved.gameTitle.isUniversal;
-      meta.hasImageUrl = true;
-      meta.nextColor = saved.color;
+    meta.isUniversalTitle = saved.gameTitle.isUniversal;
+    meta.hasImageUrl = true;
+    meta.nextColor = saved.color;
 
-      return saved.result;
-    },
-  );
+    return saved.result;
+  });
 }
 
 export async function mergeTitleIntoAnother(input: {
@@ -2748,37 +2292,29 @@ export async function mergeTitleIntoAnother(input: {
     sourceGameTitleId: input.sourceGameTitleId,
     targetGameTitleId: input.targetGameTitleId,
   };
-  return runGameAction(
-    "title.merge",
-    meta,
-    async () => {
-      const user = await requireAdminUser();
-      meta.actorUserId = user.id;
-      const result = await mergeGameTitles(input);
-      revalidateTitlesGlobal();
-      return result;
-    },
-  );
+  return runGameAction("title.merge", meta, async () => {
+    const user = await requireAdminUser();
+    meta.actorUserId = user.id;
+    const result = await mergeGameTitles(input);
+    revalidateTitlesGlobal();
+    return result;
+  });
 }
 
 export async function deleteCreatedGame(input: { gameId: string }) {
   const { gameId } = input;
   const meta: LogMeta = { gameId, actorUserId: null };
-  return runGameAction(
-    "delete",
-    meta,
-    async () => {
-      const { user, game } = await requireGameCreator(gameId);
-      meta.actorUserId = user.id;
+  return runGameAction("delete", meta, async () => {
+    const { user, game } = await requireGameCreator(gameId);
+    meta.actorUserId = user.id;
 
-      if (game.completedAt) {
-        throw new Error("Game is already complete");
-      }
+    if (game.completedAt) {
+      throw new Error("Game is already complete");
+    }
 
-      const result = await deleteGame(gameId);
-      revalidateDashboardPages(getDashboardUserIdsForGame(game));
-      revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
-      return result;
-    },
-  );
+    const result = await deleteGame(gameId);
+    revalidateDashboardPages(getDashboardUserIdsForGame(game));
+    revalidateGameHistoryPages(getDashboardUserIdsForGame(game));
+    return result;
+  });
 }
