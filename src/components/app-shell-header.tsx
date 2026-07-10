@@ -11,7 +11,10 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 const BACK_BUTTON_RULES = [
-  { matches: (pathname: string) => pathname === "/admin", fallbackHref: "/profile" },
+  {
+    matches: (pathname: string) => pathname === "/admin",
+    fallbackHref: "/profile",
+  },
   {
     matches: (pathname: string) => pathname === "/admin/ranks",
     fallbackHref: "/admin",
@@ -33,31 +36,32 @@ const BACK_BUTTON_RULES = [
     fallbackHref: "/activity",
   },
   {
-    matches: (pathname: string) =>
-      /^\/profile\/[^/]+$/.test(pathname),
+    matches: (pathname: string) => /^\/profile\/[^/]+$/.test(pathname),
     fallbackHref: "/profile",
   },
-  { matches: (pathname: string) => pathname === "/titles", fallbackHref: "/dashboard" },
   {
-    matches: (pathname: string) =>
-      /^\/titles\/[^/]+$/.test(pathname),
-    fallbackHref: "/titles",
-  },
-  {
-    matches: (pathname: string) =>
-      /^\/game\/[^/]+\/play$/.test(pathname),
+    matches: (pathname: string) => pathname === "/titles",
     fallbackHref: "/dashboard",
   },
   {
-    matches: (pathname: string) =>
-      /^\/game\/[^/]+\/settings$/.test(pathname),
-    fallbackHref: (pathname: string) => pathname.replace(/\/settings$/, "/play"),
+    matches: (pathname: string) => /^\/titles\/[^/]+$/.test(pathname),
+    fallbackHref: "/titles",
+  },
+  {
+    matches: (pathname: string) => /^\/game\/[^/]+\/play$/.test(pathname),
+    fallbackHref: "/dashboard",
+  },
+  {
+    matches: (pathname: string) => /^\/game\/[^/]+\/settings$/.test(pathname),
+    fallbackHref: (pathname: string) =>
+      pathname.replace(/\/settings$/, "/play"),
   },
 ] as const;
 
 function getFallbackHref(pathname: string) {
   const fallbackHref =
-    BACK_BUTTON_RULES.find((rule) => rule.matches(pathname))?.fallbackHref ?? null;
+    BACK_BUTTON_RULES.find((rule) => rule.matches(pathname))?.fallbackHref ??
+    null;
 
   if (typeof fallbackHref === "function") {
     return fallbackHref(pathname);
@@ -103,7 +107,7 @@ export default function AppShellHeader() {
   }
 
   return (
-    <div className="relative flex h-16 w-full items-center justify-center px-4 text-center backdrop-blur-sm">
+    <div className="relative flex h-16 w-full items-center justify-center px-4 text-center">
       {fallbackHref ? (
         <Button
           aria-label="Go back"
@@ -125,7 +129,7 @@ export default function AppShellHeader() {
         href="/dashboard"
         aria-label={`${APP_NAME} home`}
         className={cn(
-          "group flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-foreground transition-transform transition-colors hover:scale-[1.01] hover:border-border/40 dark:border-white/20",
+          "group flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-foreground transition-transform transition-colors hover:scale-[1.01] hover:border-border/40 dark:border-white/20 backdrop-blur-sm",
           fallbackHref ? "scale-75" : "scale-75",
         )}
       >
@@ -137,7 +141,9 @@ export default function AppShellHeader() {
           className="size-6 object-contain"
           unoptimized
         />
-        <span className="font-bold font-logo tracking-[0.18em]">{APP_NAME}</span>
+        <span className="font-bold font-logo tracking-[0.18em]">
+          {APP_NAME}
+        </span>
       </Link>
     </div>
   );

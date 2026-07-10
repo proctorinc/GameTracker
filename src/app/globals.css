@@ -145,7 +145,10 @@
     }
     body {
         background:
-            linear-gradient(rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.9)),
+            linear-gradient(
+                rgba(255, 255, 255, 0.95),
+                rgba(255, 255, 255, 0.95)
+            ),
             url("/images/background-light.png");
         background-size: cover;
         background-position: center;
@@ -157,7 +160,7 @@
 
     .dark body {
         background:
-            linear-gradient(rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.95)),
+            linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)),
             url("/images/background-dark.png");
         background-size: cover;
         background-position: center;
