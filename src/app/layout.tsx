@@ -1,11 +1,5 @@
 import { type Metadata, type Viewport } from "next";
-import {
-  ClerkProvider,
-  Show,
-  SignInButton,
-  SignUpButton,
-  UserButton,
-} from "@clerk/nextjs";
+import { ClerkProvider } from "@clerk/nextjs";
 import { shadcn } from "@clerk/ui/themes";
 import "@xyflow/react/dist/style.css";
 import "./globals.css";
@@ -61,7 +55,7 @@ export default function RootLayout({
       suppressHydrationWarning
       className={cn("h-full antialiased")}
     >
-      <body className="min-h-full flex bg-slate-100 dark:bg-black">
+      <body className="min-h-full flex bg-slate-100 dark:bg-black/20">
         <ClerkProvider
           appearance={{
             theme: shadcn,
