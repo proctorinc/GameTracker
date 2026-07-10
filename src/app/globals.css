@@ -144,7 +144,27 @@
         @apply border-border outline-ring/50;
     }
     body {
-        @apply bg-background text-foreground;
+        background:
+            linear-gradient(rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.9)),
+            url("/images/background-light.png");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        background-color: #f1f5f9;
+        color: #000;
+    }
+
+    .dark body {
+        background:
+            linear-gradient(rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.95)),
+            url("/images/background-dark.png");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        background-color: #000;
+        color: #fff;
     }
     html {
         @apply font-sans;
@@ -214,16 +234,21 @@
         background: linear-gradient(
             135deg,
             color-mix(
-                in oklab,
-                var(--placement-surface-soft, var(--winner-surface-soft)) 82%,
-                transparent
-            )
+                    in oklab,
+                    var(--placement-surface-soft, var(--winner-surface-soft))
+                        82%,
+                    transparent
+                )
                 0%,
             color-mix(
-                in oklab,
-                var(--placement-surface-strong, var(--winner-surface-strong)) 82%,
-                transparent
-            )
+                    in oklab,
+                    var(
+                            --placement-surface-strong,
+                            var(--winner-surface-strong)
+                        )
+                        82%,
+                    transparent
+                )
                 100%
         );
         border: 1px solid
@@ -240,36 +265,45 @@
         background: linear-gradient(
             135deg,
             color-mix(
-                in oklab,
-                var(
-                        --placement-surface-soft-dark,
-                        var(--placement-surface-soft, var(--winner-surface-soft))
-                    )
-                    82%,
-                transparent
-            )
+                    in oklab,
+                    var(
+                            --placement-surface-soft-dark,
+                            var(
+                                --placement-surface-soft,
+                                var(--winner-surface-soft)
+                            )
+                        )
+                        82%,
+                    transparent
+                )
                 0%,
             color-mix(
-                in oklab,
-                var(
-                        --placement-surface-strong-dark,
-                        var(
-                            --placement-surface-strong,
-                            var(--winner-surface-strong)
+                    in oklab,
+                    var(
+                            --placement-surface-strong-dark,
+                            var(
+                                --placement-surface-strong,
+                                var(--winner-surface-strong)
+                            )
                         )
-                    )
-                    82%,
-                transparent
-            )
+                        82%,
+                    transparent
+                )
                 100%
         );
         border-color: color-mix(
             in oklab,
-            var(--placement-border-dark, var(--placement-border, var(--winner-border)))
+            var(
+                    --placement-border-dark,
+                    var(--placement-border, var(--winner-border))
+                )
                 78%,
             transparent
         );
-        color: var(--placement-text-dark, var(--placement-text, var(--winner-text)));
+        color: var(
+            --placement-text-dark,
+            var(--placement-text, var(--winner-text))
+        );
         box-shadow: var(
             --placement-shadow-dark,
             var(--placement-shadow, var(--winner-shadow))
@@ -349,7 +383,8 @@
     .live-update-section {
         box-shadow:
             0 0 0 1px color-mix(in oklab, var(--winner-border) 28%, transparent),
-            0 14px 38px -28px color-mix(in srgb, var(--winner-border) 42%, transparent);
+            0 14px 38px -28px
+                color-mix(in srgb, var(--winner-border) 42%, transparent);
         animation: live-update-pulse 1.45s ease-out 1;
     }
 
