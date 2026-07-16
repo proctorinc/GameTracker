@@ -66,6 +66,13 @@ export type PlayerRankGameDelta = {
   completedAt: string;
 };
 
+export type PlayerRankTitleResult = {
+  gameId: string;
+  userId: string;
+  completedAt: string;
+  pointsAwardedMinor: number;
+};
+
 export type PlayerRankWindowDelta = {
   deltaMinor: number;
   deltaFormatted: string;
@@ -789,6 +796,42 @@ export async function listPlayerRankHistorySeries(input: {
       ]),
     ),
   };
+}
+
+export async function listPlayerRankTitleResults(input: {
+  gameTitleId: string;
+  userIds: string[];
+  completedAtOrAfter: string;
+}): Promise<PlayerRankTitleResult[]> {
+  const userIds = Array.from(
+    new Set(input.userIds.filter((userId) => userId.trim().length > 0)),
+  );
+
+  if (userIds.length === 0) {
+    return [];
+  }
+
+  return withPlayerRankSchemaFallback(
+    () =>
+      db
+        .select({
+          gameId: gamePlayerRankResults.gameId,
+          userId: gamePlayerRankResults.userId,
+          completedAt: gamePlayerRankResults.gameCompletedAt,
+          pointsAwardedMinor: gamePlayerRankResults.pointsAwardedMinor,
+        })
+        .from(gamePlayerRankResults)
+        .innerJoin(games, eq(games.id, gamePlayerRankResults.gameId))
+        .where(
+          and(
+            eq(games.gameTitleId, input.gameTitleId),
+            inArray(gamePlayerRankResults.userId, userIds),
+            gte(gamePlayerRankResults.gameCompletedAt, input.completedAtOrAfter),
+          ),
+        ),
+    () => [],
+    "list_title_results",
+  );
 }
 
 async function deletePlayerRankHistoryOnOrAfter(historyDate: string) {

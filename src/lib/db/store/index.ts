@@ -1,5 +1,6 @@
 export * from "../index";
 export * from "./admin.store";
+export * from "./announcement.store";
 export * from "./cards.store";
 export * from "./card-templates.store";
 export * from "./card-drops.store";

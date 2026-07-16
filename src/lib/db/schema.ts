@@ -129,6 +129,52 @@ export const featureFlags = sqliteTable("feature_flags", {
     .$defaultFn(() => new Date().toISOString()),
 });
 
+export const announcements = sqliteTable(
+  "announcements",
+  {
+    id: text("id")
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    title: text("title").notNull(),
+    details: text("details").notNull(),
+    screenshotUrl: text("screenshot_url"),
+    createdByUserId: text("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    publishedAt: text("published_at"),
+    archivedAt: text("archived_at"),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    updatedAt: text("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    index("announcements_published_at_idx").on(table.publishedAt),
+  ],
+);
+
+export const announcementAcknowledgments = sqliteTable(
+  "announcement_acknowledgments",
+  {
+    announcementId: text("announcement_id")
+      .notNull()
+      .references(() => announcements.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    acknowledgedAt: text("acknowledged_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    primaryKey({ columns: [table.announcementId, table.userId] }),
+    index("announcement_acknowledgments_user_idx").on(table.userId),
+  ],
+);
+
 export const cardDrops = sqliteTable(
   "card_drops",
   {
@@ -831,6 +877,31 @@ export const cardsRelations = relations(cards, ({ one }) => ({
     references: [cardTemplates.id],
   }),
 }));
+
+export const announcementsRelations = relations(
+  announcements,
+  ({ one, many }) => ({
+    createdBy: one(users, {
+      fields: [announcements.createdByUserId],
+      references: [users.id],
+    }),
+    acknowledgments: many(announcementAcknowledgments),
+  }),
+);
+
+export const announcementAcknowledgmentsRelations = relations(
+  announcementAcknowledgments,
+  ({ one }) => ({
+    announcement: one(announcements, {
+      fields: [announcementAcknowledgments.announcementId],
+      references: [announcements.id],
+    }),
+    user: one(users, {
+      fields: [announcementAcknowledgments.userId],
+      references: [users.id],
+    }),
+  }),
+);
 
 export const decksRelations = relations(decks, ({ many }) => ({
   cards: many(cards),

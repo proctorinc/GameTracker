@@ -213,6 +213,12 @@ describe("buildProfileStats", () => {
           completedAt: "2025-01-03T00:00:00.000Z",
           winnerUserIds: ["user-1"],
         }),
+        createGame({
+          id: "profile-only-1",
+          completedAt: "2025-01-05T00:00:00.000Z",
+          participantUserIds: ["user-1", "user-3"],
+          winnerUserIds: ["user-1"],
+        }),
       ],
       comparisonCompletedGamesByUserId: {
         "user-2": [
@@ -236,6 +242,10 @@ describe("buildProfileStats", () => {
     });
 
     expect(result.comparisonSummariesByUserId["user-2"]).toMatchObject({
+      headToHeadStats: {
+        profile: { completedGames: 1, wins: 1 },
+        comparison: { completedGames: 1, wins: 0 },
+      },
       overallStats: {
         completedGames: 3,
         wins: 2,

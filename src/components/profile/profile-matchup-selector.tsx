@@ -83,17 +83,23 @@ export function ProfileMatchupSelector({
       </Button>
 
       <CommandDialog
+        className="top-3 max-h-[calc(100dvh-1.5rem)] max-w-[calc(100%-1.5rem)] translate-y-0 sm:top-6 sm:max-w-lg"
         open={open}
         onOpenChange={setOpen}
         title={title}
         description={description}
         showCloseButton
       >
-        <Command className="bg-popover">
-          <CommandInput placeholder="Search players" />
-          <CommandList className="max-h-96">
-            <CommandEmpty>No players found.</CommandEmpty>
-            <CommandGroup heading="Players">
+        <Command className="gap-0 bg-popover p-3 sm:p-4">
+          <CommandInput className="pr-10" placeholder="Search players" />
+          <CommandList className="mt-2 max-h-[min(60dvh,32rem)]">
+            <CommandEmpty className="rounded-xl border border-dashed border-border/70 bg-muted/30 px-4 py-10">
+              No players found.
+            </CommandEmpty>
+            <CommandGroup
+              className="p-0 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-2 **:[[cmdk-group-heading]]:font-bold **:[[cmdk-group-heading]]:uppercase **:[[cmdk-group-heading]]:tracking-[0.16em]"
+              heading="Players"
+            >
               {options.map((option) => {
                 const isSelected = option.id === selectedUserId;
                 const label = option.isGuest
@@ -102,6 +108,7 @@ export function ProfileMatchupSelector({
 
                 return (
                   <CommandItem
+                    className="h-auto min-h-16 gap-3 rounded-xl px-3 py-2.5 data-selected:bg-muted/70"
                     key={option.id}
                     value={`${label} ${option.id}`}
                     data-checked={isSelected ? "true" : undefined}

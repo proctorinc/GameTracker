@@ -11,6 +11,8 @@ const listPendingJoinRequestsForGame = vi.fn();
 const listPlayerRankGameDeltasForGame = vi.fn();
 const notFound = vi.fn();
 
+vi.mock("server-only", () => ({}));
+
 vi.mock("@/components/game/PlayGame", () => ({
   __esModule: true,
   default: () => <div>legacy-play-game</div>,
@@ -36,6 +38,10 @@ vi.mock("@/lib/db/store/friendship.store", () => ({
     listAcceptedFriendsForUser(...args),
 }));
 
+vi.mock("@/lib/db/store/feature-flags.store", () => ({
+  areCardsEnabled: () => Promise.resolve(false),
+}));
+
 vi.mock("@/lib/db/store/game-join-request.store", () => ({
   listPendingJoinRequestsForGame: (...args: unknown[]) =>
     listPendingJoinRequestsForGame(...args),
@@ -54,9 +60,9 @@ vi.mock("next/navigation", () => ({
   notFound: () => notFound(),
 }));
 
-function createGame(version: "v1" | "v2") {
+function createGame(version: "v1" | "v2", id = "game-1") {
   return {
-    id: "game-1",
+    id,
     gameTitleId: "title-1",
     version,
     creatorId: "user-1",
@@ -127,6 +133,24 @@ describe("PlayGamePage", () => {
     expect(screen.getByText("legacy-play-game")).toBeInTheDocument();
   });
 
+  it("keys legacy play state by game ID", async () => {
+    loadOptionalCurrentUser.mockResolvedValue(null);
+    listPlayerRankGameDeltasForGame.mockResolvedValue([]);
+    getGameForPlayPage
+      .mockResolvedValueOnce(createGame("v1", "game-1"))
+      .mockResolvedValueOnce(createGame("v1", "game-2"));
+
+    const firstGame = await PlayGamePage({
+      params: Promise.resolve({ gameId: "game-1" }),
+    });
+    const secondGame = await PlayGamePage({
+      params: Promise.resolve({ gameId: "game-2" }),
+    });
+
+    expect(firstGame.key).toBe("game-1");
+    expect(secondGame.key).toBe("game-2");
+  });
+
   it("renders PlayGameV2 for v2 games", async () => {
     loadOptionalCurrentUser.mockResolvedValue(null);
     getGameForPlayPage.mockResolvedValue(createGame("v2"));
@@ -141,5 +165,23 @@ describe("PlayGamePage", () => {
     );
 
     expect(screen.getByText("play-game-v2")).toBeInTheDocument();
+  });
+
+  it("keys v2 play state by game ID", async () => {
+    loadOptionalCurrentUser.mockResolvedValue(null);
+    listPlayerRankGameDeltasForGame.mockResolvedValue([]);
+    getGameForPlayPage
+      .mockResolvedValueOnce(createGame("v2", "game-1"))
+      .mockResolvedValueOnce(createGame("v2", "game-2"));
+
+    const firstGame = await PlayGamePage({
+      params: Promise.resolve({ gameId: "game-1" }),
+    });
+    const secondGame = await PlayGamePage({
+      params: Promise.resolve({ gameId: "game-2" }),
+    });
+
+    expect(firstGame.key).toBe("game-1");
+    expect(secondGame.key).toBe("game-2");
   });
 });

@@ -47,6 +47,10 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+vi.mock("react-charts", () => ({
+  Chart: () => <div data-testid="react-chart" />,
+}));
+
 vi.mock("sonner", () => ({
   toast: {
     message: (...args: unknown[]) => toastMessage(...args),
@@ -957,6 +961,47 @@ describe("PlayGame", () => {
     });
   });
 
+  it("confirms the final elimination before ending the game", async () => {
+    const game = createEliminationModeSnapshot();
+
+    renderComponent({
+      compatibilityConfig: {
+        allowAnyVersion: true,
+        liveMode: "elimination",
+      },
+      game: {
+        ...game,
+        completedRounds: 0,
+        settingsJson: serializeGameSettingsV2({
+          version: "v2",
+          gameEndTrigger: "rounds_exhausted",
+          scoringType: "elimination",
+          winMetric: "highest_score",
+          roundConfig: { enabled: true, targetRounds: 1 },
+          tiePolicy: { allowTies: true, resolution: "allow" },
+        }),
+      },
+    });
+
+    fireEvent.click(screen.getByTestId("player-card-content-user-1"));
+
+    expect(commitGameRound).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "End of round 1" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "End game" }));
+
+    await waitFor(() => {
+      expect(commitGameRound).toHaveBeenCalledWith(
+        expect.objectContaining({
+          completeGame: true,
+          eliminatedUserId: "user-1",
+          gameId: "game-1",
+        }),
+      );
+    });
+  });
+
   it("offers ending a free-play elimination game from the round summary", async () => {
     const game = createEliminationModeSnapshot();
 
@@ -998,7 +1043,7 @@ describe("PlayGame", () => {
     });
   });
 
-  it("uses the standard PlayGame shell for round-winner mode and commits by tapping a player card", async () => {
+  it("reviews a round winner before committing the round", async () => {
     renderComponent({
       compatibilityConfig: {
         allowAnyVersion: true,
@@ -1017,9 +1062,48 @@ describe("PlayGame", () => {
 
     fireEvent.click(screen.getByTestId("player-card-content-user-2"));
 
+    expect(commitGameRound).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "End of round 1" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Round winner")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Start next round" }));
+
     await waitFor(() => {
       expect(commitGameRound).toHaveBeenCalledWith({
         completeGame: false,
+        gameId: "game-1",
+        winnerUserIds: ["user-2"],
+      });
+    });
+  });
+
+  it("reviews the final round winner before ending the game", async () => {
+    renderComponent({
+      compatibilityConfig: {
+        allowAnyVersion: true,
+        liveMode: "round_winner",
+      },
+      game: {
+        ...createRoundWinnerModeSnapshot(),
+        completedRounds: 4,
+      },
+    });
+
+    fireEvent.click(screen.getByTestId("player-card-content-user-2"));
+
+    expect(commitGameRound).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "End game" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Game winner")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "End game" }));
+
+    await waitFor(() => {
+      expect(commitGameRound).toHaveBeenCalledWith({
+        completeGame: true,
         gameId: "game-1",
         winnerUserIds: ["user-2"],
       });
@@ -1700,6 +1784,7 @@ describe("PlayGame", () => {
         "Nothing here yet. Scores will show up after the first round.",
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByTestId("score-history-chart")).not.toBeInTheDocument();
   });
 
   it("includes the current round in the score breakdown modal", () => {
@@ -1709,8 +1794,16 @@ describe("PlayGame", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Scores" }));
 
-    expect(screen.getByText("R2")).toBeInTheDocument();
-    expect(screen.getAllByText("+2")).toHaveLength(2);
+    const chart = screen.getByTestId("score-history-chart");
+    const scoreGrid = screen.getByTestId("score-breakdown-grid");
+
+    expect(chart).toBeInTheDocument();
+    expect(within(chart).getByText("Scores over rounds")).toBeInTheDocument();
+    expect(within(chart).getByText("Lower score wins")).toBeInTheDocument();
+    expect(within(chart).getByText("Mia")).toBeInTheDocument();
+    expect(within(chart).getByText("Kai")).toBeInTheDocument();
+    expect(within(scoreGrid).getByText("R2")).toBeInTheDocument();
+    expect(within(scoreGrid).getByText("+2")).toBeInTheDocument();
   });
 
   it("keeps player order based on the last committed round while the current round is being scored", () => {
@@ -2449,8 +2542,10 @@ describe("PlayGame", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back to game" }));
     fireEvent.click(screen.getByRole("button", { name: "Scores" }));
 
-    expect(screen.getByText("June")).toBeInTheDocument();
-    expect(screen.getByText("+10")).toBeInTheDocument();
+    const scoreGrid = screen.getByTestId("score-breakdown-grid");
+
+    expect(within(scoreGrid).getByTitle("June")).toBeInTheDocument();
+    expect(within(scoreGrid).getByText("+10")).toBeInTheDocument();
   });
 
   it("edits a round score from the score breakdown modal", async () => {

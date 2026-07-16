@@ -4,6 +4,7 @@ import {
   Gamepad2,
   ListOrdered,
   Layers3,
+  Megaphone,
   Settings2,
   Trophy,
   Users,
@@ -23,6 +24,12 @@ import { AdminCardsFeatureToggle } from "@/components/admin/admin-cards-feature-
 import { areCardsEnabled } from "@/lib/db/store/feature-flags.store";
 
 const adminLinks = [
+  {
+    href: "/admin/announcements",
+    title: "Announcements",
+    description: "Draft and publish product updates for current users.",
+    icon: Megaphone,
+  },
   {
     href: "/admin/cards",
     title: "Card catalog",

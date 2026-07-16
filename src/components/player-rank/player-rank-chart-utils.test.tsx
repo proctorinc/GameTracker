@@ -16,4 +16,19 @@ describe("orderSeriesByHighlightedUser", () => {
       }).map((entry) => entry.userId),
     ).toEqual(["user-1", "user-3", "user-2"]);
   });
+
+  it("removes duplicate user series before ordering", () => {
+    const firstUserTwo = { userId: "user-2", label: "First" };
+
+    expect(
+      orderSeriesByHighlightedUser({
+        series: [
+          { userId: "user-1", label: "One" },
+          firstUserTwo,
+          { userId: "user-2", label: "Duplicate" },
+        ],
+        highlightedUserId: "user-2",
+      }),
+    ).toEqual([{ userId: "user-1", label: "One" }, firstUserTwo]);
+  });
 });

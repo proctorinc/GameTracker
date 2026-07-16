@@ -23,6 +23,7 @@ import {
 } from "@/app/actions/game";
 import { updateOwnedGuestColor } from "@/app/actions/user";
 import GameTitleImage from "@/components/game/game-title-image";
+import { ScoreBreakdownDialog } from "@/components/game/score-breakdown-dialog";
 import { PlayerRankDeltaBadge } from "@/components/player-rank/player-rank-delta-badge";
 import { PlayerRankPodium } from "@/components/player-rank/player-rank-podium";
 import { getProfileColorSurfaceStyles } from "@/components/profile/profile-color-styles";
@@ -34,7 +35,7 @@ import { ShareQrPanel } from "@/components/profile/friend-invite-share-card";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardEmpty, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
@@ -124,7 +125,6 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
-  Fragment,
   type FormEvent,
   useDeferredValue,
   useEffect,
@@ -714,6 +714,10 @@ export default function PlayGame(props: PlayGameProps) {
   const [pendingEliminationUserId, setPendingEliminationUserId] = useState<
     string | null
   >(null);
+  const [pendingRoundWinner, setPendingRoundWinner] = useState<{
+    completeGame: boolean;
+    userId: string;
+  } | null>(null);
   const [isRoundHistoryOpen, setIsRoundHistoryOpen] = useState(false);
   const [isHeaderDrawerOpen, setIsHeaderDrawerOpen] = useState(false);
   const [isShareDrawerOpen, setIsShareDrawerOpen] = useState(false);
@@ -960,6 +964,13 @@ export default function PlayGame(props: PlayGameProps) {
       game.players.find((player) => player.userId === winnerUserId) ?? null
     );
   }, [game.players, pendingEliminationUserId, remainingEliminationUserIds]);
+  const pendingRoundWinnerPlayer = useMemo(
+    () =>
+      game.players.find(
+        (player) => player.userId === pendingRoundWinner?.userId,
+      ) ?? null,
+    [game.players, pendingRoundWinner?.userId],
+  );
   const isFreePlay = game.endingMode === "none";
   const showsRounds = game.endingMode !== "none" || game.trackRounds;
   const isRoundlessFreePlay = isFreePlay && !game.trackRounds;
@@ -1341,12 +1352,21 @@ export default function PlayGame(props: PlayGameProps) {
       getWinningUserIds({
         players: game.players.map((player) => ({
           userId: player.userId,
-          score: getPlayerTotalScore(player),
+          score:
+            getPlayerTotalScore(player) +
+            (pendingEliminationWinner?.userId === player.userId ? 1 : 0) +
+            (pendingRoundWinnerPlayer?.userId === player.userId ? 1 : 0),
         })),
         scoringMode: game.scoringMode,
       }),
     );
-  }, [game.players, game.scoringMode, selectedWinnerUserIds]);
+  }, [
+    game.players,
+    game.scoringMode,
+    pendingEliminationWinner?.userId,
+    pendingRoundWinnerPlayer?.userId,
+    selectedWinnerUserIds,
+  ]);
   const projectedWinnersLabel = useMemo(() => {
     if (game.scoringMode === "no_score" || requiresScoredTieBreak) {
       const winnerNames = sortedPlayers
@@ -3234,14 +3254,9 @@ export default function PlayGame(props: PlayGameProps) {
       eliminatedUserId: player.userId,
     });
 
-    if (
-      gameSettingsV2?.roundConfig.enabled &&
-      completesEliminationRound &&
-      !completeGame &&
-      !confirmRoundTransition
-    ) {
+    if (completesEliminationRound && !confirmRoundTransition) {
       setPendingEliminationUserId(player.userId);
-      setRoundDialogIntent("round");
+      setRoundDialogIntent(completeGame ? "end-game" : "round");
       setIsRoundDialogOpen(true);
       return;
     }
@@ -3283,6 +3298,34 @@ export default function PlayGame(props: PlayGameProps) {
     });
   }
 
+  function confirmPendingRoundWinner() {
+    if (!pendingRoundWinner || !canManageLiveGame || isCompleted || isPaused) {
+      return;
+    }
+
+    const selectedWinner = pendingRoundWinner;
+    runMutation({
+      key: "commit-round",
+      mutation: {
+        type: "commit-round",
+        completeGame: selectedWinner.completeGame,
+        finishedAt: nowIso(),
+        winnerUserIds: [selectedWinner.userId],
+      },
+      action: () =>
+        commitGameRound({
+          gameId: game.id,
+          completeGame: selectedWinner.completeGame,
+          winnerUserIds: [selectedWinner.userId],
+        }),
+      onOptimistic: () => {
+        setPendingRoundWinner(null);
+        setIsRoundDialogOpen(false);
+        setRoundDialogIntent("round");
+      },
+    });
+  }
+
   function handlePlayerCardActivate(
     player: GameForPlayPage["players"][number],
   ) {
@@ -3309,23 +3352,9 @@ export default function PlayGame(props: PlayGameProps) {
               (gameSettingsV2.thresholdConfig.value ??
                 Number.POSITIVE_INFINITY))
         : false;
-      const finishedAt = nowIso();
-
-      runMutation({
-        key: "commit-round",
-        mutation: {
-          type: "commit-round",
-          completeGame,
-          finishedAt,
-          winnerUserIds: [player.userId],
-        },
-        action: () =>
-          commitGameRound({
-            gameId: game.id,
-            completeGame,
-            winnerUserIds: [player.userId],
-          }),
-      });
+      setPendingRoundWinner({ completeGame, userId: player.userId });
+      setRoundDialogIntent(completeGame ? "end-game" : "round");
+      setIsRoundDialogOpen(true);
       return;
     }
 
@@ -3902,7 +3931,7 @@ export default function PlayGame(props: PlayGameProps) {
 
         {!canManageLiveGame && !snapshot.canEditOwnScore ? (
           <Card className="border-dashed bg-card/70 p-0">
-            <CardContent className="px-4 py-4 text-sm text-slate-500">
+            <CardContent className="px-4 py-4 text-sm text-muted-foreground">
               View Mode. Your current role does not allow score changes or game
               management.
             </CardContent>
@@ -5329,6 +5358,7 @@ export default function PlayGame(props: PlayGameProps) {
           setIsRoundDialogOpen(open);
           if (!open) {
             setPendingEliminationUserId(null);
+            setPendingRoundWinner(null);
             setRoundDialogIntent("round");
             setActiveNoScorePlacement(1);
             setConfirmedNoScorePlacements([]);
@@ -5347,6 +5377,10 @@ export default function PlayGame(props: PlayGameProps) {
                     ? gameSettingsV2?.roundConfig.enabled
                       ? `Round ${nextRoundNumber}`
                       : "Elimination"
+                    : pendingRoundWinnerPlayer
+                      ? pendingRoundWinner?.completeGame
+                        ? "End game"
+                        : `End of round ${nextRoundNumber}`
                     : isRoundWinnerMode && roundDialogIntent !== "end-game"
                       ? gameSettingsV2?.roundConfig.enabled
                         ? `Round ${nextRoundNumber}`
@@ -5380,6 +5414,21 @@ export default function PlayGame(props: PlayGameProps) {
               <p className="mt-3 text-sm text-muted-foreground">
                 {getDisplayName(pendingEliminationPlayer.user)} was the last
                 player eliminated this round.
+              </p>
+            </div>
+          ) : pendingRoundWinnerPlayer ? (
+            <div className="rounded-xl border border-border bg-muted/50 p-4">
+              <p className="text-sm font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                {pendingRoundWinner?.completeGame ? "Game winner" : "Round winner"}
+              </p>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <span className="font-black">
+                  {getDisplayName(pendingRoundWinnerPlayer.user)}
+                </span>
+                <Badge variant="outline">+1 point</Badge>
+              </div>
+              <p className="mt-3 text-sm text-muted-foreground">
+                Review the projected totals below before confirming.
               </p>
             </div>
           ) : isRoundWinnerMode && roundDialogIntent !== "end-game" ? (
@@ -5638,17 +5687,34 @@ export default function PlayGame(props: PlayGameProps) {
                       key={player.userId}
                       className="flex items-center justify-between gap-3 text-sm"
                     >
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className="truncate font-medium text-foreground/80">
-                          {getDisplayName(player.user)}
-                        </span>
-                        {projectedWinnerIds.has(player.userId) ? (
-                          <Badge variant="outline">Winning</Badge>
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="truncate font-medium text-foreground/80">
+                            {getDisplayName(player.user)}
+                          </span>
+                          {projectedWinnerIds.has(player.userId) ? (
+                            <Badge variant="outline">Winning</Badge>
+                          ) : null}
+                        </div>
+                        {showsRounds ? (
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            Round score{" "}
+                            {(activeRoundScoreByUserId.get(player.userId) ?? 0) +
+                              (pendingEliminationWinner?.userId === player.userId
+                                ? 1
+                                : 0) +
+                              (pendingRoundWinnerPlayer?.userId === player.userId
+                                ? 1
+                                : 0)}
+                          </p>
                         ) : null}
                       </div>
                       <span className="font-black text-foreground">
                         {getPlayerTotalScore(player) +
                           (pendingEliminationWinner?.userId === player.userId
+                            ? 1
+                            : 0) +
+                          (pendingRoundWinnerPlayer?.userId === player.userId
                             ? 1
                             : 0)}
                       </span>
@@ -5672,12 +5738,29 @@ export default function PlayGame(props: PlayGameProps) {
                       key={player.userId}
                       className="flex items-center justify-between gap-3 text-sm"
                     >
-                      <span className="font-medium text-foreground/80">
-                        {getDisplayName(player.user)}
-                      </span>
+                      <div>
+                        <span className="font-medium text-foreground/80">
+                          {getDisplayName(player.user)}
+                        </span>
+                        {showsRounds ? (
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            Round score{" "}
+                            {(activeRoundScoreByUserId.get(player.userId) ?? 0) +
+                              (pendingEliminationWinner?.userId === player.userId
+                                ? 1
+                                : 0) +
+                              (pendingRoundWinnerPlayer?.userId === player.userId
+                                ? 1
+                                : 0)}
+                          </p>
+                        ) : null}
+                      </div>
                       <span className="font-black text-foreground">
                         {getPlayerTotalScore(player) +
                           (pendingEliminationWinner?.userId === player.userId
+                            ? 1
+                            : 0) +
+                          (pendingRoundWinnerPlayer?.userId === player.userId
                             ? 1
                             : 0)}
                       </span>
@@ -5694,37 +5777,61 @@ export default function PlayGame(props: PlayGameProps) {
             }
           >
             {pendingEliminationPlayer ? (
-              <>
+              roundDialogIntent === "end-game" ? (
                 <Button
                   disabled={isPaused || commitRoundPending}
                   onClick={() =>
-                    handleEliminatePlayer(pendingEliminationPlayer, true)
+                    handleEliminatePlayer(pendingEliminationPlayer, true, true)
                   }
-                  variant={isFreePlay ? "outline" : "default"}
                 >
                   {commitRoundPending ? (
                     <LoaderCircle className="animate-spin" />
                   ) : null}
-                  Start next round
+                  End game
                 </Button>
-                {isFreePlay ? (
+              ) : (
+                <>
                   <Button
                     disabled={isPaused || commitRoundPending}
                     onClick={() =>
-                      handleEliminatePlayer(
-                        pendingEliminationPlayer,
-                        true,
-                        true,
-                      )
+                      handleEliminatePlayer(pendingEliminationPlayer, true)
                     }
+                    variant={isFreePlay ? "outline" : "default"}
                   >
                     {commitRoundPending ? (
                       <LoaderCircle className="animate-spin" />
                     ) : null}
-                    End game
+                    Start next round
                   </Button>
+                  {isFreePlay ? (
+                    <Button
+                      disabled={isPaused || commitRoundPending}
+                      onClick={() =>
+                        handleEliminatePlayer(
+                          pendingEliminationPlayer,
+                          true,
+                          true,
+                        )
+                      }
+                    >
+                      {commitRoundPending ? (
+                        <LoaderCircle className="animate-spin" />
+                      ) : null}
+                      End game
+                    </Button>
+                  ) : null}
+                </>
+              )
+            ) : pendingRoundWinnerPlayer ? (
+              <Button
+                disabled={isPaused || commitRoundPending}
+                onClick={confirmPendingRoundWinner}
+              >
+                {commitRoundPending ? (
+                  <LoaderCircle className="animate-spin" />
                 ) : null}
-              </>
+                {pendingRoundWinner?.completeGame ? "End game" : "Start next round"}
+              </Button>
             ) : (isEliminationMode || isRoundWinnerMode) &&
               roundDialogIntent !== "end-game" ? (
               <Button
@@ -5812,103 +5919,22 @@ export default function PlayGame(props: PlayGameProps) {
         </DialogContent>
       </Dialog>
 
-      <Dialog
+      <ScoreBreakdownDialog
+        canEditPlayerScore={canEditPlayerScore}
+        editingDisabled={
+          isCompleted ||
+          isNoScoreMode ||
+          isRoundWinnerMode ||
+          isEliminationMode
+        }
+        historyOnly={isRoundWinnerMode || isEliminationMode}
+        onEditRoundScore={openRoundScoreDialog}
         onOpenChange={setIsRoundHistoryOpen}
         open={showsRounds && isRoundHistoryOpen && !isPaused}
-      >
-        <DialogContent className="max-w-[calc(100%-1.5rem)] rounded-xl p-5">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-black">
-              Score breakdown
-            </DialogTitle>
-            <DialogDescription>
-              {isRoundWinnerMode || isEliminationMode
-                ? "Round history for this game"
-                : "Tap to edit any round scores"}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="max-h-[80vh] overflow-y-auto pr-1">
-            {scorecardRounds.length > 0 ? (
-              <div className="overflow-x-auto rounded-xl border border-border bg-muted/50">
-                <div
-                  className="grid w-full min-w-max"
-                  style={{
-                    gridTemplateColumns: `3.5rem minmax(4.75rem, 0.9fr) repeat(${scorecardRounds.length}, minmax(4.25rem, 1fr))`,
-                  }}
-                >
-                  <div className="sticky left-0 z-10 border-b border-r border-border bg-card px-3 py-3" />
-                  <div className="border-b border-r border-border bg-muted px-3 py-3 text-center text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
-                    Total
-                  </div>
-                  {scorecardRounds.map((round) => (
-                    <div
-                      key={round.id}
-                      className="border-b border-r border-border bg-muted px-3 py-3 text-center text-xs font-black uppercase tracking-[0.18em] text-muted-foreground"
-                    >
-                      <span>R{round.roundNumber}</span>
-                    </div>
-                  ))}
-
-                  {scorecardPlayers.map((player) => (
-                    <Fragment key={player.id}>
-                      <div
-                        className="sticky left-0 z-10 flex items-center justify-center overflow-hidden border-r border-b border-border bg-card px-2 py-3"
-                        title={getDisplayName(player.user)}
-                      >
-                        <ProfilePicture size="xs" user={player.user} />
-                      </div>
-                      <div className="flex items-center justify-center border-r border-b border-border bg-muted/60 px-2 py-3 text-center text-sm font-black text-foreground">
-                        {getPlayerTotalScore(player)}
-                      </div>
-                      {scorecardRounds.map((round) => {
-                        const roundScore = (round.scores ?? []).find(
-                          (score) => score.userId === player.userId,
-                        )?.scoreDelta;
-
-                        return (
-                          <button
-                            key={`${round.id}-${player.userId}`}
-                            className={cn(
-                              "flex min-h-12 items-center justify-center border-r border-b border-border px-2 py-3 text-center text-sm font-medium text-foreground/80",
-                              canEditPlayerScore(player.userId) &&
-                                !isCompleted &&
-                                !isRoundWinnerMode &&
-                                !isEliminationMode &&
-                                "cursor-pointer hover:bg-background/70",
-                            )}
-                            disabled={
-                              !canEditPlayerScore(player.userId) ||
-                              isCompleted ||
-                              isNoScoreMode ||
-                              isRoundWinnerMode ||
-                              isEliminationMode
-                            }
-                            onClick={() =>
-                              openRoundScoreDialog({
-                                playerId: player.userId,
-                                roundNumber: round.roundNumber,
-                              })
-                            }
-                            type="button"
-                          >
-                            {roundScore === undefined
-                              ? "-"
-                              : `${roundScore > 0 ? "+" : ""}${roundScore}`}
-                          </button>
-                        );
-                      })}
-                    </Fragment>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <CardEmpty className="rounded-xl border border-dashed border-border bg-muted/30 py-10 text-center">
-                Nothing here yet. Scores will show up after the first round.
-              </CardEmpty>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+        players={scorecardPlayers}
+        rounds={scorecardRounds}
+        scoringMode={game.scoringMode}
+      />
     </div>
   );
 }

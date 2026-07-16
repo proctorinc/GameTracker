@@ -38,6 +38,7 @@ import type { PlayGameV2ScreenProps, PlayGameV2SurfaceConfig } from "../types";
 import {
   PlayGameV2BottomBar,
   PlayGameV2ManagePlayersDialogBody,
+  PlayGameV2OutcomeSummaryDialog,
   PlayGameV2ShareDrawerBody,
   PlayGameV2Shell,
   formatPlayGameV2EndingSummary,
@@ -172,6 +173,7 @@ export function LostCitiesPlayGameV2Screen({
   );
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [isManagePlayersOpen, setIsManagePlayersOpen] = useState(false);
+  const [isOutcomeSummaryOpen, setIsOutcomeSummaryOpen] = useState(false);
   const [isRoundHistoryOpen, setIsRoundHistoryOpen] = useState(false);
   const [isShareDrawerOpen, setIsShareDrawerOpen] = useState(false);
 
@@ -203,20 +205,45 @@ export function LostCitiesPlayGameV2Screen({
     return totals;
   }, [activeRoundId, categories, isRoundBased, snapshot.game.itemizedScoreEntries, snapshot.game.players]);
 
-  const playerTotals = useMemo(() => new Map(
+  const scopeTotals = useMemo(() => new Map(
     snapshot.game.players.map((player) => {
       const scopeTotal = categories.reduce(
         (sum, category) => sum + (drafts.get(draftKey(player.userId, category.id))?.subtotal ?? 0),
         0,
       );
-      return [
-        player.userId,
-        isRoundBased
-          ? (player.score ?? 0) - (persistedScopeTotals.get(player.userId) ?? 0) + scopeTotal
-          : scopeTotal,
-      ];
+      return [player.userId, scopeTotal];
     }),
-  ), [categories, drafts, isRoundBased, persistedScopeTotals, snapshot.game.players]);
+  ), [categories, drafts, snapshot.game.players]);
+
+  const playerTotals = useMemo(() => new Map(
+    snapshot.game.players.map((player) => [
+      player.userId,
+      isRoundBased
+        ? (player.score ?? 0) - (persistedScopeTotals.get(player.userId) ?? 0) +
+          (scopeTotals.get(player.userId) ?? 0)
+        : (scopeTotals.get(player.userId) ?? 0),
+    ]),
+  ), [isRoundBased, persistedScopeTotals, scopeTotals, snapshot.game.players]);
+
+  const winningTotal = useMemo(() => {
+    const totals = [...playerTotals.values()];
+    if (totals.length === 0) return null;
+    return config.settings.winMetric === "lowest_score"
+      ? Math.min(...totals)
+      : Math.max(...totals);
+  }, [config.settings.winMetric, playerTotals]);
+
+  const outcomeSummaryRows = useMemo(() => snapshot.game.players.map((player) => ({
+    breakdown: expeditions.map(({ category }) => ({
+      label: category.name,
+      value: drafts.get(draftKey(player.userId, category.id))?.subtotal ?? 0,
+    })),
+    isWinner: winningTotal !== null && (playerTotals.get(player.userId) ?? 0) === winningTotal,
+    name: getPlayGameV2DisplayName(player.user),
+    scopeScore: scopeTotals.get(player.userId) ?? 0,
+    totalScore: playerTotals.get(player.userId) ?? 0,
+    userId: player.userId,
+  })), [drafts, expeditions, playerTotals, scopeTotals, snapshot.game.players, winningTotal]);
 
   const editorIndex = editor
     ? expeditions.findIndex((entry) => entry.category.id === editor.categoryId)
@@ -290,11 +317,12 @@ export function LostCitiesPlayGameV2Screen({
     setEditor(null);
   }
 
-  function advanceScoring() {
+  function confirmScoring() {
     if (isRoundBased) actions.commitRound({ completeGame: isFinalRound });
     else actions.completeGame({
       itemizedScoreEntries: snapshot.game.players.flatMap((player) => buildPlayerEntries(player.userId)),
     });
+    setIsOutcomeSummaryOpen(false);
   }
 
   return (
@@ -312,7 +340,7 @@ export function LostCitiesPlayGameV2Screen({
               disableEndGame: !hasRequiredPlayers || pendingActionKeys.size > 0,
               disableManagePlayers: viewModel.isCompleted,
               endGameLabel: isRoundBased ? (isFinalRound ? "Finish game" : "Next round") : "End game",
-              onEndGame: advanceScoring,
+              onEndGame: () => setIsOutcomeSummaryOpen(true),
               onOpenManagePlayers: () => setIsManagePlayersOpen(true),
               onOpenShare: () => setIsShareDrawerOpen(true),
               onReopenGame: actions.reopenGame,
@@ -353,7 +381,7 @@ export function LostCitiesPlayGameV2Screen({
                             type="button"
                           >
                             {draft.wagers > 0 ? (
-                              <span className="absolute right-2 top-2 rounded-full border bg-background/35 px-1.5 py-0.5 text-[10px] font-black">{draft.wagers}</span>
+                              <span className="absolute right-2 top-2 rounded-full border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] px-1.5 py-0.5 text-[10px] font-black text-[color:var(--profile-surface-text)]">{draft.wagers}</span>
                             ) : null}
                             <ExpeditionIcon emblem={expedition.emblem} />
                             <span className="line-clamp-2 text-[10px] font-black uppercase tracking-wide">{category.name}</span>
@@ -405,7 +433,7 @@ export function LostCitiesPlayGameV2Screen({
                   : isRoundBased
                     ? isFinalRound ? "Finish" : "Round"
                     : "Score",
-                onClick: advanceScoring,
+                onClick: () => setIsOutcomeSummaryOpen(true),
               } : undefined}
               variant={isRoundBased ? "standard" : (resolvedSurface.bottomBar?.variant ?? "tally")}
             />
@@ -420,7 +448,7 @@ export function LostCitiesPlayGameV2Screen({
           <DrawerContent className="max-h-[92vh] gap-0 overflow-hidden" style={expeditionStyles(editorExpedition.expedition.color)}>
             <DrawerHeader className="px-5 pt-5 pb-3">
               <div className="flex items-center justify-between gap-3">
-                <Button aria-label="Previous expedition" disabled={editorIndex <= 0} onClick={() => setEditor({ ...editor, categoryId: expeditions[editorIndex - 1]!.category.id })} size="icon-lg" type="button" variant="outline"><ChevronLeft /></Button>
+                <Button aria-label="Previous expedition" className="border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[color:var(--profile-surface-text)] hover:bg-[var(--profile-surface-panel)] hover:text-[color:var(--profile-surface-text)]" disabled={editorIndex <= 0} onClick={() => setEditor({ ...editor, categoryId: expeditions[editorIndex - 1]!.category.id })} size="icon-lg" type="button" variant="outline"><ChevronLeft /></Button>
                 <div className="flex min-w-0 flex-1 items-center justify-center gap-3">
                   <ExpeditionIcon emblem={editorExpedition.expedition.emblem} />
                   <div className="min-w-0">
@@ -428,7 +456,7 @@ export function LostCitiesPlayGameV2Screen({
                     <DrawerDescription className="truncate text-current opacity-75">{editorExpedition.category.name}</DrawerDescription>
                   </div>
                 </div>
-                <Button aria-label="Next expedition" disabled={editorIndex >= expeditions.length - 1} onClick={() => setEditor({ ...editor, categoryId: expeditions[editorIndex + 1]!.category.id })} size="icon-lg" type="button" variant="outline"><ChevronRight /></Button>
+                <Button aria-label="Next expedition" className="border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[color:var(--profile-surface-text)] hover:bg-[var(--profile-surface-panel)] hover:text-[color:var(--profile-surface-text)]" disabled={editorIndex >= expeditions.length - 1} onClick={() => setEditor({ ...editor, categoryId: expeditions[editorIndex + 1]!.category.id })} size="icon-lg" type="button" variant="outline"><ChevronRight /></Button>
               </div>
             </DrawerHeader>
             <div className="min-h-0 overflow-y-auto px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
@@ -436,7 +464,7 @@ export function LostCitiesPlayGameV2Screen({
                 <p className="mb-2 text-sm font-black uppercase tracking-wider">{wagerInputLabel}</p>
                 <div className="grid grid-cols-4 gap-2">
                   {WAGER_VALUES.map((value) => (
-                    <Button key={value} data-testid={`lost-cities-wager-${value}`} disabled={!canEdit} onClick={() => updateDraft((draft) => ({ ...draft, wagers: value }))} type="button" variant={editorDraft.wagers === value ? "default" : "outline"}>{value}</Button>
+                    <Button className={`border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[color:var(--profile-surface-text)] hover:bg-[var(--profile-surface-panel)] hover:text-[color:var(--profile-surface-text)] ${editorDraft.wagers === value ? "ring-2 ring-current" : ""}`} key={value} data-testid={`lost-cities-wager-${value}`} disabled={!canEdit} onClick={() => updateDraft((draft) => ({ ...draft, wagers: value }))} type="button" variant="outline">{value}</Button>
                   ))}
                 </div>
               </section>
@@ -456,20 +484,21 @@ export function LostCitiesPlayGameV2Screen({
                             ? draft.selectedValues.filter((entry) => entry !== value)
                             : [...draft.selectedValues, value],
                         }))}
+                        className={`border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[color:var(--profile-surface-text)] hover:bg-[var(--profile-surface-panel)] hover:text-[color:var(--profile-surface-text)] ${selected ? "ring-2 ring-current" : ""}`}
                         type="button"
-                        variant={selected ? "default" : "outline"}
+                        variant="outline"
                       >{value}</Button>
                     );
                   })}
                 </div>
               </section>
-              <div className="mt-5 rounded-xl border bg-background/25 p-4">
+              <div className="mt-5 rounded-xl border border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] p-4 text-[color:var(--profile-surface-text)]">
                 <p className="text-4xl font-black" data-testid="lost-cities-editor-total">{editorDraft.subtotal}</p>
                 {editorExpedition.category.helpText ? (
                   <p className="mt-2 text-sm opacity-75">{editorExpedition.category.helpText}</p>
                 ) : null}
               </div>
-              <Button className="mt-4 w-full" onClick={() => closeEditor(true)} type="button">{canEdit ? "Done" : "Close"}</Button>
+              <Button className="mt-4 w-full border-[var(--profile-surface-panel-border)] bg-[var(--profile-surface-panel)] text-[color:var(--profile-surface-text)] hover:bg-[var(--profile-surface-panel)] hover:text-[color:var(--profile-surface-text)]" onClick={() => closeEditor(true)} type="button" variant="outline">{canEdit ? "Done" : "Close"}</Button>
             </div>
           </DrawerContent>
         ) : null}
@@ -517,6 +546,17 @@ export function LostCitiesPlayGameV2Screen({
       <Dialog onOpenChange={setIsManagePlayersOpen} open={isManagePlayersOpen}>
         <PlayGameV2ManagePlayersDialogBody actions={actions} onClose={() => setIsManagePlayersOpen(false)} snapshot={snapshot} viewModel={viewModel} />
       </Dialog>
+      <PlayGameV2OutcomeSummaryDialog
+        confirmLabel={isRoundBased ? (isFinalRound ? "Finish game" : "Start next round") : "End game"}
+        disabled={!hasRequiredPlayers || viewModel.isPaused}
+        intent={isRoundBased && !isFinalRound ? "round" : "game"}
+        onConfirm={confirmScoring}
+        onOpenChange={setIsOutcomeSummaryOpen}
+        open={isOutcomeSummaryOpen}
+        pending={pendingActionKeys.has(isRoundBased ? "commit-round" : "complete-game")}
+        roundNumber={viewModel.activeRoundNumber}
+        rows={outcomeSummaryRows}
+      />
     </>
   );
 }

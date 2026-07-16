@@ -1,16 +1,15 @@
 import Link from "next/link";
-import { ArrowRight, CalendarDays, Crown, Trophy, UserRound } from "lucide-react";
+import type { CSSProperties } from "react";
+import { CalendarDays, Crown, Trophy, UserRound } from "lucide-react";
 import GameTitleImage from "@/components/game/game-title-image";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Badge } from "@/components/ui/badge";
 import { CardEmpty } from "@/components/ui/card";
 import { WinnerIndicator } from "@/components/ui/winner-indicator";
 import type { GameFull } from "@/lib/db/store";
-import {
-  deriveGamePlacementOutcome,
-  formatPlacementLabel,
-} from "@/lib/game-placement";
+import { deriveGamePlacementOutcome } from "@/lib/game-placement";
 import { cn } from "@/lib/utils";
+import styles from "./game-history-list.module.css";
 
 function formatDate(value: string | null | undefined, prefix: string) {
   if (!value) {
@@ -94,50 +93,6 @@ function getPlacementOutcome(game: GameFull) {
   });
 }
 
-function getTopPlacementSummary(game: GameFull, currentUserId: string) {
-  const placementOutcome = getPlacementOutcome(game);
-  const topPlayers = game.players.filter((player) =>
-    placementOutcome.winnerUserIds.includes(player.userId),
-  );
-
-  if (topPlayers.length === 0) {
-    return {
-      label: "Winner",
-      text: "No winner yet",
-      user: null,
-      winnerUserIds: placementOutcome.winnerUserIds,
-      wonByCurrentUser: false,
-    };
-  }
-
-  const [primaryPlayer, ...otherTopPlayers] = topPlayers;
-  const primaryName =
-    primaryPlayer.userId === currentUserId
-      ? "You"
-      : (primaryPlayer.user.firstName ?? "Player");
-  const placementLabel =
-    formatPlacementLabel({
-      placement: placementOutcome.placementByUserId[primaryPlayer.userId] ?? 1,
-      won: true,
-      hasExplicitPodium: placementOutcome.hasExplicitPodium,
-    }) ?? "Winner";
-
-  return {
-    label: placementOutcome.hasExplicitPodium
-      ? placementLabel
-      : topPlayers.length > 1
-        ? "Tied winner"
-        : "Winner",
-    text:
-      otherTopPlayers.length === 0
-        ? primaryName
-        : `${primaryName} +${otherTopPlayers.length} more`,
-    user: primaryPlayer.user,
-    winnerUserIds: placementOutcome.winnerUserIds,
-    wonByCurrentUser: placementOutcome.wonByUserId[currentUserId] ?? false,
-  };
-}
-
 export default function GameHistoryList({
   games,
   currentUserId,
@@ -170,167 +125,93 @@ export default function GameHistoryList({
   return (
     <>
       {games.map((game) => {
-        const topPlacementSummary = getTopPlacementSummary(game, currentUserId);
-        const didWin = topPlacementSummary.wonByCurrentUser;
+        const placementOutcome = getPlacementOutcome(game);
+        const didWin = placementOutcome.wonByUserId[currentUserId] ?? false;
         const title = game.gameTitle;
-        const titleHref = title ? `/titles/${title.id}` : null;
+        const titleColor = title?.color?.trim() || "#64748b";
 
         return (
           <article
             key={game.id}
-            className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-lg"
+            className={styles.card}
+            style={{ "--game-title-color": titleColor } as CSSProperties}
           >
-            <GameTitleImage
-              className="rounded-b-none border-b"
-              color={title?.color}
-              contentClassName="h-full"
-              imageUrl={title?.imageUrl}
-              size="xl"
-              verticalFocus={title?.imageVerticalFocus}
-              variant="card"
+            <Link
+              href={`/game/${game.id}/play`}
+              className={styles.cardLink}
+              aria-label={`Open ${title?.title ?? "game"}`}
             >
-              <div className="flex h-full flex-col justify-between gap-4 p-4 text-white">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge
-                    className="border-white/20 bg-white/16 text-white backdrop-blur-sm"
-                    variant="outline"
-                  >
-                    {game.completedAt ? "Completed" : "In progress"}
-                  </Badge>
-                  {didWin ? (
-                    <WinnerIndicator
-                      className="border-white/20 bg-white/16 text-white backdrop-blur-sm"
-                      label="Won"
-                    />
-                  ) : null}
-                  {game.creatorId === currentUserId ? (
+              <GameTitleImage
+                className="h-full rounded-[inherit] border-0"
+                color={title?.color}
+                contentClassName="h-full"
+                imageUrl={title?.imageUrl}
+                verticalFocus={title?.imageVerticalFocus}
+                variant="card"
+              >
+                <div className={styles.dotTexture} aria-hidden="true" />
+                <div className={styles.sheen} aria-hidden="true" />
+                <div className={styles.glint} aria-hidden="true" />
+                <div className={styles.frame} aria-hidden="true" />
+
+                <div className="relative z-10 flex h-full flex-col justify-between gap-4 p-4 text-white sm:p-5">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Badge
                       className="border-white/20 bg-white/16 text-white backdrop-blur-sm"
                       variant="outline"
                     >
-                      Created by you
+                      {game.completedAt ? "Completed" : "In progress"}
                     </Badge>
-                  ) : null}
-                </div>
-
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    {titleHref ? (
-                      <Link
-                        href={titleHref}
-                        className="block text-2xl font-black tracking-tight transition-opacity hover:opacity-90"
+                    {didWin ? (
+                      <WinnerIndicator
+                        className="border-white/20 bg-white/16 text-white backdrop-blur-sm"
+                        label="Won"
+                      />
+                    ) : null}
+                    {game.creatorId === currentUserId ? (
+                      <Badge
+                        className="border-white/20 bg-white/16 text-white backdrop-blur-sm"
+                        variant="outline"
                       >
-                        {title?.title ?? "New Game"}
-                      </Link>
-                    ) : (
-                      <h2 className="text-2xl font-black tracking-tight">
+                        Created by you
+                      </Badge>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <h2 className="text-2xl font-black tracking-tight text-balance drop-shadow-md sm:text-3xl">
                         {title?.title ?? "New Game"}
                       </h2>
-                    )}
 
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-white/88">
-                      <span className="inline-flex items-center gap-1.5">
-                        {game.completedAt ? (
-                          <Trophy className="size-4" />
-                        ) : (
-                          <CalendarDays className="size-4" />
-                        )}
-                        {formatDate(
-                          game.completedAt ?? game.createdAt,
-                          game.completedAt ? "Completed" : "Started",
-                        )}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <UserRound className="size-4" />
-                        {game.players.length} players
-                      </span>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-white/88 drop-shadow-sm">
+                        <span className="inline-flex items-center gap-1.5">
+                          {game.completedAt ? (
+                            <Trophy className="size-4" />
+                          ) : (
+                            <CalendarDays className="size-4" />
+                          )}
+                          {formatDate(
+                            game.completedAt ?? game.createdAt,
+                            game.completedAt ? "Completed" : "Started",
+                          )}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <UserRound className="size-4" />
+                          {game.players.length} players
+                        </span>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="rounded-xl border border-white/15 bg-slate-900/18 px-3 py-2.5 backdrop-blur-sm dark:bg-black/18">
-                    <div className="flex items-center justify-start">
-                      <PlayerStack
-                        currentUserId={currentUserId}
-                        players={game.players}
-                        winnerUserIds={topPlacementSummary.winnerUserIds}
-                      />
-                    </div>
+                    <PlayerStack
+                      currentUserId={currentUserId}
+                      players={game.players}
+                      winnerUserIds={placementOutcome.winnerUserIds}
+                    />
                   </div>
                 </div>
-              </div>
-            </GameTitleImage>
-
-            <div className="space-y-2.5 bg-card px-4 pt-3 pb-4">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px]">
-                <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                  <Trophy className="size-3.5" />
-                  {topPlacementSummary.user ? (
-                    <>
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">
-                        {topPlacementSummary.label}
-                      </span>
-                      <ProfilePicture
-                        user={topPlacementSummary.user}
-                        size="xs"
-                        className="shadow-sm"
-                      />
-                      <span
-                        className={cn(
-                          "font-semibold text-foreground",
-                          didWin && "text-[color:var(--winner-text)]",
-                        )}
-                      >
-                        {topPlacementSummary.text}
-                      </span>
-                    </>
-                  ) : (
-                    <span className="font-semibold text-foreground">
-                      No winner yet
-                    </span>
-                  )}
-                </span>
-                <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                  <CalendarDays className="size-3.5" />
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">
-                    Creator
-                  </span>
-                  <span className="font-semibold text-foreground">
-                    {game.creatorId === currentUserId
-                      ? "You"
-                      : (game.creator.firstName ?? "Player")}
-                  </span>
-                </span>
-                <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                  <UserRound className="size-3.5" />
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">
-                    Rounds
-                  </span>
-                  <span className="font-semibold text-foreground">
-                    {game.completedRounds}
-                  </span>
-                </span>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  {titleHref ? (
-                    <Link
-                      href={titleHref}
-                      className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2.5 py-1.5 text-xs font-semibold transition-colors hover:bg-muted"
-                    >
-                      Title history
-                    </Link>
-                  ) : null}
-                  <Link
-                    href={`/game/${game.id}/play`}
-                    className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-                  >
-                    Open game
-                    <ArrowRight className="size-3.5" />
-                  </Link>
-                </div>
-              </div>
-            </div>
+              </GameTitleImage>
+            </Link>
           </article>
         );
       })}

@@ -8,10 +8,10 @@ import {
   ChevronDown,
   ChevronUp,
   Clock3,
+  History,
   Settings,
 } from "lucide-react";
 import GameTitleDefaultsEditor from "@/components/game/game-title-defaults-editor";
-import { GameTitleHistoryList } from "@/components/game/game-title-history-list";
 import GameTitleImage from "@/components/game/game-title-image";
 import GameTitleImageEditor from "@/components/game/game-title-image-editor";
 import { GameTitleRankChart } from "@/components/game/game-title-rank-chart";
@@ -21,9 +21,15 @@ import {
 } from "@/components/profile/comparison-metric-row";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { ProfileMatchupSelector } from "@/components/profile/profile-matchup-selector";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { sectionActionClassName } from "@/components/ui/section-styles";
 import type {
   GameTitleComparisonSummary,
   GameTitleStatsPageData,
@@ -32,8 +38,10 @@ import type {
 import { useRememberedPageTabState } from "@/lib/use-remembered-page-tab-state";
 
 type GameTitlePageTab = "stats" | "admin";
+type ComparisonMode = "head-to-head" | "all-time";
 
-const TITLE_PAGE_TABS = ["stats", "admin"] as const;
+const PUBLIC_TITLE_PAGE_TABS: readonly GameTitlePageTab[] = ["stats"];
+const MANAGE_TITLE_PAGE_TABS: readonly GameTitlePageTab[] = ["stats", "admin"];
 const DEFAULT_VISIBLE_COMPARISON_METRICS = 5;
 
 function formatDate(value: string | null) {
@@ -198,6 +206,7 @@ function buildComparisonMetrics(
 function ComparisonSection(props: {
   currentStats: GameTitleStatsSummary;
   comparison: GameTitleComparisonSummary | null;
+  mode: ComparisonMode;
   currentColor: string;
   currentUser: {
     id: string;
@@ -218,7 +227,15 @@ function ComparisonSection(props: {
   }
 
   const comparison = props.comparison;
-  const metrics = buildComparisonMetrics(props.currentStats, comparison.stats);
+  const currentStats =
+    props.mode === "head-to-head"
+      ? comparison.headToHeadStats.current
+      : props.currentStats;
+  const comparisonStats =
+    props.mode === "head-to-head"
+      ? comparison.headToHeadStats.comparison
+      : comparison.allTimeStats;
+  const metrics = buildComparisonMetrics(currentStats, comparisonStats);
   const visibleMetrics = showAllMetrics
     ? metrics
     : metrics.slice(0, DEFAULT_VISIBLE_COMPARISON_METRICS);
@@ -230,19 +247,19 @@ function ComparisonSection(props: {
         <div className="rounded-xl border border-border/70 bg-card/95 p-4">
           <ProfilePicture user={props.currentUser} size="sm" />
           <p className="mt-2 text-2xl font-black">
-            {props.currentStats.rankGainInWindow.formatted}
+            {currentStats.rankGainInWindow.formatted}
           </p>
           <p className="text-sm text-muted-foreground">
-            {props.currentStats.rankWindowLabel ?? "Window rank gain"}
+            {currentStats.rankWindowLabel ?? "Window rank gain"}
           </p>
         </div>
         <div className="rounded-xl border border-border/70 bg-card/95 p-4">
           <ProfilePicture user={props.comparison.user} size="sm" />
           <p className="mt-2 text-2xl font-black">
-            {props.comparison.stats.rankGainInWindow.formatted}
+            {comparisonStats.rankGainInWindow.formatted}
           </p>
           <p className="text-sm text-muted-foreground">
-            {props.comparison.stats.rankWindowLabel ?? "Window rank gain"}
+            {comparisonStats.rankWindowLabel ?? "Window rank gain"}
           </p>
         </div>
       </div>
@@ -282,14 +299,19 @@ export default function GameTitlePage({
   canManageDefaults: boolean;
   canManageTitleArtwork: boolean;
 }) {
+  const canManageTitle = canManageDefaults || canManageTitleArtwork;
   const [selectedComparisonUserId, setSelectedComparisonUserId] = useState(
     data.defaultComparisonUserId,
   );
+  const [comparisonMode, setComparisonMode] =
+    useState<ComparisonMode>("head-to-head");
   const [activeTab, setActiveTab] =
     useRememberedPageTabState<GameTitlePageTab>({
       storageKey: `page-tab:/titles/${data.title.id}`,
       initialValue: "stats",
-      validTabs: TITLE_PAGE_TABS,
+      validTabs: canManageTitle
+        ? MANAGE_TITLE_PAGE_TABS
+        : PUBLIC_TITLE_PAGE_TABS,
     });
   const comparison = useMemo(
     () =>
@@ -307,7 +329,7 @@ export default function GameTitlePage({
     <div className="min-h-screen px-4 pb-40">
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <GameTitleImage
-          className="p-6 text-white shadow-xl"
+          className="p-6 pb-8 text-white shadow-xl"
           color={title.color}
           imageUrl={title.imageUrl}
           size="lg"
@@ -315,18 +337,10 @@ export default function GameTitlePage({
           variant="hero"
         >
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div className="space-y-3">
-              <Badge
-                className="w-fit border-white/25 bg-white/15 text-white backdrop-blur-sm"
-                variant="outline"
-              >
-                {title.isUniversal ? "Universal title" : "Personal title"}
-              </Badge>
-              <div className="space-y-1">
-                <h1 className="text-4xl font-black tracking-tight md:text-5xl">
-                  {title.title}
-                </h1>
-              </div>
+            <div className="space-y-1">
+              <h1 className="text-4xl font-black tracking-tight md:text-5xl">
+                {title.title}
+              </h1>
             </div>
             <Link
               className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition-colors hover:bg-white/90 dark:text-slate-950"
@@ -340,12 +354,19 @@ export default function GameTitlePage({
 
         <GameTitleRankChart
           series={data.chartSeries}
-          selectedComparisonUserId={selectedComparisonUserId}
+          defaultSelectedUserIds={data.defaultChartSelectedUserIds}
         />
 
-        {canManageDefaults || canManageTitleArtwork ? (
-          <div className="grid grid-cols-2 gap-2 rounded-xl border border-border/70 bg-muted/70 p-1">
+        {canManageTitle ? (
+          <div
+            role="tablist"
+            aria-label="Game title sections"
+            className="grid grid-cols-2 gap-2 rounded-xl border border-border/70 bg-muted/70 p-1"
+          >
             <Button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "stats"}
               variant={activeTab === "stats" ? "default" : "ghost"}
               className="rounded-xl"
               size="sm"
@@ -355,6 +376,9 @@ export default function GameTitlePage({
               Stats
             </Button>
             <Button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "admin"}
               variant={activeTab === "admin" ? "default" : "ghost"}
               className="rounded-xl"
               size="sm"
@@ -366,14 +390,33 @@ export default function GameTitlePage({
           </div>
         ) : null}
 
-        {(canManageDefaults || canManageTitleArtwork) && activeTab === "admin" ? (
+        <Link href={gameHistoryHref}>
+          <Card>
+            <CardHeader className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-3 p-0 text-[1.05rem] font-extrabold tracking-[-0.015em]">
+                <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary shadow-[0_1px_0_rgba(255,255,255,0.4)_inset]">
+                  <History className="size-4.5" strokeWidth={2.25} />
+                </span>
+                <span>View game history</span>
+              </CardTitle>
+              <CardAction>
+                <span className={sectionActionClassName}>
+                  View
+                  <ArrowRight />
+                </span>
+              </CardAction>
+            </CardHeader>
+          </Card>
+        </Link>
+
+        {canManageTitle && activeTab === "admin" ? (
           <div className="flex flex-col gap-6">
             {canManageTitleArtwork ? <GameTitleImageEditor title={title} /> : null}
             {canManageDefaults ? <GameTitleDefaultsEditor title={title} /> : null}
           </div>
         ) : null}
 
-        {(!canManageDefaults && !canManageTitleArtwork) || activeTab === "stats" ? (
+        {activeTab === "stats" ? (
           <div className="grid gap-6">
             <Card>
               <CardHeader className="gap-4">
@@ -387,42 +430,49 @@ export default function GameTitlePage({
                   description="Search players to compare this title."
                   emptyLabel="Choose a player"
                 />
+                <div
+                  role="tablist"
+                  aria-label="Comparison scope"
+                  className="grid grid-cols-2 gap-1 rounded-xl border border-border/70 bg-muted/60 p-1"
+                >
+                  <Button
+                    type="button"
+                    role="tab"
+                    aria-selected={comparisonMode === "head-to-head"}
+                    variant={comparisonMode === "head-to-head" ? "default" : "ghost"}
+                    size="sm"
+                    className="rounded-lg"
+                    onClick={() => setComparisonMode("head-to-head")}
+                  >
+                    Head to head
+                  </Button>
+                  <Button
+                    type="button"
+                    role="tab"
+                    aria-selected={comparisonMode === "all-time"}
+                    variant={comparisonMode === "all-time" ? "default" : "ghost"}
+                    size="sm"
+                    className="rounded-lg"
+                    onClick={() => setComparisonMode("all-time")}
+                  >
+                    All games
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <ComparisonSection
+                  key={`${selectedComparisonUserId ?? "none"}:${comparisonMode}`}
                   currentStats={stats}
                   comparison={comparison}
+                  mode={comparisonMode}
                   currentColor={currentUserColor}
                   currentUser={{
                     id: data.currentUserId,
-                    firstName: null,
-                    lastName: null,
+                    firstName: data.currentUserFirstName,
+                    lastName: data.currentUserLastName,
                     color: currentUserColor,
                     avatarUrl: data.currentUserAvatarUrl,
                   }}
-                />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between gap-3">
-                  <CardTitle className="text-xl font-black">
-                    History
-                  </CardTitle>
-                  <Link
-                    href={gameHistoryHref}
-                    className="inline-flex items-center gap-2 text-sm font-semibold text-primary transition-colors hover:text-primary/80"
-                  >
-                    View all
-                    <ArrowRight className="size-4" />
-                  </Link>
-                </div>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <GameTitleHistoryList
-                  games={data.history}
-                  comparisonUserId={selectedComparisonUserId}
                 />
               </CardContent>
             </Card>

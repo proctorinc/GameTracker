@@ -4,7 +4,7 @@ import { getEnv } from "./env";
 
 let cachedClient: S3Client | null = null;
 
-function getTitleImageStorageConfig() {
+function getImageStorageConfig() {
   const env = getEnv();
 
   if (
@@ -14,7 +14,7 @@ function getTitleImageStorageConfig() {
     !env.S3_SECRET_ACCESS_KEY ||
     !env.S3_PUBLIC_BASE_URL
   ) {
-    throw new Error("S3 title image storage is not configured");
+    throw new Error("S3 image storage is not configured");
   }
 
   return {
@@ -31,7 +31,7 @@ function getS3Client() {
     return cachedClient;
   }
 
-  const config = getTitleImageStorageConfig();
+  const config = getImageStorageConfig();
   cachedClient = new S3Client({
     region: config.region,
     credentials: {
@@ -48,8 +48,29 @@ export async function uploadGameTitleImageToS3(input: {
   buffer: Buffer;
   contentType: string;
 }) {
-  const config = getTitleImageStorageConfig();
+  const config = getImageStorageConfig();
   const key = `game-titles/${input.gameTitleId}/${Date.now()}-${randomUUID()}.webp`;
+
+  await getS3Client().send(
+    new PutObjectCommand({
+      Bucket: config.bucket,
+      Key: key,
+      Body: input.buffer,
+      ContentType: input.contentType,
+      CacheControl: "public, max-age=31536000, immutable",
+    }),
+  );
+
+  return `${config.publicBaseUrl}/${key}`;
+}
+
+export async function uploadAnnouncementImageToS3(input: {
+  announcementId: string;
+  buffer: Buffer;
+  contentType: string;
+}) {
+  const config = getImageStorageConfig();
+  const key = `announcements/${input.announcementId}/${Date.now()}-${randomUUID()}.webp`;
 
   await getS3Client().send(
     new PutObjectCommand({

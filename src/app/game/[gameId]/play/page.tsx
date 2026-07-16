@@ -62,8 +62,8 @@ export default async function PlayGamePage({ params }: PageProps) {
   };
 
   return game.version === "v2" ? (
-    <PlayGameV2 {...playGameProps} />
+    <PlayGameV2 key={game.id} {...playGameProps} />
   ) : (
-    <PlayGame {...playGameProps} />
+    <PlayGame key={game.id} {...playGameProps} />
   );
 }

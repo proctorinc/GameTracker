@@ -34,6 +34,7 @@ const categories = [
 
 function createProps(input?: {
   completed?: boolean;
+  gameId?: string;
   roundBased?: boolean;
   selfScorer?: boolean;
 }) {
@@ -74,7 +75,7 @@ function createProps(input?: {
     },
   ];
   const game = {
-    id: "game-1",
+    id: input?.gameId ?? "game-1",
     version: "v2",
     creatorId: "user-1",
     createdAt: "2026-07-14T00:00:00.000Z",
@@ -160,6 +161,7 @@ function createProps(input?: {
         isPaused: false,
       },
     } as never,
+    commitRound,
     completeGame,
     saveEndGameItemizedScore,
     saveRoundItemizedScore,
@@ -201,6 +203,11 @@ describe("ItemizedPlayGameV2Screen", () => {
     );
     expect(screen.getAllByText("Coins")).toHaveLength(2);
     expect(screen.getByTestId("itemized-player-total-user-1")).toHaveTextContent("0");
+    const playerSurface = screen
+      .getByTestId("itemized-category-user-1-coins")
+      .closest("section");
+    expect(playerSurface).toHaveClass("bg-card", "text-card-foreground");
+    expect(playerSurface).not.toHaveStyle({ color: "var(--profile-surface-text)" });
 
     await user.click(screen.getByTestId("itemized-category-user-1-coins"));
     await user.click(screen.getByRole("button", { name: "Increase value by 1" }));
@@ -215,6 +222,32 @@ describe("ItemizedPlayGameV2Screen", () => {
         { userId: "user-1", categoryId: "coins", values: { count: 1 } },
       ]),
     });
+  });
+
+  it("discards itemized drafts when the keyed game ID changes", async () => {
+    const user = userEvent.setup();
+    const firstGame = createProps({ gameId: "game-1" });
+    const secondGame = createProps({ gameId: "game-2" });
+    const { rerender } = renderWithProviders(
+      <ItemizedPlayGameV2Screen
+        key={firstGame.props.snapshot.game.id}
+        {...firstGame.props}
+      />,
+    );
+
+    await user.click(screen.getByTestId("itemized-category-user-1-coins"));
+    await user.click(screen.getByRole("button", { name: "Increase value by 1" }));
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByTestId("itemized-player-total-user-1")).toHaveTextContent("2");
+
+    rerender(
+      <ItemizedPlayGameV2Screen
+        key={secondGame.props.snapshot.game.id}
+        {...secondGame.props}
+      />,
+    );
+
+    expect(screen.getByTestId("itemized-player-total-user-1")).toHaveTextContent("0");
   });
 
   it("supports optional multi-input categories and saves round-scoped totals", async () => {
@@ -245,9 +278,73 @@ describe("ItemizedPlayGameV2Screen", () => {
     expect(saveEndGameItemizedScore).not.toHaveBeenCalled();
   });
 
+  it("reviews final itemized scores before ending a roundless game", async () => {
+    const user = userEvent.setup();
+    const { props, completeGame } = createProps();
+    renderWithProviders(<ItemizedPlayGameV2Screen {...props} />);
+
+    await user.click(screen.getByRole("button", { name: "Score" }));
+
+    expect(completeGame).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "End game" }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("play-game-outcome-summary")).toHaveTextContent(
+      "Coins",
+    );
+    expect(
+      screen.getByTestId("outcome-summary-player-user-1"),
+    ).toHaveTextContent("Final total");
+
+    await user.click(screen.getByRole("button", { name: "End game" }));
+    expect(completeGame).toHaveBeenCalledWith({
+      itemizedScoreEntries: expect.arrayContaining([
+        expect.objectContaining({ categoryId: "coins", userId: "user-1" }),
+      ]),
+    });
+  });
+
+  it("routes the game-options end action through the same review", async () => {
+    const user = userEvent.setup();
+    const { props, completeGame } = createProps();
+    renderWithProviders(<ItemizedPlayGameV2Screen {...props} />);
+
+    await user.click(screen.getByRole("button", { name: "Game options" }));
+    await user.click(screen.getByRole("button", { name: "End game" }));
+
+    expect(completeGame).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "End game" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Keep playing" }));
+    expect(completeGame).not.toHaveBeenCalled();
+  });
+
+  it("reviews a round summary before committing the next round", async () => {
+    const user = userEvent.setup();
+    const { props, commitRound } = createProps({ roundBased: true });
+    renderWithProviders(<ItemizedPlayGameV2Screen {...props} />);
+
+    await user.click(screen.getByRole("button", { name: "Next round" }));
+
+    expect(commitRound).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "Round 1 summary" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("outcome-summary-player-user-1"),
+    ).toHaveTextContent("Round score");
+
+    await user.click(
+      screen.getByRole("button", { name: "Start next round" }),
+    );
+    expect(commitRound).toHaveBeenCalledWith({ completeGame: false });
+  });
+
   it("shows the standard round toolbar on the Lost Cities screen", async () => {
     const user = userEvent.setup();
-    const { props } = createProps({ roundBased: true });
+    const { props, commitRound } = createProps({ roundBased: true });
     const lostCities = buildLostCitiesGameSettingsTemplate();
     const compatibleProps = props as unknown as {
       config: { itemizedCategories: typeof lostCities.itemizedCategories };
@@ -266,6 +363,16 @@ describe("ItemizedPlayGameV2Screen", () => {
     expect(screen.getByRole("button", { name: "Scores" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Round" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Round" }));
+    expect(commitRound).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "Round 1 summary" }),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Start next round" }),
+    );
+    expect(commitRound).toHaveBeenCalledWith({ completeGame: false });
 
     await user.click(screen.getByRole("button", { name: "Scores" }));
     expect(
@@ -315,6 +422,9 @@ describe("ItemizedPlayGameV2Screen", () => {
     await user.click(
       screen.getByTestId("lost-cities-expedition-user-1-yellow_expedition"),
     );
+    expect(
+      screen.getByTestId("lost-cities-expedition-user-1-yellow_expedition"),
+    ).toHaveStyle({ color: "var(--profile-surface-text)" });
     expect(screen.getByText("Investment cards")).toBeInTheDocument();
     expect(screen.getByText("Numbered cards")).toBeInTheDocument();
     expect(screen.getByText("Configured scoring help")).toBeInTheDocument();

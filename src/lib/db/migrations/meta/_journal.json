@@ -176,6 +176,13 @@
       "when": 1784144162868,
       "tag": "0024_lethal_titania",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1784213658516,
+      "tag": "0025_aspiring_legion",
+      "breakpoints": true
     }
   ]
 }

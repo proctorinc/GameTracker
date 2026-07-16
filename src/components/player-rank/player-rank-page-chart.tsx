@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 import { Chart } from "react-charts";
 import type { AxisOptions, ChartOptions } from "react-charts";
@@ -8,7 +8,6 @@ import ProfilePicture from "@/components/profile/profile-picture";
 import { cn } from "@/lib/utils";
 import {
   buildChartData,
-  formatChartDate,
   formatScoreValue,
   getLatestVisiblePointIndex,
   getPlotPositionStyle,
@@ -41,6 +40,18 @@ const AVATAR_OVERLAY_PADDING = {
   bottom: CHART_PADDING.bottom + 20,
 };
 
+function subscribeToHydration() {
+  return () => undefined;
+}
+
+function getClientHydrationSnapshot() {
+  return true;
+}
+
+function getServerHydrationSnapshot() {
+  return false;
+}
+
 function getScoreYPercent(input: { value: number; maxValue: number }) {
   if (input.maxValue <= 0) {
     return 100;
@@ -59,7 +70,12 @@ export function PlayerRankPageChart({
   showYAxis = false,
 }: PlayerRankPageChartProps) {
   const { resolvedTheme } = useTheme();
-  const isDarkMode = resolvedTheme === "dark";
+  const isMounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
+  const isDarkMode = isMounted && resolvedTheme === "dark";
   const orderedSeries = useMemo(
     () =>
       orderSeriesByHighlightedUser({
@@ -75,12 +91,10 @@ export function PlayerRankPageChart({
     ),
   );
   const maxValue = Math.max(...visibleValues, 0);
-  const hasAnyData = visibleValues.length > 0 || renderMissingAsBaseline;
-  const firstHistoryDate = orderedSeries[0]?.points[0]?.historyDate ?? null;
-  const lastHistoryDate =
-    orderedSeries[0]?.points[orderedSeries[0].points.length - 1]?.historyDate ??
-    null;
-
+  const hasAnyData =
+    visibleValues.length > 0 ||
+    (renderMissingAsBaseline &&
+      orderedSeries.some((entry) => entry.points.length > 0));
   const chartData = useMemo(
     () =>
       buildChartData({
@@ -283,46 +297,62 @@ export function PlayerRankPageChart({
             return null;
           }
 
-          return (
+          const avatar = (
+            <ProfilePicture
+              user={entry.profileUser}
+              size="xs"
+              className={cn(
+                "ring-2 ring-background shadow-md transition-transform",
+                isHighlighted && "scale-105",
+              )}
+            />
+          );
+          const style = {
+            ...latestPointStyle,
+            filter: avatarFilter,
+            transform: "translate(0%, -50%)",
+            zIndex: isHighlighted ? 15 : 10,
+            transition: "filter 180ms ease",
+          };
+
+          return onHighlightChange ? (
             <button
               key={`latest-avatar-${entry.userId}`}
               type="button"
               data-testid={`player-rank-avatar-${entry.userId}`}
               aria-label={`Highlight ${entry.label}`}
               className="absolute"
-              style={{
-                ...latestPointStyle,
-                filter: avatarFilter,
-                transform: "translate(0%, -50%)",
-                zIndex: isHighlighted ? 15 : 10,
-                transition: "filter 180ms ease",
-              }}
-              onClick={() => onHighlightChange?.(entry.userId)}
+              style={style}
+              onClick={() => onHighlightChange(entry.userId)}
             >
-              <ProfilePicture
-                user={entry.profileUser}
-                size="xs"
-                className={cn(
-                  "ring-2 ring-background shadow-md transition-transform",
-                  isHighlighted && "scale-105",
-                )}
-              />
+              {avatar}
             </button>
+          ) : (
+            <div
+              key={`latest-avatar-${entry.userId}`}
+              data-testid={`player-rank-avatar-${entry.userId}`}
+              className="pointer-events-none absolute"
+              style={style}
+            >
+              {avatar}
+            </div>
           );
         })}
       </div>
 
-      {orderedSeries.map((entry) => (
-        <button
-          key={entry.userId}
-          type="button"
-          data-testid={`player-rank-series-${entry.userId}`}
-          className="sr-only"
-          onClick={() => onHighlightChange?.(entry.userId)}
-        >
-          {entry.label}
-        </button>
-      ))}
+      {onHighlightChange
+        ? orderedSeries.map((entry) => (
+            <button
+              key={entry.userId}
+              type="button"
+              data-testid={`player-rank-series-${entry.userId}`}
+              className="sr-only"
+              onClick={() => onHighlightChange(entry.userId)}
+            >
+              {entry.label}
+            </button>
+          ))
+        : null}
     </div>
   );
 }

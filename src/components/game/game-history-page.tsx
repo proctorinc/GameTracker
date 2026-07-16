@@ -1,6 +1,5 @@
 import type { GameHistoryPageData } from "@/app/actions/pages/game-history";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import GameHistoryFilters from "./game-history-filters";
 import GameHistoryList from "./game-history-list";
 
@@ -20,25 +19,17 @@ export default function GameHistoryPage({
           </div>
         </div>
 
-        <Card>
-          <CardContent>
-            <GameHistoryFilters
-              filters={filters}
-              friends={friends}
-              gameTitles={gameTitles}
-            />
-          </CardContent>
-        </Card>
+        <GameHistoryFilters
+          filters={filters}
+          friends={friends}
+          gameTitles={gameTitles}
+        />
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl font-black">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">{games.length} games</Badge>
-              </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
+        <section className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">{games.length} games</Badge>
+          </div>
+          <div className="flex flex-col gap-5 px-5 sm:px-8">
             <GameHistoryList
               games={games}
               currentUserId={user.id}
@@ -46,8 +37,8 @@ export default function GameHistoryPage({
               emptyActionHref="/game/create/settings"
               emptyActionLabel="Start a new game"
             />
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       </div>
     </div>
   );

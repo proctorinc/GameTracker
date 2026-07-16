@@ -2,6 +2,8 @@
 
 import { usePathname } from "next/navigation";
 import NavBar from "@/components/NavBar";
+import { AnnouncementModal } from "@/components/announcements/announcement-modal";
+import type { AnnouncementForClient } from "@/lib/db/store/announcement.store";
 
 const HIDE_NAV_EXACT_PATHS = ["/card/pull", "/profile/complete"];
 const HIDE_NAV_PATHS = ["/game/create/settings", "/play"];
@@ -23,11 +25,13 @@ function shouldHideNav(pathname: string) {
 type ProtectedLayoutShellProps = {
   children: React.ReactNode;
   hasPendingFriendInvitations: boolean;
+  announcements: AnnouncementForClient[];
 };
 
 export function ProtectedLayoutShell({
   children,
   hasPendingFriendInvitations,
+  announcements,
 }: ProtectedLayoutShellProps) {
   const pathname = usePathname();
   const hideNav = shouldHideNav(pathname);
@@ -35,6 +39,7 @@ export function ProtectedLayoutShell({
   return (
     <>
       {children}
+      <AnnouncementModal announcements={announcements} />
       {!hideNav ? (
         <NavBar hasPendingFriendInvitations={hasPendingFriendInvitations} />
       ) : null}

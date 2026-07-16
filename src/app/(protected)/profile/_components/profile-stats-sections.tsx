@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import type { ProfileStatsPageData } from "../profile-types";
 
 const DEFAULT_VISIBLE_COMPARISON_METRICS = 5;
+type ComparisonMode = "head-to-head" | "all-time";
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -108,6 +109,7 @@ function StatCard(props: {
   return (
     <Card
       size="sm"
+      style={{ backgroundImage: "none" }}
       className={cn(
         "relative overflow-hidden bg-card/95 shadow-lg ring-0 dark:bg-white/5 dark:shadow-black/20",
         props.cardClassName,
@@ -145,6 +147,7 @@ function StatCard(props: {
 function buildProfileComparisonMetrics(
   data: ProfileStatsPageData,
   comparisonUserId: string,
+  mode: ComparisonMode,
 ) {
   const comparison = data.comparisonSummariesByUserId[comparisonUserId];
 
@@ -152,128 +155,132 @@ function buildProfileComparisonMetrics(
     return [];
   }
 
-  const comparisonOverallStats = getComparisonOverallStats(comparison);
+  const currentStats =
+    mode === "head-to-head" ? comparison.headToHeadStats.profile : data.stats;
+  const comparisonStats =
+    mode === "head-to-head"
+      ? comparison.headToHeadStats.comparison
+      : getComparisonOverallStats(comparison);
 
   return [
     {
       label: "Wins",
-      currentValue: data.stats.wins,
-      comparisonValue: comparisonOverallStats.wins,
+      currentValue: currentStats.wins,
+      comparisonValue: comparisonStats.wins,
       ...compareMetricValues({
-        current: data.stats.wins,
-        comparison: comparisonOverallStats.wins,
+        current: currentStats.wins,
+        comparison: comparisonStats.wins,
       }),
     },
     {
       label: "1st places",
-      currentValue: data.stats.placements.first,
-      comparisonValue: comparisonOverallStats.placements.first,
+      currentValue: currentStats.placements.first,
+      comparisonValue: comparisonStats.placements.first,
       ...compareMetricValues({
-        current: data.stats.placements.first,
-        comparison: comparisonOverallStats.placements.first,
+        current: currentStats.placements.first,
+        comparison: comparisonStats.placements.first,
       }),
     },
     {
       label: "2nd places",
-      currentValue: data.stats.placements.second,
-      comparisonValue: comparisonOverallStats.placements.second,
+      currentValue: currentStats.placements.second,
+      comparisonValue: comparisonStats.placements.second,
       ...compareMetricValues({
-        current: data.stats.placements.second,
-        comparison: comparisonOverallStats.placements.second,
+        current: currentStats.placements.second,
+        comparison: comparisonStats.placements.second,
       }),
     },
     {
       label: "3rd places",
-      currentValue: data.stats.placements.third,
-      comparisonValue: comparisonOverallStats.placements.third,
+      currentValue: currentStats.placements.third,
+      comparisonValue: comparisonStats.placements.third,
       ...compareMetricValues({
-        current: data.stats.placements.third,
-        comparison: comparisonOverallStats.placements.third,
+        current: currentStats.placements.third,
+        comparison: comparisonStats.placements.third,
       }),
     },
     {
       label: "Win rate",
-      currentValue: formatPercent(data.stats.winRate),
-      comparisonValue: formatPercent(comparisonOverallStats.winRate),
+      currentValue: formatPercent(currentStats.winRate),
+      comparisonValue: formatPercent(comparisonStats.winRate),
       ...compareMetricValues({
-        current: data.stats.winRate,
-        comparison: comparisonOverallStats.winRate,
+        current: currentStats.winRate,
+        comparison: comparisonStats.winRate,
       }),
     },
     {
       label: "Completed",
-      currentValue: data.stats.completedGames,
-      comparisonValue: comparisonOverallStats.completedGames,
+      currentValue: currentStats.completedGames,
+      comparisonValue: comparisonStats.completedGames,
       ...compareMetricValues({
-        current: data.stats.completedGames,
-        comparison: comparisonOverallStats.completedGames,
+        current: currentStats.completedGames,
+        comparison: comparisonStats.completedGames,
       }),
     },
     {
       label: "Current streak",
       currentValue: formatStreak(
-        data.stats.currentStreak.type,
-        data.stats.currentStreak.count,
+        currentStats.currentStreak.type,
+        currentStats.currentStreak.count,
       ),
       comparisonValue: formatStreak(
-        comparisonOverallStats.currentStreak.type,
-        comparisonOverallStats.currentStreak.count,
+        comparisonStats.currentStreak.type,
+        comparisonStats.currentStreak.count,
       ),
       ...compareMetricValues({
         current: getComparableStreakValue(
-          data.stats.currentStreak.type,
-          data.stats.currentStreak.count,
+          currentStats.currentStreak.type,
+          currentStats.currentStreak.count,
         ),
         comparison: getComparableStreakValue(
-          comparisonOverallStats.currentStreak.type,
-          comparisonOverallStats.currentStreak.count,
+          comparisonStats.currentStreak.type,
+          comparisonStats.currentStreak.count,
         ),
       }),
     },
     {
       label: "Best streak",
-      currentValue: data.stats.bestWinStreak,
-      comparisonValue: comparisonOverallStats.bestWinStreak,
+      currentValue: currentStats.bestWinStreak,
+      comparisonValue: comparisonStats.bestWinStreak,
       ...compareMetricValues({
-        current: data.stats.bestWinStreak,
-        comparison: comparisonOverallStats.bestWinStreak,
+        current: currentStats.bestWinStreak,
+        comparison: comparisonStats.bestWinStreak,
       }),
     },
     {
-      label: data.stats.rankWindowLabel ?? "Window rank gain",
-      currentValue: data.stats.rankGainInWindow.formatted,
-      comparisonValue: comparisonOverallStats.rankGainInWindow.formatted,
+      label: currentStats.rankWindowLabel ?? "Window rank gain",
+      currentValue: currentStats.rankGainInWindow.formatted,
+      comparisonValue: comparisonStats.rankGainInWindow.formatted,
       ...compareMetricValues({
-        current: data.stats.rankGainInWindow.minor,
-        comparison: comparisonOverallStats.rankGainInWindow.minor,
+        current: currentStats.rankGainInWindow.minor,
+        comparison: comparisonStats.rankGainInWindow.minor,
       }),
     },
     {
       label: "All-time rank gain",
-      currentValue: data.stats.rankGainAllTime.formatted,
-      comparisonValue: comparisonOverallStats.rankGainAllTime.formatted,
+      currentValue: currentStats.rankGainAllTime.formatted,
+      comparisonValue: comparisonStats.rankGainAllTime.formatted,
       ...compareMetricValues({
-        current: data.stats.rankGainAllTime.minor,
-        comparison: comparisonOverallStats.rankGainAllTime.minor,
+        current: currentStats.rankGainAllTime.minor,
+        comparison: comparisonStats.rankGainAllTime.minor,
       }),
     },
     {
       label: "Best rank game",
-      currentValue: data.stats.bestRankGain?.formatted ?? "--",
-      comparisonValue: comparisonOverallStats.bestRankGain?.formatted ?? "--",
+      currentValue: currentStats.bestRankGain?.formatted ?? "--",
+      comparisonValue: comparisonStats.bestRankGain?.formatted ?? "--",
       ...compareMetricValues({
-        current: data.stats.bestRankGain?.minor ?? null,
-        comparison: comparisonOverallStats.bestRankGain?.minor ?? null,
+        current: currentStats.bestRankGain?.minor ?? null,
+        comparison: comparisonStats.bestRankGain?.minor ?? null,
       }),
     },
     {
       label: "Avg rank per game",
-      currentValue: data.stats.averageRankGain?.formatted ?? "--",
-      comparisonValue:
-        comparisonOverallStats.averageRankGain?.formatted ?? "--",
+      currentValue: currentStats.averageRankGain?.formatted ?? "--",
+      comparisonValue: comparisonStats.averageRankGain?.formatted ?? "--",
       ...compareMetricValues({
-        current: data.stats.averageRankGain?.minor ?? null,
-        comparison: comparisonOverallStats.averageRankGain?.minor ?? null,
+        current: currentStats.averageRankGain?.minor ?? null,
+        comparison: comparisonStats.averageRankGain?.minor ?? null,
       }),
     },
   ];
@@ -319,6 +326,8 @@ export function ProfileStatsSections({
   );
   const [showAllComparisonMetrics, setShowAllComparisonMetrics] =
     useState(false);
+  const [comparisonMode, setComparisonMode] =
+    useState<ComparisonMode>("head-to-head");
   const accentStyles = useMemo(
     () => buildAccentStyles(data.profile.color),
     [data.profile.color],
@@ -334,9 +343,9 @@ export function ProfileStatsSections({
   const comparisonMetrics = useMemo(
     () =>
       selectedComparisonUserId
-        ? buildProfileComparisonMetrics(data, selectedComparisonUserId)
+        ? buildProfileComparisonMetrics(data, selectedComparisonUserId, comparisonMode)
         : [],
-    [data, selectedComparisonUserId],
+    [comparisonMode, data, selectedComparisonUserId],
   );
   const visibleComparisonMetrics = showAllComparisonMetrics
     ? comparisonMetrics
@@ -348,7 +357,10 @@ export function ProfileStatsSections({
     <div className="space-y-4" style={accentStyles}>
       {hero}
       <section>
-        <Card className="overflow-hidden rounded-xl py-0 border border-border/70 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-white/5 dark:shadow-black/20">
+        <Card
+          className="overflow-hidden rounded-xl py-0 border border-border/70 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-white/5 dark:shadow-black/20"
+          style={{ backgroundImage: "none" }}
+        >
           <CardContent className="relative px-5 py-0">
             <div
               className="absolute inset-0 backdrop-blur-xs opacity-80"
@@ -498,6 +510,40 @@ export function ProfileStatsSections({
               description="Search players to compare full profile performance."
               emptyLabel="Choose a player"
             />
+            <div
+              role="tablist"
+              aria-label="Comparison scope"
+              className="grid grid-cols-2 gap-1 rounded-xl border border-border/70 bg-muted/60 p-1"
+            >
+              <Button
+                type="button"
+                role="tab"
+                aria-selected={comparisonMode === "head-to-head"}
+                variant={comparisonMode === "head-to-head" ? "default" : "ghost"}
+                size="sm"
+                className="rounded-lg"
+                onClick={() => {
+                  setComparisonMode("head-to-head");
+                  setShowAllComparisonMetrics(false);
+                }}
+              >
+                Head to head
+              </Button>
+              <Button
+                type="button"
+                role="tab"
+                aria-selected={comparisonMode === "all-time"}
+                variant={comparisonMode === "all-time" ? "default" : "ghost"}
+                size="sm"
+                className="rounded-lg"
+                onClick={() => {
+                  setComparisonMode("all-time");
+                  setShowAllComparisonMetrics(false);
+                }}
+              >
+                All games
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {selectedComparison ? (
@@ -513,11 +559,15 @@ export function ProfileStatsSections({
                     </div>
                     <div className="text-center">
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                        Head to head
+                        {comparisonMode === "head-to-head"
+                          ? "Head to head"
+                          : "All games"}
                       </p>
-                      <p className="mt-2 text-2xl font-black">
-                        {selectedComparison.wins}-{selectedComparison.losses}
-                      </p>
+                      {comparisonMode === "head-to-head" ? (
+                        <p className="mt-2 text-2xl font-black">
+                          {selectedComparison.wins}-{selectedComparison.losses}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="min-w-0 text-right">
                       <div className="flex justify-end">

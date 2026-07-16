@@ -111,20 +111,28 @@ export function buildChartData(input: {
 export function orderSeriesByHighlightedUser<
   T extends { userId: string },
 >(input: { series: T[]; highlightedUserId: string | null }) {
+  const uniqueSeries = input.series.filter(
+    (entry, index, collection) =>
+      collection.findIndex((candidate) => candidate.userId === entry.userId) ===
+      index,
+  );
+
   if (!input.highlightedUserId) {
-    return input.series;
+    return uniqueSeries;
   }
 
-  const highlightedSeries = input.series.find(
+  const highlightedSeries = uniqueSeries.find(
     (entry) => entry.userId === input.highlightedUserId,
   );
 
   if (!highlightedSeries) {
-    return input.series;
+    return uniqueSeries;
   }
 
   return [
-    ...input.series.filter((entry) => entry.userId !== input.highlightedUserId),
+    ...uniqueSeries.filter(
+      (entry) => entry.userId !== input.highlightedUserId,
+    ),
     highlightedSeries,
   ];
 }

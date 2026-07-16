@@ -1,6 +1,5 @@
 "use client";
 
-import { getProfileColorSurfaceStyles } from "@/components/profile/profile-color-styles";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +37,7 @@ import type { PlayGameV2ScreenProps, PlayGameV2SurfaceConfig } from "../types";
 import {
   PlayGameV2BottomBar,
   PlayGameV2ManagePlayersDialogBody,
+  PlayGameV2OutcomeSummaryDialog,
   PlayGameV2ShareDrawerBody,
   PlayGameV2Shell,
   formatPlayGameV2EndingSummary,
@@ -169,6 +169,7 @@ export function ItemizedPlayGameV2Screen({
   );
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [isManagePlayersOpen, setIsManagePlayersOpen] = useState(false);
+  const [isOutcomeSummaryOpen, setIsOutcomeSummaryOpen] = useState(false);
   const [isShareDrawerOpen, setIsShareDrawerOpen] = useState(false);
 
   const requiredPlayers = config.settings.playerConfig.minPlayers ?? 1;
@@ -234,6 +235,36 @@ export function ItemizedPlayGameV2Screen({
       }),
     );
   }, [isRoundBased, persistedScopeTotals, scopeTotals, snapshot.game.players]);
+
+  const winningTotal = useMemo(() => {
+    const totals = [...playerTotals.values()];
+    if (totals.length === 0) return null;
+    return config.settings.winMetric === "lowest_score"
+      ? Math.min(...totals)
+      : Math.max(...totals);
+  }, [config.settings.winMetric, playerTotals]);
+
+  const outcomeSummaryRows = useMemo(
+    () =>
+      snapshot.game.players.map((player) => ({
+        breakdown: categories.map((category) => ({
+          label: category.name,
+          value: getDraftScore(
+            category,
+            drafts.get(buildDraftKey(player.userId, category.id)) ??
+              createDefaultDraft(category),
+          ),
+        })),
+        isWinner:
+          winningTotal !== null &&
+          (playerTotals.get(player.userId) ?? 0) === winningTotal,
+        name: getPlayGameV2DisplayName(player.user),
+        scopeScore: scopeTotals.get(player.userId) ?? 0,
+        totalScore: playerTotals.get(player.userId) ?? 0,
+        userId: player.userId,
+      })),
+    [categories, drafts, playerTotals, scopeTotals, snapshot.game.players, winningTotal],
+  );
 
   const editorCategory = editor
     ? categories.find((category) => category.id === editor.categoryId) ?? null
@@ -318,12 +349,13 @@ export function ItemizedPlayGameV2Screen({
     return snapshot.game.players.flatMap((player) => buildPlayerEntries(player.userId));
   }
 
-  function advanceScoring() {
+  function confirmScoring() {
     if (isRoundBased) {
       actions.commitRound({ completeGame: isFinalRound });
     } else {
       actions.completeGame({ itemizedScoreEntries: buildCompletionEntries() });
     }
+    setIsOutcomeSummaryOpen(false);
   }
 
   return (
@@ -342,7 +374,7 @@ export function ItemizedPlayGameV2Screen({
                   disableEndGame: !hasRequiredPlayers || pendingActionKeys.size > 0,
                   disableManagePlayers: viewModel.isCompleted,
                   endGameLabel: isRoundBased ? (isFinalRound ? "Finish game" : "Next round") : "End game",
-                  onEndGame: advanceScoring,
+                  onEndGame: () => setIsOutcomeSummaryOpen(true),
                   onOpenManagePlayers: () => setIsManagePlayersOpen(true),
                   onOpenShare: () => setIsShareDrawerOpen(true),
                   onReopenGame: actions.reopenGame,
@@ -353,15 +385,13 @@ export function ItemizedPlayGameV2Screen({
         body={
           <div className="space-y-4" data-testid="itemized-player-list">
               {snapshot.game.players.map((player) => {
-                const surfaceStyles = getProfileColorSurfaceStyles(player.user.color);
                 return (
                   <section
                     key={player.userId}
-                    className="overflow-hidden rounded-3xl border shadow-sm"
+                    className="overflow-hidden rounded-3xl border bg-card text-card-foreground shadow-sm"
                     style={{
-                      ...surfaceStyles,
                       borderColor: `color-mix(in srgb, ${player.user.color} 24%, var(--border))`,
-                      background: `linear-gradient(180deg, color-mix(in srgb, ${player.user.color} 8%, var(--background)) 0%, var(--background) 100%)`,
+                      background: `linear-gradient(180deg, color-mix(in srgb, ${player.user.color} 8%, var(--card)) 0%, var(--card) 100%)`,
                     }}
                   >
                     <div className="flex items-center gap-3 px-3 py-3">
@@ -440,7 +470,7 @@ export function ItemizedPlayGameV2Screen({
                     disabled: viewModel.isCompleted || pendingActionKeys.size > 0 || !hasRequiredPlayers,
                     icon: Trophy,
                     label: isRoundBased ? (isFinalRound ? "Finish game" : "Next round") : "Score",
-                    onClick: advanceScoring,
+                    onClick: () => setIsOutcomeSummaryOpen(true),
                   }
                 : undefined
             }
@@ -546,6 +576,22 @@ export function ItemizedPlayGameV2Screen({
       <Dialog onOpenChange={setIsManagePlayersOpen} open={isManagePlayersOpen}>
         <PlayGameV2ManagePlayersDialogBody actions={actions} onClose={() => setIsManagePlayersOpen(false)} snapshot={snapshot} viewModel={viewModel} />
       </Dialog>
+
+      <PlayGameV2OutcomeSummaryDialog
+        confirmLabel={
+          isRoundBased ? (isFinalRound ? "Finish game" : "Start next round") : "End game"
+        }
+        disabled={!hasRequiredPlayers || viewModel.isPaused}
+        intent={isRoundBased && !isFinalRound ? "round" : "game"}
+        onConfirm={confirmScoring}
+        onOpenChange={setIsOutcomeSummaryOpen}
+        open={isOutcomeSummaryOpen}
+        pending={
+          pendingActionKeys.has(isRoundBased ? "commit-round" : "complete-game")
+        }
+        roundNumber={viewModel.activeRoundNumber}
+        rows={outcomeSummaryRows}
+      />
     </>
   );
 }

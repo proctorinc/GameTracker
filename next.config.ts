@@ -10,7 +10,8 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   experimental: {
     serverActions: {
-      bodySizeLimit: "8mb",
+      // Leave room for multipart metadata around the supported 8 MB image file.
+      bodySizeLimit: "10mb",
     },
   },
   env: {

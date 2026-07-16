@@ -101,6 +101,10 @@ export type ProfileStatsBestFriend = ProfileStatsComparisonOption & {
 
 export type ProfileStatsComparisonSummary = {
   user: ProfileStatsComparisonOption;
+  headToHeadStats: {
+    profile: ProfileStatsOverallComparisonStats;
+    comparison: ProfileStatsOverallComparisonStats;
+  };
   completedGamesTogether: number;
   wins: number;
   losses: number;
@@ -229,36 +233,57 @@ export function buildProfileStats(input: {
     input.comparisonOptions.map((option) => [option.id, option] as const),
   );
   const comparisonSummariesByUserId = Object.fromEntries(
-    input.comparisonOptions.map((option) => [
-      option.id,
-      {
-        user: option,
-        completedGamesTogether: 0,
-        wins: 0,
-        losses: 0,
-        winRate: null,
-        currentStreak: { type: null, count: 0 },
-        favoriteSharedTitle: null,
-        lastPlayedAt: null,
-        recentWins: 0,
-        recentGamesCount: 0,
-        overallStats: summarizeOverallComparisonStats({
-          profileUserId: option.id,
-          completedGames:
-            input.comparisonCompletedGamesByUserId?.[option.id] ?? [],
+    input.comparisonOptions.map((option) => {
+      const sharedGames = sortedGames.filter((game) =>
+        game.participantUserIds.includes(option.id),
+      );
+      const summarizeSharedGames = (profileUserId: string) =>
+        summarizeOverallComparisonStats({
+          profileUserId,
+          completedGames: sharedGames,
           rankDeltaMinorByGameId:
-            input.rankDeltaMinorByGameIdByUserId?.[option.id] ?? {},
+            input.rankDeltaMinorByGameIdByUserId?.[profileUserId] ?? {},
           rankWindowStart: input.rankWindowStart ?? null,
           rankWindowLabel: input.rankWindowLabel ?? null,
-          currentGlobalRankTotal:
-            input.currentGlobalRankSummaryByUserId?.[option.id]?.playerRankTotal ??
-            null,
-          currentGlobalRankPosition:
-            input.currentGlobalRankSummaryByUserId?.[option.id]?.playerRankPosition ??
-            null,
-        }),
-      } satisfies ProfileStatsComparisonSummary,
-    ]),
+          currentGlobalRankTotal: null,
+          currentGlobalRankPosition: null,
+        });
+
+      return [
+        option.id,
+        {
+          user: option,
+          headToHeadStats: {
+            profile: summarizeSharedGames(input.profileUserId),
+            comparison: summarizeSharedGames(option.id),
+          },
+          completedGamesTogether: 0,
+          wins: 0,
+          losses: 0,
+          winRate: null,
+          currentStreak: { type: null, count: 0 },
+          favoriteSharedTitle: null,
+          lastPlayedAt: null,
+          recentWins: 0,
+          recentGamesCount: 0,
+          overallStats: summarizeOverallComparisonStats({
+            profileUserId: option.id,
+            completedGames:
+              input.comparisonCompletedGamesByUserId?.[option.id] ?? [],
+            rankDeltaMinorByGameId:
+              input.rankDeltaMinorByGameIdByUserId?.[option.id] ?? {},
+            rankWindowStart: input.rankWindowStart ?? null,
+            rankWindowLabel: input.rankWindowLabel ?? null,
+            currentGlobalRankTotal:
+              input.currentGlobalRankSummaryByUserId?.[option.id]
+                ?.playerRankTotal ?? null,
+            currentGlobalRankPosition:
+              input.currentGlobalRankSummaryByUserId?.[option.id]
+                ?.playerRankPosition ?? null,
+          }),
+        } satisfies ProfileStatsComparisonSummary,
+      ];
+    }),
   ) as Record<string, ProfileStatsComparisonSummary>;
 
   const titleStats = new Map<

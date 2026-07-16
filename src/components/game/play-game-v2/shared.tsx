@@ -16,7 +16,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -34,7 +36,7 @@ import { parseGameSettingsV2 } from "@/lib/game/v2";
 import { getStoredGamePlayerRole } from "@/lib/game/player-roles";
 import Link from "next/link";
 import type { PlayGameSnapshot } from "@/components/game/play-game-state";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Check,
   LoaderCircle,
@@ -172,6 +174,114 @@ type PlayGameV2BottomBarAction = {
   variant?: "default" | "outline";
 };
 
+export type PlayGameV2OutcomeSummaryRow = {
+  breakdown?: Array<{ label: string; value: number }>;
+  isWinner?: boolean;
+  name: string;
+  scopeScore: number;
+  totalScore: number;
+  userId: string;
+};
+
+export function PlayGameV2OutcomeSummaryDialog(input: {
+  confirmLabel: string;
+  disabled?: boolean;
+  intent: "round" | "game";
+  onConfirm: () => void;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+  pending?: boolean;
+  roundNumber?: number;
+  rows: PlayGameV2OutcomeSummaryRow[];
+}) {
+  const isRound = input.intent === "round";
+
+  return (
+    <Dialog
+      onOpenChange={(open) => {
+        if (!input.pending) input.onOpenChange(open);
+      }}
+      open={input.open}
+    >
+      <DialogContent className="max-h-[90vh] max-w-[calc(100%-1.5rem)] overflow-hidden rounded-xl p-5 sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-black">
+            {isRound ? `Round ${input.roundNumber ?? ""} summary` : "End game"}
+          </DialogTitle>
+          <DialogDescription>
+            {isRound
+              ? "Review this round before continuing. Scores can be changed from the game screen."
+              : "Review the final scores before ending the game. Scores can be changed from the game screen."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div
+          className="space-y-3 overflow-y-auto pr-1"
+          data-testid="play-game-outcome-summary"
+        >
+          {input.rows.map((row) => (
+            <section
+              className="rounded-xl border border-border bg-card p-4 text-card-foreground"
+              data-testid={`outcome-summary-player-${row.userId}`}
+              key={row.userId}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate font-black">{row.name}</p>
+                    {row.isWinner ? <Badge variant="outline">Winning</Badge> : null}
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {isRound ? `Round score ${row.scopeScore}` : `Game score ${row.scopeScore}`}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border bg-background px-3 py-2 text-right text-foreground">
+                  <p className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">
+                    {isRound ? "Projected total" : "Final total"}
+                  </p>
+                  <p className="text-2xl font-black">{row.totalScore}</p>
+                </div>
+              </div>
+              {row.breakdown?.length ? (
+                <div className="mt-3 space-y-1 border-t border-border pt-3">
+                  {row.breakdown.map((entry) => (
+                    <div
+                      className="flex items-center justify-between gap-3 text-sm"
+                      key={entry.label}
+                    >
+                      <span className="text-muted-foreground">{entry.label}</span>
+                      <span className="font-bold text-foreground">{entry.value}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          ))}
+        </div>
+
+        <DialogFooter className="bg-transparent p-0 pt-2">
+          <Button
+            disabled={input.pending}
+            onClick={() => input.onOpenChange(false)}
+            type="button"
+            variant="outline"
+          >
+            Keep playing
+          </Button>
+          <Button
+            disabled={input.disabled || input.pending}
+            onClick={input.onConfirm}
+            type="button"
+          >
+            {input.pending ? <LoaderCircle className="animate-spin" /> : null}
+            {input.confirmLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function GameTitleHeader(input: {
   adminDrawer?: ReactNode;
   game: PlayGameSnapshot["game"];
@@ -213,6 +323,7 @@ export function PlayGameV2AdminSettingsDrawer(input: {
   actions: PlayGameV2DrawerActions;
   config: PlayGameV2AdminDrawerConfig;
 }) {
+  const [isOpen, setIsOpen] = useState(false);
   const {
     canEndGame,
     canManagePlayers,
@@ -230,7 +341,7 @@ export function PlayGameV2AdminSettingsDrawer(input: {
   } = input.actions;
 
   return (
-    <Drawer>
+    <Drawer onOpenChange={setIsOpen} open={isOpen}>
       <DrawerTrigger
         render={
           <Button
@@ -330,7 +441,14 @@ export function PlayGameV2AdminSettingsDrawer(input: {
                 disabled={
                   input.config.isCompleted ? disableReopenGame : disableEndGame
                 }
-                onClick={input.config.isCompleted ? onReopenGame : onEndGame}
+                onClick={
+                  input.config.isCompleted
+                    ? onReopenGame
+                    : () => {
+                        setIsOpen(false);
+                        onEndGame?.();
+                      }
+                }
                 type="button"
                 variant="outline"
               >
