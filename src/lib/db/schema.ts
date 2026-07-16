@@ -59,14 +59,17 @@ export const gameJoinRequestStatuses = [
   "declined",
   "cancelled",
 ] as const;
-export type GameJoinRequestStatus =
-  (typeof gameJoinRequestStatuses)[number];
+export type GameJoinRequestStatus = (typeof gameJoinRequestStatuses)[number];
 export const userRoles = ["user", "admin"] as const;
 export type UserRole = (typeof userRoles)[number];
 export const playerRankConfigVersions = ["v1"] as const;
-export type PlayerRankConfigVersion =
-  (typeof playerRankConfigVersions)[number];
-export const cardRarities = ["common", "uncommon", "rare", "legendary"] as const;
+export type PlayerRankConfigVersion = (typeof playerRankConfigVersions)[number];
+export const cardRarities = [
+  "common",
+  "uncommon",
+  "rare",
+  "legendary",
+] as const;
 export type CardRarity = (typeof cardRarities)[number];
 export const cardRendererTypes = [
   "game_piece",
@@ -83,51 +86,62 @@ export type DeckBackStyle = (typeof deckBackStyles)[number];
 export const featureFlagKeys = ["cards"] as const;
 export type FeatureFlagKey = (typeof featureFlagKeys)[number];
 
-export const users = sqliteTable("users", {
-  id: text("id")
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  clerkUserId: text("clerk_user_id").unique(),
-  friendInviteToken: text("friend_invite_token").unique(),
-  profileCardId: text("profile_card_id"),
-  color: text("color").notNull().default("#FFFFFF"),
-  role: text("role").$type<UserRole>().notNull().default("user"),
-  email: text("email", { length: 320 }).unique(),
-  avatarUrl: text("avatar_url"),
-  firstName: text("first_name"),
-  lastName: text("last_name"),
-  created_by_user_id: text("created_by_user_id"),
-  mergedIntoUserId: text("merged_into_user_id").references(
-    (): AnySQLiteColumn => users.id,
-    {
-      onDelete: "set null",
-    },
-  ),
-  mergedAt: text("merged_at"),
-  isProfileComplete: integer("is_profile_complete", { mode: "boolean" })
-    .notNull()
-    .default(false),
-  isGuest: integer("is_guest", { mode: "boolean" }).notNull().default(false),
-  playerRankLeaderboardDisabled: integer("player_rank_leaderboard_disabled", {
-    mode: "boolean",
-  })
-    .notNull()
-    .default(false),
-  createdAt: text("created_at"),
-  updatedAt: text("updated_at"),
-});
+export const users = sqliteTable(
+  "users",
+  {
+    id: text("id")
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    clerkUserId: text("clerk_user_id").unique(),
+    friendInviteToken: text("friend_invite_token").unique(),
+    profileCardId: text("profile_card_id"),
+    color: text("color").notNull().default("#FFFFFF"),
+    role: text("role").$type<UserRole>().notNull().default("user"),
+    email: text("email", { length: 320 }).unique(),
+    avatarUrl: text("avatar_url"),
+    firstName: text("first_name"),
+    lastName: text("last_name"),
+    created_by_user_id: text("created_by_user_id"),
+    mergedIntoUserId: text("merged_into_user_id").references(
+      (): AnySQLiteColumn => users.id,
+      {
+        onDelete: "set null",
+      },
+    ),
+    mergedAt: text("merged_at"),
+    isProfileComplete: integer("is_profile_complete", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    isGuest: integer("is_guest", { mode: "boolean" }).notNull().default(false),
+    playerRankLeaderboardDisabled: integer("player_rank_leaderboard_disabled", {
+      mode: "boolean",
+    })
+      .notNull()
+      .default(false),
+    createdAt: text("created_at"),
+    updatedAt: text("updated_at"),
+  },
+  (table) => [
+    index("users_merged_into_idx").on(table.mergedIntoUserId),
+    index("users_created_by_idx").on(table.created_by_user_id),
+  ],
+);
 
-export const featureFlags = sqliteTable("feature_flags", {
-  key: text("key").$type<FeatureFlagKey>().notNull().primaryKey(),
-  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
-  updatedByUserId: text("updated_by_user_id").references(() => users.id, {
-    onDelete: "set null",
-  }),
-  updatedAt: text("updated_at")
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-});
+export const featureFlags = sqliteTable(
+  "feature_flags",
+  {
+    key: text("key").$type<FeatureFlagKey>().notNull().primaryKey(),
+    enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+    updatedByUserId: text("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedAt: text("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [index("feature_flags_updated_by_idx").on(table.updatedByUserId)],
+);
 
 export const announcements = sqliteTable(
   "announcements",
@@ -155,6 +169,7 @@ export const announcements = sqliteTable(
   },
   (table) => [
     index("announcements_published_at_idx").on(table.publishedAt),
+    index("announcements_created_by_idx").on(table.createdByUserId),
   ],
 );
 
@@ -205,34 +220,36 @@ export const cardDrops = sqliteTable(
       table.gameId,
       table.deckName,
     ),
+    index("card_drops_game_idx").on(table.gameId),
+    index("card_drops_deck_idx").on(table.deckName),
   ],
 );
 
 export const decks = sqliteTable("decks", {
-    name: text("name").notNull().primaryKey(),
-    label: text("label").notNull().default("Deck"),
-    description: text("description").notNull().default(""),
-    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
-    packSize: integer("pack_size").notNull().default(5),
-    commonOdds: integer("common_odds").notNull().default(70),
-    uncommonOdds: integer("uncommon_odds").notNull().default(20),
-    rareOdds: integer("rare_odds").notNull().default(8),
-    legendaryOdds: integer("legendary_odds").notNull().default(2),
-    backStyle: text("back_style")
-      .$type<DeckBackStyle>()
-      .notNull()
-      .default("geometric"),
-    backPrimaryColor: text("back_primary_color").notNull().default("#4f46e5"),
-    backSecondaryColor: text("back_secondary_color").notNull().default("#0f172a"),
-    backAccentColor: text("back_accent_color").notNull().default("#f8fafc"),
-    createdAt: text("created_at")
-      .notNull()
-      .default("1970-01-01T00:00:00.000Z")
-      .$defaultFn(() => new Date().toISOString()),
-    updatedAt: text("updated_at")
-      .notNull()
-      .default("1970-01-01T00:00:00.000Z")
-      .$defaultFn(() => new Date().toISOString()),
+  name: text("name").notNull().primaryKey(),
+  label: text("label").notNull().default("Deck"),
+  description: text("description").notNull().default(""),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  packSize: integer("pack_size").notNull().default(5),
+  commonOdds: integer("common_odds").notNull().default(70),
+  uncommonOdds: integer("uncommon_odds").notNull().default(20),
+  rareOdds: integer("rare_odds").notNull().default(8),
+  legendaryOdds: integer("legendary_odds").notNull().default(2),
+  backStyle: text("back_style")
+    .$type<DeckBackStyle>()
+    .notNull()
+    .default("geometric"),
+  backPrimaryColor: text("back_primary_color").notNull().default("#4f46e5"),
+  backSecondaryColor: text("back_secondary_color").notNull().default("#0f172a"),
+  backAccentColor: text("back_accent_color").notNull().default("#f8fafc"),
+  createdAt: text("created_at")
+    .notNull()
+    .default("1970-01-01T00:00:00.000Z")
+    .$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default("1970-01-01T00:00:00.000Z")
+    .$defaultFn(() => new Date().toISOString()),
 });
 
 export const cardTemplates = sqliteTable(
@@ -299,7 +316,11 @@ export const cards = sqliteTable(
   },
   (table) => [
     index("cards_owner_deck_idx").on(table.ownerId, table.deckName),
-    index("cards_template_subject_idx").on(table.cardTemplateId, table.subjectId),
+    index("cards_template_subject_idx").on(
+      table.cardTemplateId,
+      table.subjectId,
+    ),
+    index("cards_deck_idx").on(table.deckName),
   ],
 );
 
@@ -308,10 +329,10 @@ export const friendships = sqliteTable(
   {
     user1Id: text("user1_id")
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }), // 🌟 Cascade friendship if user deleted
+      .references(() => users.id, { onDelete: "cascade" }),
     user2Id: text("user2_id")
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }), // 🌟 Cascade friendship if user deleted
+      .references(() => users.id, { onDelete: "cascade" }),
     inviterId: text("inviter_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
@@ -319,7 +340,11 @@ export const friendships = sqliteTable(
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
   },
-  (table) => [primaryKey({ columns: [table.user1Id, table.user2Id] })],
+  (table) => [
+    primaryKey({ columns: [table.user1Id, table.user2Id] }),
+    index("friendships_user2_idx").on(table.user2Id),
+    index("friendships_inviter_idx").on(table.inviterId),
+  ],
 );
 
 export const invitations = sqliteTable(
@@ -365,53 +390,67 @@ export const invitations = sqliteTable(
       (${table.targetType} = 'link' AND ${table.inviteToken} IS NOT NULL)
     )`,
     ),
+    index("invitations_inviter_idx").on(table.inviterUserId),
+    index("invitations_invitee_idx").on(table.inviteeUserId),
+    index("invitations_guest_idx").on(table.guestUserId),
+    index("invitations_accepted_by_idx").on(table.acceptedByUserId),
   ],
 );
 
-export const gameTitle = sqliteTable("game_title", {
-  id: text("id")
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  title: text("title").notNull(),
-  normalizedTitle: text("normalized_title").notNull().unique(),
-  color: text("color").notNull().default("#475569"),
-  imageUrl: text("image_url").notNull().default("/images/skyjo.png"),
-  rewardDeckName: text("reward_deck_name").references(() => decks.name, {
-    onDelete: "set null",
-  }),
-  imageVerticalFocus: integer("image_vertical_focus").notNull().default(50),
-  customPlayScreenEnabled: integer("custom_play_screen_enabled", {
-    mode: "boolean",
-  })
-    .notNull()
-    .default(true),
-  defaultScoringMode: text("default_scoring_mode").$type<GameScoringMode>(),
-  defaultEndingMode: text("default_ending_mode").$type<GameEndingMode>(),
-  defaultTrackRounds: integer("default_track_rounds", { mode: "boolean" }),
-  defaultTargetRounds: integer("default_target_rounds"),
-  defaultScoreThreshold: integer("default_score_threshold"),
-  defaultScoreThresholdDirection: text(
-    "default_score_threshold_direction",
-  ).$type<GameScoreThresholdDirection>(),
-  defaultSettingsVersion: text("default_settings_version").$type<GameSettingsVersion>(),
-  defaultSettingsJson: text("default_settings_json"),
-  isUniversal: integer("is_universal", { mode: "boolean" })
-    .notNull()
-    .default(false),
-  createdByUserId: text("created_by_user_id").references(() => users.id, {
-    onDelete: "set null",
-  }),
-  mergedIntoGameTitleId: text("merged_into_game_title_id").references(
-    (): AnySQLiteColumn => gameTitle.id,
-    {
+export const gameTitle = sqliteTable(
+  "game_title",
+  {
+    id: text("id")
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    title: text("title").notNull(),
+    normalizedTitle: text("normalized_title").notNull().unique(),
+    color: text("color").notNull().default("#475569"),
+    imageUrl: text("image_url").notNull().default("/images/skyjo.png"),
+    rewardDeckName: text("reward_deck_name").references(() => decks.name, {
       onDelete: "set null",
-    },
-  ),
-  createdAt: text("created_at")
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-});
+    }),
+    imageVerticalFocus: integer("image_vertical_focus").notNull().default(50),
+    customPlayScreenEnabled: integer("custom_play_screen_enabled", {
+      mode: "boolean",
+    })
+      .notNull()
+      .default(true),
+    defaultScoringMode: text("default_scoring_mode").$type<GameScoringMode>(),
+    defaultEndingMode: text("default_ending_mode").$type<GameEndingMode>(),
+    defaultTrackRounds: integer("default_track_rounds", { mode: "boolean" }),
+    defaultTargetRounds: integer("default_target_rounds"),
+    defaultScoreThreshold: integer("default_score_threshold"),
+    defaultScoreThresholdDirection: text(
+      "default_score_threshold_direction",
+    ).$type<GameScoreThresholdDirection>(),
+    defaultSettingsVersion: text(
+      "default_settings_version",
+    ).$type<GameSettingsVersion>(),
+    defaultSettingsJson: text("default_settings_json"),
+    isUniversal: integer("is_universal", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    createdByUserId: text("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    mergedIntoGameTitleId: text("merged_into_game_title_id").references(
+      (): AnySQLiteColumn => gameTitle.id,
+      {
+        onDelete: "set null",
+      },
+    ),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    index("game_title_reward_deck_idx").on(table.rewardDeckName),
+    index("game_title_created_by_idx").on(table.createdByUserId),
+    index("game_title_merged_into_idx").on(table.mergedIntoGameTitleId),
+  ],
+);
 
 export const userGameTitle = sqliteTable(
   "user_game_title",
@@ -436,7 +475,12 @@ export const userGameTitle = sqliteTable(
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
   },
-  (table) => [primaryKey({ columns: [table.userId, table.gameTitleId] })],
+  (table) => [
+    primaryKey({ columns: [table.userId, table.gameTitleId] }),
+    index("user_game_title_game_title_idx").on(table.gameTitleId),
+    index("user_game_title_source_game_idx").on(table.sourceGameId),
+    index("user_game_title_acquired_from_idx").on(table.acquiredFromUserId),
+  ],
 );
 
 export const userGameTitleSettings = sqliteTable(
@@ -456,7 +500,10 @@ export const userGameTitleSettings = sqliteTable(
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
   },
-  (table) => [primaryKey({ columns: [table.userId, table.gameTitleId] })],
+  (table) => [
+    primaryKey({ columns: [table.userId, table.gameTitleId] }),
+    index("user_game_title_settings_game_title_idx").on(table.gameTitleId),
+  ],
 );
 
 export const userGameTitlePreferences = sqliteTable(
@@ -477,55 +524,66 @@ export const userGameTitlePreferences = sqliteTable(
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
   },
-  (table) => [primaryKey({ columns: [table.userId, table.gameTitleId] })],
+  (table) => [
+    primaryKey({ columns: [table.userId, table.gameTitleId] }),
+    index("user_game_title_prefs_game_title_idx").on(table.gameTitleId),
+  ],
 );
 
-export const games = sqliteTable("games", {
-  id: text("id")
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  gameTitleId: text("game_title_id").references(() => gameTitle.id, {
-    onDelete: "cascade",
-  }),
-  version: text("version").$type<GameVersion>().notNull().default("v1"),
-  creatorId: text("creator_id")
-    .notNull()
-    .references(() => users.id),
-  scoringMode: text("scoring_mode")
-    .$type<GameScoringMode>()
-    .notNull()
-    .default("lowest_wins"),
-  endingMode: text("ending_mode")
-    .$type<GameEndingMode>()
-    .notNull()
-    .default("none"),
-  trackRounds: integer("track_rounds", { mode: "boolean" })
-    .notNull()
-    .default(false),
-  targetRounds: integer("target_rounds"),
-  scoreThreshold: integer("score_threshold"),
-  scoreThresholdDirection: text(
-    "score_threshold_direction",
-  ).$type<GameScoreThresholdDirection>(),
-  settingsJson: text("settings_json"),
-  gameSpecificSettingsJson: text("game_specific_settings_json"),
-  defaultPlayerRole: text("default_player_role").$type<GamePlayerRole>(),
-  customPlayStateJson: text("custom_play_state_json"),
-  shareToken: text("share_token").unique(),
-  inviteUsersEnabled: integer("invite_users_enabled", { mode: "boolean" })
-    .notNull()
-    .default(true),
-  completedRounds: integer("completed_rounds").notNull().default(0),
-  pausedAt: text("paused_at"),
-  pausedNextUserId: text("paused_next_user_id").references(() => users.id, {
-    onDelete: "set null",
-  }),
-  createdAt: text("created_at")
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-  completedAt: text("completed_at"),
-});
+export const games = sqliteTable(
+  "games",
+  {
+    id: text("id")
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    gameTitleId: text("game_title_id").references(() => gameTitle.id, {
+      onDelete: "cascade",
+    }),
+    version: text("version").$type<GameVersion>().notNull().default("v1"),
+    creatorId: text("creator_id")
+      .notNull()
+      .references(() => users.id),
+    scoringMode: text("scoring_mode")
+      .$type<GameScoringMode>()
+      .notNull()
+      .default("lowest_wins"),
+    endingMode: text("ending_mode")
+      .$type<GameEndingMode>()
+      .notNull()
+      .default("none"),
+    trackRounds: integer("track_rounds", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    targetRounds: integer("target_rounds"),
+    scoreThreshold: integer("score_threshold"),
+    scoreThresholdDirection: text(
+      "score_threshold_direction",
+    ).$type<GameScoreThresholdDirection>(),
+    settingsJson: text("settings_json"),
+    gameSpecificSettingsJson: text("game_specific_settings_json"),
+    defaultPlayerRole: text("default_player_role").$type<GamePlayerRole>(),
+    customPlayStateJson: text("custom_play_state_json"),
+    shareToken: text("share_token").unique(),
+    inviteUsersEnabled: integer("invite_users_enabled", { mode: "boolean" })
+      .notNull()
+      .default(true),
+    completedRounds: integer("completed_rounds").notNull().default(0),
+    pausedAt: text("paused_at"),
+    pausedNextUserId: text("paused_next_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    completedAt: text("completed_at"),
+  },
+  (table) => [
+    index("games_game_title_idx").on(table.gameTitleId),
+    index("games_creator_idx").on(table.creatorId),
+    index("games_paused_next_user_idx").on(table.pausedNextUserId),
+  ],
+);
 
 export const gameWinners = sqliteTable(
   "game_winners",
@@ -540,7 +598,10 @@ export const gameWinners = sqliteTable(
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
   },
-  (table) => [primaryKey({ columns: [table.gameId, table.userId] })],
+  (table) => [
+    primaryKey({ columns: [table.gameId, table.userId] }),
+    index("game_winners_user_idx").on(table.userId),
+  ],
 );
 
 export const gameResultPlacements = sqliteTable(
@@ -563,43 +624,55 @@ export const gameResultPlacements = sqliteTable(
       "game_result_placements_placement_range",
       sql`${table.placement} >= 1 AND ${table.placement} <= 3`,
     ),
+    index("game_result_placements_user_idx").on(table.userId),
   ],
 );
 
-export const gamePlayers = sqliteTable("game_players", {
-  id: text("id")
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  score: integer("score").notNull().default(0),
-  isManager: integer("is_manager", { mode: "boolean" })
-    .notNull()
-    .default(false),
-  role: text("role").$type<GamePlayerRole>(),
-  gameId: text("game_id")
-    .notNull()
-    .references(() => games.id, { onDelete: "cascade" }),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-});
+export const gamePlayers = sqliteTable(
+  "game_players",
+  {
+    id: text("id")
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    score: integer("score").notNull().default(0),
+    isManager: integer("is_manager", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    role: text("role").$type<GamePlayerRole>(),
+    gameId: text("game_id")
+      .notNull()
+      .references(() => games.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("game_players_game_idx").on(table.gameId),
+    index("game_players_user_idx").on(table.userId),
+  ],
+);
 
-export const gameRounds = sqliteTable("game_rounds", {
-  id: text("id")
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  gameId: text("game_id")
-    .notNull()
-    .references(() => games.id, { onDelete: "cascade" }),
-  roundNumber: integer("round_number").notNull(),
-  createdAt: text("created_at")
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-  completedAt: text("completed_at")
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-});
+export const gameRounds = sqliteTable(
+  "game_rounds",
+  {
+    id: text("id")
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    gameId: text("game_id")
+      .notNull()
+      .references(() => games.id, { onDelete: "cascade" }),
+    roundNumber: integer("round_number").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    completedAt: text("completed_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [index("game_rounds_game_idx").on(table.gameId)],
+);
 
 export const gameEliminations = sqliteTable(
   "game_eliminations",
@@ -621,10 +694,9 @@ export const gameEliminations = sqliteTable(
       .$defaultFn(() => new Date().toISOString()),
   },
   (table) => [
-    check(
-      "game_eliminations_placement_positive",
-      sql`${table.placement} > 0`,
-    ),
+    check("game_eliminations_placement_positive", sql`${table.placement} > 0`),
+    index("game_eliminations_game_idx").on(table.gameId),
+    index("game_eliminations_user_idx").on(table.eliminatedUserId),
   ],
 );
 
@@ -648,6 +720,8 @@ export const gameRoundScores = sqliteTable(
   },
   (table) => [
     check("game_round_score_non_null", sql`${table.scoreDelta} IS NOT NULL`),
+    index("game_round_scores_game_round_idx").on(table.gameRoundId),
+    index("game_round_scores_user_idx").on(table.userId),
   ],
 );
 
@@ -672,6 +746,9 @@ export const gameItemizedScoreCategories = sqliteTable(
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
   },
+  (table) => [
+    index("game_itemized_score_categories_game_idx").on(table.gameId),
+  ],
 );
 
 export const gameItemizedScoreEntries = sqliteTable(
@@ -692,7 +769,9 @@ export const gameItemizedScoreEntries = sqliteTable(
       .references(() => users.id, { onDelete: "cascade" }),
     categoryId: text("category_id")
       .notNull()
-      .references(() => gameItemizedScoreCategories.id, { onDelete: "cascade" }),
+      .references(() => gameItemizedScoreCategories.id, {
+        onDelete: "cascade",
+      }),
     quantity: integer("quantity").notNull().default(0),
     valuesJson: text("values_json"),
     createdAt: text("created_at")
@@ -704,6 +783,10 @@ export const gameItemizedScoreEntries = sqliteTable(
       "game_itemized_score_entries_quantity_non_negative",
       sql`${table.quantity} >= 0`,
     ),
+    index("game_itemized_score_entries_game_idx").on(table.gameId),
+    index("game_itemized_score_entries_round_idx").on(table.gameRoundId),
+    index("game_itemized_score_entries_user_idx").on(table.userId),
+    index("game_itemized_score_entries_category_idx").on(table.categoryId),
   ],
 );
 
@@ -738,6 +821,7 @@ export const gameJoinRequests = sqliteTable(
       table.requesterUserId,
       table.status,
     ),
+    index("game_join_requests_resolved_by_idx").on(table.resolvedByUserId),
   ],
 );
 
@@ -752,10 +836,14 @@ export const playerRankConfigs = sqliteTable(
       .$type<PlayerRankConfigVersion>()
       .notNull()
       .default("v1"),
-    isActive: integer("is_active", { mode: "boolean" }).notNull().default(false),
+    isActive: integer("is_active", { mode: "boolean" })
+      .notNull()
+      .default(false),
     windowMonths: integer("window_months").notNull().default(6),
     defaultMaxPrizePool: integer("default_max_prize_pool").notNull(),
-    prizePoolByPlayerCountJson: text("prize_pool_by_player_count_json").notNull(),
+    prizePoolByPlayerCountJson: text(
+      "prize_pool_by_player_count_json",
+    ).notNull(),
     smallGameDistributionJson: text("small_game_distribution_json").notNull(),
     largeGameDistributionJson: text("large_game_distribution_json").notNull(),
     createdByUserId: text("created_by_user_id").references(() => users.id, {
@@ -774,6 +862,7 @@ export const playerRankConfigs = sqliteTable(
       "player_rank_configs_default_max_prize_pool_non_negative",
       sql`${table.defaultMaxPrizePool} >= 0`,
     ),
+    index("player_rank_configs_created_by_idx").on(table.createdByUserId),
   ],
 );
 
@@ -802,9 +891,18 @@ export const gamePlayerRankResults = sqliteTable(
   },
   (table) => [
     primaryKey({ columns: [table.gameId, table.userId] }),
-    check("game_player_rank_results_player_count_positive", sql`${table.playerCount} > 0`),
-    check("game_player_rank_results_placement_positive", sql`${table.placement} > 0`),
-    check("game_player_rank_results_tie_size_positive", sql`${table.tieSize} > 0`),
+    check(
+      "game_player_rank_results_player_count_positive",
+      sql`${table.playerCount} > 0`,
+    ),
+    check(
+      "game_player_rank_results_placement_positive",
+      sql`${table.placement} > 0`,
+    ),
+    check(
+      "game_player_rank_results_tie_size_positive",
+      sql`${table.tieSize} > 0`,
+    ),
     check(
       "game_player_rank_results_prize_pool_minor_non_negative",
       sql`${table.prizePoolMinor} >= 0`,
@@ -817,6 +915,8 @@ export const gamePlayerRankResults = sqliteTable(
       "game_player_rank_results_points_awarded_minor_non_negative",
       sql`${table.pointsAwardedMinor} >= 0`,
     ),
+    index("game_player_rank_results_user_idx").on(table.userId),
+    index("game_player_rank_results_rank_config_idx").on(table.rankConfigId),
   ],
 );
 
