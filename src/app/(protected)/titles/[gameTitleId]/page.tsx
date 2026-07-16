@@ -7,9 +7,10 @@ type PageProps = {
   params: Promise<{
     gameTitleId: string;
   }>;
+  searchParams: Promise<{ tab?: string }>;
 };
 
-export default async function TitleDetailsPage({ params }: PageProps) {
+export default async function TitleDetailsPage({ params, searchParams }: PageProps) {
   const { user } = await loadUser();
   const { gameTitleId } = await params;
   const data = await getGameTitleStatsPageData({
@@ -26,12 +27,16 @@ export default async function TitleDetailsPage({ params }: PageProps) {
     ? user.role === "admin"
     : data.title.createdByUserId === user.id;
   const canManageTitleArtwork = user.role === "admin";
+  const canManageTitle = canManageDefaults || canManageTitleArtwork;
+  const { tab } = await searchParams;
+  const initialTab = tab === "admin" && canManageTitle ? "admin" : "stats";
 
   return (
     <GameTitlePage
       canManageDefaults={canManageDefaults}
       canManageTitleArtwork={canManageTitleArtwork}
       data={data}
+      initialTab={initialTab}
     />
   );
 }

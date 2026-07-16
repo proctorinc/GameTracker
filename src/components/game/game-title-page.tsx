@@ -294,10 +294,12 @@ export default function GameTitlePage({
   data,
   canManageDefaults,
   canManageTitleArtwork,
+  initialTab = "stats",
 }: {
   data: GameTitleStatsPageData;
   canManageDefaults: boolean;
   canManageTitleArtwork: boolean;
+  initialTab?: GameTitlePageTab;
 }) {
   const canManageTitle = canManageDefaults || canManageTitleArtwork;
   const [selectedComparisonUserId, setSelectedComparisonUserId] = useState(
@@ -308,10 +310,13 @@ export default function GameTitlePage({
   const [activeTab, setActiveTab] =
     useRememberedPageTabState<GameTitlePageTab>({
       storageKey: `page-tab:/titles/${data.title.id}`,
-      initialValue: "stats",
+      initialValue: initialTab,
       validTabs: canManageTitle
         ? MANAGE_TITLE_PAGE_TABS
         : PUBLIC_TITLE_PAGE_TABS,
+      preferInitialValue:
+        typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).has("tab"),
     });
   const comparison = useMemo(
     () =>

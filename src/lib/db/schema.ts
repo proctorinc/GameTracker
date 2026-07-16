@@ -139,6 +139,8 @@ export const announcements = sqliteTable(
     title: text("title").notNull(),
     details: text("details").notNull(),
     screenshotUrl: text("screenshot_url"),
+    actionLabel: text("action_label"),
+    actionHref: text("action_href"),
     createdByUserId: text("created_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),

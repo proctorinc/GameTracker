@@ -4,8 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../tests/helpers/render";
 import { AnnouncementModal } from "./announcement-modal";
 
-const { acknowledgeAnnouncementAction } = vi.hoisted(() => ({
+const { acknowledgeAnnouncementAction, push } = vi.hoisted(() => ({
   acknowledgeAnnouncementAction: vi.fn(),
+  push: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/dashboard",
+  useRouter: () => ({ push }),
 }));
 
 vi.mock("@/app/actions/announcements", () => ({
@@ -22,6 +28,8 @@ const announcements = [
     title: "Profile backgrounds",
     details: "Choose a new background\nfrom your profile.",
     screenshotUrl: "https://example.com/backgrounds.webp",
+    actionLabel: "Choose a background",
+    actionHref: "/profile/backgrounds",
     publishedAt: "2026-07-15T12:00:00.000Z",
   },
   {
@@ -29,6 +37,8 @@ const announcements = [
     title: "Another update",
     details: "More good things.",
     screenshotUrl: null,
+    actionLabel: null,
+    actionHref: null,
     publishedAt: "2026-07-16T12:00:00.000Z",
   },
 ];
@@ -36,6 +46,59 @@ const announcements = [
 describe("AnnouncementModal", () => {
   beforeEach(() => {
     acknowledgeAnnouncementAction.mockReset();
+    push.mockReset();
+  });
+
+  it("acknowledges the current announcement before following its action", async () => {
+    acknowledgeAnnouncementAction.mockResolvedValue({ acknowledged: true });
+    const user = userEvent.setup();
+    renderWithProviders(<AnnouncementModal announcements={announcements} />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Choose a background" }),
+    );
+
+    await waitFor(() =>
+      expect(acknowledgeAnnouncementAction).toHaveBeenCalledWith({
+        announcementId: "announcement-1",
+      }),
+    );
+    expect(push).toHaveBeenCalledWith("/profile/backgrounds");
+    expect(screen.queryByText("Another update")).not.toBeInTheDocument();
+  });
+
+  it("highlights the custom action instead of the acknowledgment button", () => {
+    renderWithProviders(<AnnouncementModal announcements={[announcements[0]!]} />);
+
+    expect(
+      screen.getByRole("button", { name: "Choose a background" }),
+    ).toHaveClass("bg-primary");
+    expect(screen.getByRole("button", { name: "Got it" })).not.toHaveClass(
+      "bg-primary",
+    );
+  });
+
+  it("highlights the acknowledgment button when there is no custom action", () => {
+    renderWithProviders(<AnnouncementModal announcements={[announcements[1]!]} />);
+
+    expect(screen.getByRole("button", { name: "Got it" })).toHaveClass(
+      "bg-primary",
+    );
+  });
+
+  it("suppresses the entire queue on a configured destination page", () => {
+    renderWithProviders(
+      <AnnouncementModal
+        announcements={[
+          { ...announcements[0]!, actionHref: "/dashboard?tab=updates" },
+          announcements[1]!,
+        ]}
+      />,
+    );
+
+    expect(screen.queryByText("Profile backgrounds")).not.toBeInTheDocument();
+    expect(screen.queryByText("Another update")).not.toBeInTheDocument();
+    expect(acknowledgeAnnouncementAction).not.toHaveBeenCalled();
   });
 
   it("acknowledges each announcement before advancing through the queue", async () => {

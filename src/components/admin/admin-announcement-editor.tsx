@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Archive, ImagePlus, LoaderCircle, Megaphone, Send } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -12,6 +13,7 @@ import {
   updateAnnouncementDraftAction,
 } from "@/app/actions/announcements";
 import {
+  ANNOUNCEMENT_ACTION_LABEL_MAX_LENGTH,
   ANNOUNCEMENT_DETAILS_MAX_LENGTH,
   ANNOUNCEMENT_TITLE_MAX_LENGTH,
 } from "@/lib/announcement-content";
@@ -32,8 +34,13 @@ export function AdminAnnouncementEditor({
   const [isPending, startTransition] = useTransition();
   const [title, setTitle] = useState(announcement?.title ?? "");
   const [details, setDetails] = useState(announcement?.details ?? "");
+  const [actionLabel, setActionLabel] = useState(announcement?.actionLabel ?? "");
+  const [actionHref, setActionHref] = useState(announcement?.actionHref ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [removeScreenshot, setRemoveScreenshot] = useState(false);
+  const [savedScreenshotUrl, setSavedScreenshotUrl] = useState(
+    announcement?.screenshotUrl ?? null,
+  );
   const previewUrl = useMemo(
     () => (file ? URL.createObjectURL(file) : null),
     [file],
@@ -45,12 +52,20 @@ export function AdminAnnouncementEditor({
     announcement &&
       (title !== announcement.title ||
         details !== announcement.details ||
+        actionLabel !== (announcement.actionLabel ?? "") ||
+        actionHref !== (announcement.actionHref ?? "") ||
         file ||
         removeScreenshot),
   );
   const visibleScreenshot = removeScreenshot
     ? null
-    : (previewUrl ?? announcement?.screenshotUrl ?? null);
+    : (previewUrl ?? savedScreenshotUrl);
+  const actionDestination = actionHref.trim();
+  const hasAction = Boolean(actionLabel.trim() && actionDestination);
+  const canTestAction =
+    hasAction &&
+    actionDestination.startsWith("/") &&
+    !actionDestination.startsWith("//");
 
   useEffect(() => {
     return () => {
@@ -62,6 +77,8 @@ export function AdminAnnouncementEditor({
     const formData = new FormData();
     formData.set("title", title);
     formData.set("details", details);
+    formData.set("actionLabel", actionLabel);
+    formData.set("actionHref", actionHref);
     if (announcement) formData.set("announcementId", announcement.id);
     if (file) formData.set("screenshot", file);
     if (removeScreenshot) formData.set("removeScreenshot", "true");
@@ -72,7 +89,8 @@ export function AdminAnnouncementEditor({
     startTransition(async () => {
       try {
         if (announcement) {
-          await updateAnnouncementDraftAction(buildFormData());
+          const updated = await updateAnnouncementDraftAction(buildFormData());
+          setSavedScreenshotUrl(updated.screenshotUrl);
           setFile(null);
           setRemoveScreenshot(false);
           toast.success("Draft saved");
@@ -173,6 +191,41 @@ export function AdminAnnouncementEditor({
               </Button>
             ) : null}
           </div>
+          <div className="grid gap-4 border-t pt-5 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="announcement-action-label">Navigation button label (optional)</Label>
+              <Input
+                list="announcement-action-destinations"
+                disabled={!isEditable || isPending}
+                id="announcement-action-label"
+                maxLength={ANNOUNCEMENT_ACTION_LABEL_MAX_LENGTH}
+                onChange={(event) => setActionLabel(event.target.value)}
+                placeholder="View profile backgrounds"
+                value={actionLabel}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="announcement-action-href">Destination (optional)</Label>
+              <Input
+                disabled={!isEditable || isPending}
+                id="announcement-action-href"
+                onChange={(event) => setActionHref(event.target.value)}
+                placeholder="/profile"
+                value={actionHref}
+              />
+              <datalist id="announcement-action-destinations">
+                <option value="/profile?tab=stats">Profile stats</option>
+                <option value="/profile?tab=friends">Profile friends</option>
+                <option value="/profile?tab=collection">Profile collection</option>
+                <option value="/profile?tab=settings">Profile settings</option>
+                <option value="/activity?tab=activity">Activity</option>
+                <option value="/activity?tab=leaderboard">Leaderboard</option>
+              </datalist>
+            </div>
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              Both fields are required when adding a navigation button. Destinations may include query parameters, such as /profile?tab=collection, to open a specific tab.
+            </p>
+          </div>
           <div className="flex flex-wrap gap-3 border-t pt-5">
             {isEditable ? (
               <Button disabled={isPending} onClick={saveDraft} type="button">
@@ -216,7 +269,32 @@ export function AdminAnnouncementEditor({
           <p className="whitespace-pre-wrap leading-6 text-foreground/80">
             {details.trim() || "Announcement details will appear here."}
           </p>
-          <Button className="mt-6 w-full" disabled type="button"><Megaphone /> Got it</Button>
+          {hasAction ? (
+            <Button
+              className="mt-6 w-full"
+              disabled={!canTestAction}
+              render={
+                canTestAction ? (
+                  <Link
+                    href={actionDestination}
+                    rel="noreferrer"
+                    target="_blank"
+                  />
+                ) : undefined
+              }
+              type="button"
+            >
+              {actionLabel.trim()}
+            </Button>
+          ) : null}
+          <Button
+            className={hasAction ? "mt-2 w-full" : "mt-6 w-full"}
+            disabled
+            type="button"
+            variant={hasAction ? "outline" : "default"}
+          >
+            <Megaphone /> Got it
+          </Button>
         </CardContent>
       </Card>
     </div>

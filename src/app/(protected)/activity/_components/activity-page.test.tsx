@@ -170,6 +170,23 @@ function createActivityPageData(
 describe("ActivityPageView", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    window.history.replaceState({}, "", "/activity");
+  });
+
+  it("lets an explicit tab deep link override remembered tab state", () => {
+    window.localStorage.setItem("page-tab:/activity", "activity");
+    window.history.replaceState({}, "", "/activity?tab=leaderboard");
+
+    renderWithProviders(
+      <ActivityPageView
+        initialTab="leaderboard"
+        data={createActivityPageData([])}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Leaderboard" }),
+    ).toBeInTheDocument();
   });
 
   it("renders a podium in 3rd, 1st, 2nd visual order with avatar-only profile links", () => {

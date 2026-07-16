@@ -31,6 +31,9 @@ export function ActivityPageProvider({
     storageKey: ACTIVITY_TAB_STORAGE_KEY,
     initialValue: initialTab,
     validTabs: ACTIVITY_TABS,
+    preferInitialValue:
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).has("tab"),
   });
   const [expandedFriendId, setExpandedFriendId] = useState<string | null>(null);
 

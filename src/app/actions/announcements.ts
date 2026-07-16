@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
 import { prepareAnnouncementImage } from "@/lib/announcement-image";
 import {
+  ANNOUNCEMENT_ACTION_LABEL_MAX_LENGTH,
   ANNOUNCEMENT_DETAILS_MAX_LENGTH,
   ANNOUNCEMENT_TITLE_MAX_LENGTH,
 } from "@/lib/announcement-content";
@@ -53,6 +54,26 @@ function validateContent(input: { title: string; details: string }) {
   return { title, details };
 }
 
+function validateAction(input: { actionLabel: string; actionHref: string }) {
+  const actionLabel = input.actionLabel.trim();
+  const actionHref = input.actionHref.trim();
+
+  if (!actionLabel && !actionHref) {
+    return { actionLabel: null, actionHref: null };
+  }
+  if (!actionLabel || !actionHref) {
+    throw new Error("Navigation button label and destination are both required");
+  }
+  if (actionLabel.length > ANNOUNCEMENT_ACTION_LABEL_MAX_LENGTH) {
+    throw new Error("Navigation button label must be 80 characters or fewer");
+  }
+  if (!actionHref.startsWith("/") || actionHref.startsWith("//")) {
+    throw new Error("Navigation destination must be an internal path");
+  }
+
+  return { actionLabel, actionHref };
+}
+
 async function uploadScreenshot(
   announcementId: string,
   fileEntry: FormDataEntryValue | null,
@@ -84,6 +105,10 @@ export async function createAnnouncementDraftAction(formData: FormData) {
     title: getFormDataString(formData, "title"),
     details: getFormDataString(formData, "details"),
   });
+  const action = validateAction({
+    actionLabel: getFormDataString(formData, "actionLabel"),
+    actionHref: getFormDataString(formData, "actionHref"),
+  });
   const announcementId = createId();
   const screenshotUrl = await uploadScreenshot(
     announcementId,
@@ -92,6 +117,7 @@ export async function createAnnouncementDraftAction(formData: FormData) {
   const announcement = await createAnnouncementDraft({
     id: announcementId,
     ...content,
+    ...action,
     screenshotUrl,
     createdByUserId: admin.id,
   });
@@ -106,6 +132,10 @@ export async function updateAnnouncementDraftAction(formData: FormData) {
   const content = validateContent({
     title: getFormDataString(formData, "title"),
     details: getFormDataString(formData, "details"),
+  });
+  const action = validateAction({
+    actionLabel: getFormDataString(formData, "actionLabel"),
+    actionHref: getFormDataString(formData, "actionHref"),
   });
 
   if (!announcementId) {
@@ -131,6 +161,7 @@ export async function updateAnnouncementDraftAction(formData: FormData) {
   const announcement = await updateAnnouncementDraft({
     announcementId,
     ...content,
+    ...action,
     screenshotUrl: removeScreenshot
       ? null
       : (uploadedScreenshotUrl ?? existing.screenshotUrl),

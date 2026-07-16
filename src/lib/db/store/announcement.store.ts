@@ -16,12 +16,24 @@ import {
 export type Announcement = typeof announcements.$inferSelect;
 export type AnnouncementDraftInput = Pick<
   typeof announcements.$inferInsert,
-  "id" | "title" | "details" | "screenshotUrl" | "createdByUserId"
+  | "id"
+  | "title"
+  | "details"
+  | "screenshotUrl"
+  | "actionLabel"
+  | "actionHref"
+  | "createdByUserId"
 >;
 
 export type AnnouncementForClient = Pick<
   Announcement,
-  "id" | "title" | "details" | "screenshotUrl" | "publishedAt"
+  | "id"
+  | "title"
+  | "details"
+  | "screenshotUrl"
+  | "actionLabel"
+  | "actionHref"
+  | "publishedAt"
 >;
 
 function nowIso() {
@@ -65,6 +77,8 @@ export async function updateAnnouncementDraft(input: {
   title: string;
   details: string;
   screenshotUrl: string | null;
+  actionLabel: string | null;
+  actionHref: string | null;
 }): Promise<Announcement | null> {
   const [announcement] = await db
     .update(announcements)
@@ -72,6 +86,8 @@ export async function updateAnnouncementDraft(input: {
       title: input.title,
       details: input.details,
       screenshotUrl: input.screenshotUrl,
+      actionLabel: input.actionLabel,
+      actionHref: input.actionHref,
       updatedAt: nowIso(),
     })
     .where(
@@ -149,6 +165,8 @@ export async function listUnseenAnnouncementsForUser(input: {
       title: announcements.title,
       details: announcements.details,
       screenshotUrl: announcements.screenshotUrl,
+      actionLabel: announcements.actionLabel,
+      actionHref: announcements.actionHref,
       publishedAt: announcements.publishedAt,
     })
     .from(announcements)

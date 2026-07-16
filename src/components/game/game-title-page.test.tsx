@@ -260,13 +260,15 @@ describe("GameTitlePage", () => {
     ).toHaveAttribute("href", "/game/history?titleId=title-1");
   });
 
-  it("shows only the defaults editor for non-admin title owners", async () => {
-    const user = userEvent.setup();
+  it("opens a deep-linked admin tab for title owners", () => {
+    window.localStorage.setItem("page-tab:/titles/title-1", "stats");
+    window.history.replaceState({}, "", "/titles/title-1?tab=admin");
 
     renderWithProviders(
       <GameTitlePage
         canManageDefaults={true}
         canManageTitleArtwork={false}
+        initialTab="admin"
         data={{
           title: {
             id: "title-1",
@@ -333,8 +335,6 @@ describe("GameTitlePage", () => {
         }}
       />,
     );
-
-    await user.click(screen.getByRole("tab", { name: /admin/i }));
 
     expect(screen.getByText("defaults editor")).toBeInTheDocument();
     expect(screen.queryByText("image editor")).not.toBeInTheDocument();

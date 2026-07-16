@@ -183,6 +183,13 @@
       "when": 1784213658516,
       "tag": "0025_aspiring_legion",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1784218645613,
+      "tag": "0026_free_moonstone",
+      "breakpoints": true
     }
   ]
 }

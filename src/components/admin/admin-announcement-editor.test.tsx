@@ -45,6 +45,34 @@ describe("AdminAnnouncementEditor", () => {
     expect(actions.push).toHaveBeenCalledWith("/admin/announcements/new-id");
   });
 
+  it("highlights the custom action in the announcement preview", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<AdminAnnouncementEditor />);
+
+    await user.type(
+      screen.getByLabelText("Navigation button label (optional)"),
+      "View collection",
+    );
+    await user.type(
+      screen.getByLabelText("Destination (optional)"),
+      "/profile?tab=collection",
+    );
+
+    const previewAction = screen.getByRole("button", {
+      name: "View collection",
+    });
+
+    expect(previewAction).toHaveClass(
+      "bg-primary",
+    );
+    expect(previewAction.tagName).toBe("A");
+    expect(previewAction).toHaveAttribute("href", "/profile?tab=collection");
+    expect(previewAction).toHaveAttribute("target", "_blank");
+    expect(screen.getByRole("button", { name: "Got it" })).not.toHaveClass(
+      "bg-primary",
+    );
+  });
+
   it("locks published content and allows archiving", async () => {
     actions.archiveAnnouncementAction.mockResolvedValue({});
     vi.spyOn(window, "confirm").mockReturnValue(true);
@@ -56,6 +84,8 @@ describe("AdminAnnouncementEditor", () => {
           title: "Published update",
           details: "Already released.",
           screenshotUrl: null,
+          actionLabel: null,
+          actionHref: null,
           createdByUserId: "admin-1",
           publishedAt: "2026-07-16T12:00:00.000Z",
           archivedAt: null,
@@ -72,6 +102,43 @@ describe("AdminAnnouncementEditor", () => {
       expect(actions.archiveAnnouncementAction).toHaveBeenCalledWith({
         announcementId: "announcement-1",
       }),
+    );
+  });
+
+  it("keeps the uploaded S3 image visible after saving an existing draft", async () => {
+    actions.updateAnnouncementDraftAction.mockResolvedValue({
+      id: "announcement-1",
+      screenshotUrl:
+        "https://assets.example.com/announcements/announcement-1/image.webp",
+    });
+    const user = userEvent.setup();
+    renderWithProviders(
+      <AdminAnnouncementEditor
+        announcement={{
+          id: "announcement-1",
+          title: "Draft update",
+          details: "Still being edited.",
+          screenshotUrl: null,
+          actionLabel: null,
+          actionHref: null,
+          createdByUserId: "admin-1",
+          publishedAt: null,
+          archivedAt: null,
+          createdAt: "2026-07-16T11:00:00.000Z",
+          updatedAt: "2026-07-16T11:00:00.000Z",
+        }}
+      />,
+    );
+    const file = new File(["image"], "announcement.png", { type: "image/png" });
+
+    await user.upload(screen.getByLabelText("Screenshot (optional)"), file);
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    await waitFor(() =>
+      expect(screen.getByAltText("Announcement preview")).toHaveAttribute(
+        "src",
+        "https://assets.example.com/announcements/announcement-1/image.webp",
+      ),
     );
   });
 });
