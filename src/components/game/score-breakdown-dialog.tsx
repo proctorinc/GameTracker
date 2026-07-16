@@ -28,10 +28,7 @@ export type ScoreBreakdownDialogProps = {
   canEditPlayerScore: (userId: string) => boolean;
   editingDisabled: boolean;
   historyOnly: boolean;
-  onEditRoundScore: (input: {
-    playerId: string;
-    roundNumber: number;
-  }) => void;
+  onEditRoundScore: (input: { playerId: string; roundNumber: number }) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   players: ScoreBreakdownPlayer[];
@@ -65,10 +62,7 @@ function ScoreHistoryChart({
   players,
   rounds,
   scoringMode,
-}: Pick<
-  ScoreBreakdownDialogProps,
-  "players" | "rounds" | "scoringMode"
->) {
+}: Pick<ScoreBreakdownDialogProps, "players" | "rounds" | "scoringMode">) {
   const { resolvedTheme } = useTheme();
   const cumulativeSeries = useMemo(
     () => buildCumulativeScoreSeries({ players, rounds }),
@@ -107,6 +101,7 @@ function ScoreHistoryChart({
         elementType: "line",
         position: "left",
         scaleType: "linear",
+        show: false,
         showGrid: true,
         showDatumElements: false,
         formatters: {
@@ -124,10 +119,7 @@ function ScoreHistoryChart({
         primaryAxis,
         secondaryAxes,
         dark: resolvedTheme === "dark",
-        initialHeight: 160,
-        initialWidth: 560,
         interactionMode: "primary",
-        padding: { left: 8, right: 12, top: 12, bottom: 4 },
         primaryCursor: false,
         secondaryCursor: false,
         showVoronoi: true,
@@ -152,11 +144,10 @@ function ScoreHistoryChart({
   return (
     <section
       aria-label="Scores over rounds"
-      className="rounded-xl border border-border bg-muted/25 p-3"
+      className="pb-6"
       data-testid="score-history-chart"
     >
       <div className="mb-2 flex items-center justify-between gap-3">
-        <h3 className="text-sm font-black">Scores over rounds</h3>
         {winningCue ? (
           <span className="shrink-0 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-muted-foreground">
             {winningCue}
@@ -164,26 +155,8 @@ function ScoreHistoryChart({
         ) : null}
       </div>
       <div
-        aria-label="Player chart legend"
-        className="mb-1 flex gap-3 overflow-x-auto pb-1"
-      >
-        {players.map((player) => (
-          <div
-            key={player.userId}
-            className="flex shrink-0 items-center gap-1.5 text-xs font-semibold"
-          >
-            <span
-              aria-hidden="true"
-              className="size-2.5 rounded-full"
-              style={{ backgroundColor: player.user.color }}
-            />
-            <span>{getDisplayName(player)}</span>
-          </div>
-        ))}
-      </div>
-      <div
         aria-label="Cumulative player scores by round"
-        className="h-40 w-full"
+        className="h-24 w-full"
         role="img"
       >
         <Chart

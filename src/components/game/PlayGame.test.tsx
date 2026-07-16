@@ -1,4 +1,10 @@
-import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GameForPlayPage } from "@/lib/db/store/game.store";
@@ -62,14 +68,16 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/app/actions/game", () => ({
-  approveGameJoinRequest: (...args: unknown[]) => approveGameJoinRequest(...args),
+  approveGameJoinRequest: (...args: unknown[]) =>
+    approveGameJoinRequest(...args),
   addGamePlayer: (...args: unknown[]) => addGamePlayer(...args),
   addGuestGamePlayer: (...args: unknown[]) => addGuestGamePlayer(...args),
   commitGameRound: (...args: unknown[]) => commitGameRound(...args),
   completeGame: (...args: unknown[]) => completeGame(...args),
   createRematchGameAndRedirect: (...args: unknown[]) =>
     createRematchGameAndRedirect(...args),
-  declineGameJoinRequest: (...args: unknown[]) => declineGameJoinRequest(...args),
+  declineGameJoinRequest: (...args: unknown[]) =>
+    declineGameJoinRequest(...args),
   deleteCreatedGame: (...args: unknown[]) => deleteCreatedGame(...args),
   getPlayGameSnapshot: (...args: unknown[]) => getPlayGameSnapshot(...args),
   pauseGame: (...args: unknown[]) => pauseGame(...args),
@@ -232,7 +240,9 @@ function createCompletedGameSnapshot(): GameForPlayPage {
   };
 }
 
-function createPausedGameSnapshot(input?: { nextUserId?: string | null }): GameForPlayPage {
+function createPausedGameSnapshot(input?: {
+  nextUserId?: string | null;
+}): GameForPlayPage {
   return {
     ...createGameSnapshot(),
     pausedAt: "2025-01-02T00:00:00.000Z",
@@ -814,8 +824,10 @@ function createPlayGameSnapshot(input?: {
     isCreator: input?.isCreator ?? true,
     isManager: input?.isManager ?? false,
     pendingJoinRequests: [],
-    playerOptions:
-      input?.playerOptions ?? [creator, ...(opponent ? [opponent] : [])],
+    playerOptions: input?.playerOptions ?? [
+      creator,
+      ...(opponent ? [opponent] : []),
+    ],
     playerRankDeltas: input?.playerRankDeltas ?? [],
     game,
   };
@@ -1392,7 +1404,9 @@ describe("PlayGame", () => {
         "View Mode. Your current role does not allow score changes or game management.",
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Game options" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Game options" }),
+    ).not.toBeInTheDocument();
   });
 
   it("lets self scorers open only their own score control", () => {
@@ -1404,9 +1418,15 @@ describe("PlayGame", () => {
       isManager: false,
     });
 
-    expect(screen.getByTestId("player-score-button-user-2")).toBeInTheDocument();
-    expect(screen.queryByTestId("player-score-button-user-1")).not.toBeInTheDocument();
-    expect(screen.getByTestId("player-score-display-user-1")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("player-score-button-user-2"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("player-score-button-user-1"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("player-score-display-user-1"),
+    ).toBeInTheDocument();
   });
 
   it("lets managers use live-play controls without creator-only options", async () => {
@@ -1427,7 +1447,9 @@ describe("PlayGame", () => {
     expect(
       screen.queryByRole("button", { name: "Delete game" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Manage players" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Manage players" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("player-score-button-user-1"));
     fireEvent.click(screen.getByRole("button", { name: "Delete digit" }));
@@ -1474,7 +1496,9 @@ describe("PlayGame", () => {
         nextUserId: "user-2",
       });
     });
-    expect(screen.getByRole("heading", { name: "Game paused" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Game paused" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Kai's turn is next.")).toBeInTheDocument();
   });
 
@@ -1514,7 +1538,9 @@ describe("PlayGame", () => {
       isManager: false,
     });
 
-    expect(screen.getByRole("heading", { name: "Game paused" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Game paused" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Mia's turn is next.")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Continue" }),
@@ -1798,7 +1824,6 @@ describe("PlayGame", () => {
     const scoreGrid = screen.getByTestId("score-breakdown-grid");
 
     expect(chart).toBeInTheDocument();
-    expect(within(chart).getByText("Scores over rounds")).toBeInTheDocument();
     expect(within(chart).getByText("Lower score wins")).toBeInTheDocument();
     expect(within(chart).getByText("Mia")).toBeInTheDocument();
     expect(within(chart).getByText("Kai")).toBeInTheDocument();
@@ -1966,9 +1991,7 @@ describe("PlayGame", () => {
     expect(
       screen.getByTestId("remove-player-button-user-2"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByTestId("player-role-select-user-2"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("player-role-select-user-2")).toBeInTheDocument();
     expect(
       screen.queryByTestId("remove-player-button-user-1"),
     ).not.toBeInTheDocument();
@@ -2087,7 +2110,9 @@ describe("PlayGame", () => {
     expect(
       screen.queryByText("Choose how this player should join the scoreboard."),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Manage users" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Manage users" }),
+    ).toBeInTheDocument();
   });
 
   it("shows quick-start score options after selecting a midgame user", () => {
@@ -2111,9 +2136,15 @@ describe("PlayGame", () => {
     fireEvent.click(screen.getByRole("button", { name: "Player" }));
     fireEvent.click(screen.getByText("June"));
 
-    expect(screen.getByText("Choose how this player should join the scoreboard.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Average score/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Highest score/i })).toBeInTheDocument();
+    expect(
+      screen.getByText("Choose how this player should join the scoreboard."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Average score/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Highest score/i }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument();
   });
 
@@ -2128,10 +2159,16 @@ describe("PlayGame", () => {
     fireEvent.change(screen.getByPlaceholderText("Search friends or guests"), {
       target: { value: "Nova Guest" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Add Nova Guest as guest" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add Nova Guest as guest" }),
+    );
 
-    expect(screen.getByText("Pick a badge color before adding this guest")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add guest" })).toBeInTheDocument();
+    expect(
+      screen.getByText("Pick a badge color before adding this guest"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Add guest" }),
+    ).toBeInTheDocument();
     expect(addGuestGamePlayer).not.toHaveBeenCalled();
 
     fireEvent.click(
@@ -2164,7 +2201,9 @@ describe("PlayGame", () => {
     fireEvent.change(screen.getByPlaceholderText("Search friends or guests"), {
       target: { value: "Nova Guest" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Add Nova Guest as guest" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add Nova Guest as guest" }),
+    );
     fireEvent.click(
       screen.getByRole("button", {
         name: `Choose color ${PROFILE_COLORS[4]}`,
@@ -2225,9 +2264,7 @@ describe("PlayGame", () => {
     expect(
       screen.getByText("Enable join link to reveal QR code"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Share game" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Share game" })).toBeDisabled();
 
     fireEvent.click(screen.getByRole("checkbox"));
 
@@ -2711,8 +2748,12 @@ describe("PlayGame", () => {
     fireEvent.click(screen.getByTestId("player-score-button-user-1"));
 
     expect(screen.getByTestId("itemized-player-total")).toHaveTextContent("0");
-    expect(screen.getByTestId("itemized-category-row-coins")).toBeInTheDocument();
-    expect(screen.getByTestId("itemized-category-row-relics")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("itemized-category-row-coins"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("itemized-category-row-relics"),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("itemized-category-row-coins"));
     fireEvent.click(screen.getByRole("button", { name: "Delete digit" }));
@@ -2730,9 +2771,7 @@ describe("PlayGame", () => {
 
     fireEvent.click(screen.getByTestId("player-score-button-user-1"));
     fireEvent.click(screen.getByTestId("itemized-category-row-relics"));
-    expect(
-      screen.getByText(/Use Relics for Mia/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Use Relics for Mia/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Yes, use it" }));
 
     fireEvent.change(screen.getByTestId("itemized-input-relics-base"), {
@@ -2745,7 +2784,9 @@ describe("PlayGame", () => {
       target: { value: "1" },
     });
 
-    expect(screen.getByTestId("itemized-category-total")).toHaveTextContent("13");
+    expect(screen.getByTestId("itemized-category-total")).toHaveTextContent(
+      "13",
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Back to categories" }));
     expect(screen.getByTestId("itemized-player-total")).toHaveTextContent("13");
@@ -2776,7 +2817,9 @@ describe("PlayGame", () => {
       target: { value: "0" },
     });
 
-    expect(screen.getByTestId("itemized-category-total")).toHaveTextContent("14");
+    expect(screen.getByTestId("itemized-category-total")).toHaveTextContent(
+      "14",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Back to categories" }));
     expect(screen.getByTestId("itemized-player-total")).toHaveTextContent("14");
   });
