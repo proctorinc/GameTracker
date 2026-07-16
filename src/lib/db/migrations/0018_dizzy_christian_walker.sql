@@ -1,0 +1,1 @@
+ALTER TABLE `game_title` ADD `image_vertical_focus` integer DEFAULT 50 NOT NULL;

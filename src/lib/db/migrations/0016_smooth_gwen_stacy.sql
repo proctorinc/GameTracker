@@ -1,0 +1,1 @@
+ALTER TABLE `game_itemized_score_entries` ADD `game_round_id` text REFERENCES game_rounds(id);

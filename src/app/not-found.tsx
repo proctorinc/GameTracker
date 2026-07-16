@@ -10,7 +10,7 @@ import {
 
 export default function NotFoundPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-10 dark:bg-black">
+    <main className="flex min-h-screen items-center justify-center px-4 py-10">
       <Card className="w-full max-w-md border-border/80 bg-background/95 shadow-lg backdrop-blur">
         <CardHeader className="space-y-3 text-center">
           <CardTitle className="text-2xl">That page isn&apos;t here</CardTitle>

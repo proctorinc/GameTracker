@@ -6,7 +6,11 @@ import {
   getGameHistoryPageCollections,
 } from "@/app/actions/pages/game-history";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
-import { getGameHistoryTag, getTitlesGlobalTag } from "@/lib/cache-tags";
+import {
+  getGameHistoryTag,
+  getProfileIdentityTag,
+  getTitlesGlobalTag,
+} from "@/lib/cache-tags";
 import { isNextRedirectError } from "@/lib/next-navigation-errors";
 import { logError, logInfo } from "@/lib/server-log";
 import { getServerRequestContext } from "@/lib/server-request-context";
@@ -69,7 +73,11 @@ async function getGameHistoryOverviewPageDataCached(
       }),
     [userId, cacheKey],
     {
-      tags: [getGameHistoryTag(userId), getTitlesGlobalTag()],
+      tags: [
+        getGameHistoryTag(userId),
+        getTitlesGlobalTag(),
+        getProfileIdentityTag(),
+      ],
     },
   )();
 }

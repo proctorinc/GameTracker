@@ -11,7 +11,10 @@ export type PlayerRankPodiumEntry = {
   position: number;
   displayName: string;
   value: string;
-  user: Pick<UserBase, "id" | "firstName" | "lastName" | "color">;
+  user: Pick<
+    UserBase,
+    "id" | "firstName" | "lastName" | "color" | "avatarUrl"
+  >;
   linkToProfile?: boolean;
   subdued?: boolean;
 };
@@ -116,8 +119,7 @@ function getPodiumAccent(position: number, muted: boolean) {
 
   if (position === 1) {
     return {
-      cardClassName:
-        "border-amber-300/70 bg-[linear-gradient(180deg,#fff8eb_0%,#fff1cf_100%)] shadow-amber-950/10 dark:border-amber-200/20 dark:bg-[linear-gradient(180deg,rgba(245,158,11,0.18)_0%,rgba(255,255,255,0.03)_100%)]",
+      cardClassName: "podium-gold-surface",
       heightClassName: "h-56",
     };
   }
@@ -150,7 +152,7 @@ function PodiumCard({
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-col items-center rounded-[1.4rem] border px-2 py-3 text-center shadow-lg",
+        "flex min-w-0 flex-col items-center rounded-xl border px-2 py-3 text-center shadow-lg",
         accent.cardClassName,
         accent.heightClassName,
         entry.subdued && "opacity-70 saturate-[0.85]",

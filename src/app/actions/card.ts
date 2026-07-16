@@ -1,75 +1,48 @@
 "use server";
 
-import { CardRow, createUserCard } from "@/lib/db/store/cards.store";
-import { revalidatePath } from "next/cache";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
+import { openCardDropForUser } from "@/lib/card-rewards";
+import {
+  revalidateDashboardPage,
+  revalidateProfileOverviewPage,
+  revalidatePublicProfilePage,
+} from "@/lib/cache-invalidation";
+import type { CollectibleCardViewModel } from "@/lib/card-catalog";
 import { logError, logInfo } from "@/lib/server-log";
+import { revalidatePath } from "next/cache";
 
-export async function pullCard(
-  userId: string, 
-) {
+export async function openCardDrop(input: {
+  cardDropId: string;
+}): Promise<CollectibleCardViewModel[]> {
   let actorUserId: string | null = null;
 
   try {
     const user = await loadCurrentUser();
     actorUserId = user.id;
-
-    if (user.id !== userId) {
-      throw new Error("You can only pull cards for your own account");
-    }
-
-    const card = await createUserCard(userId);
-    revalidatePath("/card/pull");
-    logInfo("card.pull.succeeded", {
-      actorUserId: user.id,
-      cardId: card.id,
-      deckName: card.deckName,
-      value: card.value,
-      modifier: card.modifier,
+    const cards = await openCardDropForUser({
+      cardDropId: input.cardDropId,
+      userId: user.id,
     });
 
-    return card;
+    revalidateDashboardPage(user.id);
+    revalidateProfileOverviewPage(user.id);
+    revalidatePublicProfilePage(user.id);
+    revalidatePath("/card/pull");
+
+    logInfo("card.pack_open.succeeded", {
+      actorUserId: user.id,
+      cardDropId: input.cardDropId,
+      cardCount: cards.length,
+      deckName: cards[0]?.deckName ?? null,
+      cardIds: cards.map((card) => card.instanceId),
+    });
+
+    return cards;
   } catch (error) {
-    logError("card.pull.failed", error, {
+    logError("card.pack_open.failed", error, {
       actorUserId,
-      targetUserId: userId,
+      cardDropId: input.cardDropId,
     });
     throw error;
   }
-}
-
-export async function pullPack(
-    userId: string, 
-) {
-    let actorUserId: string | null = null;
-
-    try {
-        const user = await loadCurrentUser();
-        actorUserId = user.id;
-
-        if (user.id !== userId) {
-            throw new Error("You can only pull cards for your own account");
-        }
-
-        const cards:CardRow[] = [];
-        for (let i = 0; i < 5; i++) {
-            const card = await createUserCard(userId);
-            cards.push(card);
-        }
-        revalidatePath("/card/pull");
-        logInfo("card.pack_pull.succeeded", {
-          actorUserId: user.id,
-          cardCount: cards.length,
-          deckName: cards[0]?.deckName ?? null,
-          cardIds: cards.map((card) => card.id),
-        });
-      
-        return cards;
-    } catch (error) {
-        logError("card.pack_pull.failed", error, {
-          actorUserId,
-          targetUserId: userId,
-        });
-        throw error;
-    }
 }

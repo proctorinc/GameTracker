@@ -29,6 +29,7 @@ export function ProfileColorPanel({
         firstName: user.firstName ?? "",
         lastName: user.lastName ?? "",
         color: nextColor,
+        avatarUrl: user.avatarUrl,
       });
       startTransition(() => {
         router.refresh();

@@ -13,7 +13,7 @@ export function FriendsTabs() {
   const hasPendingInvitations = incomingInvitations.length > 0;
 
   return (
-    <div className="grid grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-muted/70 p-1">
+    <div className="grid grid-cols-2 gap-2 rounded-xl border border-border/70 bg-muted/70 p-1">
       <Button
         variant={activeTab === "activity" ? "default" : "ghost"}
         className="rounded-xl"

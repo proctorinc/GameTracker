@@ -55,7 +55,7 @@ export default function RootLayout({
       suppressHydrationWarning
       className={cn("h-full antialiased")}
     >
-      <body className="min-h-full flex bg-slate-100 dark:bg-black/20">
+      <body className="flex min-h-full">
         <ClerkProvider
           appearance={{
             theme: shadcn,

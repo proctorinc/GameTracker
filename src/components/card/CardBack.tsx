@@ -1,51 +1,75 @@
-import { cn } from '@/lib/utils';
+import type { CSSProperties } from "react";
+import type { DeckBackStyle } from "@/lib/db/schema";
+import { DEFAULT_DECK_BACK } from "@/lib/card-deck-style";
+import { cn } from "@/lib/utils";
 
-interface CardBackProps {
+export type CardBackProps = {
   className?: string;
-  isHovered?: boolean;
+  label?: string;
+  backStyle?: DeckBackStyle;
+  primaryColor?: string;
+  secondaryColor?: string;
+  accentColor?: string;
+};
+
+function pattern(style: DeckBackStyle, primary: string, secondary: string, accent: string): CSSProperties {
+  if (style === "sunburst") {
+    return {
+      backgroundColor: secondary,
+      backgroundImage: `repeating-conic-gradient(from 12deg at 50% 50%, ${primary} 0deg 14deg, ${secondary} 14deg 28deg)`,
+      color: accent,
+    };
+  }
+
+  if (style === "classic") {
+    return {
+      backgroundColor: primary,
+      backgroundImage: `radial-gradient(circle at center, transparent 0 22%, ${accent}55 23% 25%, transparent 26% 42%, ${accent}35 43% 45%, transparent 46%), linear-gradient(135deg, ${primary}, ${secondary})`,
+      color: accent,
+    };
+  }
+
+  return {
+    backgroundColor: secondary,
+    backgroundImage: `linear-gradient(30deg, ${primary} 12%, transparent 12.5%, transparent 87%, ${primary} 87.5%, ${primary}), linear-gradient(150deg, ${primary} 12%, transparent 12.5%, transparent 87%, ${primary} 87.5%, ${primary}), linear-gradient(30deg, ${primary} 12%, transparent 12.5%, transparent 87%, ${primary} 87.5%, ${primary}), linear-gradient(150deg, ${primary} 12%, transparent 12.5%, transparent 87%, ${primary} 87.5%, ${primary}), linear-gradient(60deg, ${accent}33 25%, transparent 25.5%, transparent 75%, ${accent}33 75%, ${accent}33)`,
+    backgroundPosition: "0 0, 0 0, 28px 49px, 28px 49px, 0 0",
+    backgroundSize: "56px 98px",
+    color: accent,
+  };
 }
 
-export default function CardBack({ 
-  className,
-}: CardBackProps) {
-  return (
-    <div className={cn("w-44 h-60 shrink-0 z-0 relative font-skybo", className)}>
-      
-      {/* 2. The Inner Box: Handles all visual styling, scaling, and hover states */}
-      <div 
-        className={cn(
-          "w-full h-full rounded-2xl border-4 border-white flex flex-col select-none overflow-hidden shadow-xl bg-white p-0 font-sans transform transition-all duration-300 origin-center",
-        )}
-      >
-        {/* Top Section: Conic Gradient Background with Pattern and Text Overlay */}
-        <div className="relative h-1/2 bg-[conic-gradient(from_0deg,#5ec8f8_0deg,#4f7cff_65deg,#6dd56d_130deg,#ffe34d_209deg,#ff8a5b_281deg,#ef5da8_325deg,#5ec8f8_360deg)]">
-            <div 
-            className="absolute inset-0 opacity-[0.22] mix-blend-overlay"
-            style={{
-                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='97' viewBox='0 0 56 97'%3E%3Cpath d='M28 0 L56 16.16 V48.5 L28 64.66 L0 48.5 V16.16 Z M0 48.5 L28 32.34 L56 48.5 M0 16.16 L28 32.34 L56 16.16 M28 64.66 V97 M0 80.83 L28 97 L56 80.83' fill='none' stroke='%23ffffff' stroke-width='1.2' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E")`,
-            }}
-            />
-            <div className="text-[40px] text-black absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 font-bold tracking-wider -rotate-22 select-none">
-                SKYBO
-            </div>
-            <div className="text-[44px] absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 font-bold tracking-wider text-white -rotate-22 select-none">
-                SKYBO
-            </div>
-        </div>
+function safeColor(value: string, fallback: string) {
+  return /^#[0-9a-fA-F]{6}$/.test(value) ? value : fallback;
+}
 
-        <div className="relative h-1/2 bg-[conic-gradient(from_0deg,#5ec8f8_0deg,#4f7cff_65deg,#6dd56d_130deg,#ffe34d_209deg,#ff8a5b_281deg,#ef5da8_325deg,#5ec8f8_360deg)] rotate-180">
-            <div 
-            className="absolute inset-0 opacity-[0.22] mix-blend-overlay"
-            style={{
-                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='97' viewBox='0 0 56 97'%3E%3Cpath d='M28 0 L56 16.16 V48.5 L28 64.66 L0 48.5 V16.16 Z M0 48.5 L28 32.34 L56 48.5 M0 16.16 L28 32.34 L56 16.16 M28 64.66 V97 M0 80.83 L28 97 L56 80.83' fill='none' stroke='%23ffffff' stroke-width='1.2' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E")`,
-            }}
-            />
-            <div className="text-[40px] text-black absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 font-bold tracking-wider -rotate-22 select-none">
-                SKYBO
-            </div>
-            <div className="text-[44px] absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 font-bold tracking-wider text-white -rotate-22 select-none">
-                SKYBO
-            </div>
+export default function CardBack({
+  className,
+  label = "Score Loser",
+  backStyle = DEFAULT_DECK_BACK.backStyle,
+  primaryColor = DEFAULT_DECK_BACK.backPrimaryColor,
+  secondaryColor = DEFAULT_DECK_BACK.backSecondaryColor,
+  accentColor = DEFAULT_DECK_BACK.backAccentColor,
+}: CardBackProps) {
+  const safePrimary = safeColor(primaryColor, DEFAULT_DECK_BACK.backPrimaryColor);
+  const safeSecondary = safeColor(secondaryColor, DEFAULT_DECK_BACK.backSecondaryColor);
+  const safeAccent = safeColor(accentColor, DEFAULT_DECK_BACK.backAccentColor);
+  return (
+    <div
+      className={cn("relative z-0 h-60 w-44 shrink-0 select-none", className)}
+      data-back-style={backStyle}
+      aria-label={`${label} deck back`}
+    >
+      <div
+        className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl border-4 border-white p-3 shadow-xl"
+        style={pattern(backStyle, safePrimary, safeSecondary, safeAccent)}
+      >
+        <div className="absolute inset-2 rounded-lg border" style={{ borderColor: `${safeAccent}aa` }} />
+        <div className="absolute inset-4 rounded-md border" style={{ borderColor: `${safeAccent}66` }} />
+        <div
+          className="relative max-w-full -rotate-6 rounded-lg border-2 px-3 py-2 text-center text-base font-black uppercase leading-tight tracking-[0.12em] shadow-lg backdrop-blur-sm"
+          style={{ borderColor: safeAccent, backgroundColor: `${safeSecondary}cc`, color: safeAccent }}
+        >
+          {label}
         </div>
       </div>
     </div>

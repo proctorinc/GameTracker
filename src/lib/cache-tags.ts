@@ -14,6 +14,14 @@ export function getTitlesGlobalTag() {
   return "titles:global";
 }
 
+export function getCardCatalogTag() {
+  return "card-catalog:global";
+}
+
+export function getFeatureFlagsTag() {
+  return "feature-flags:global";
+}
+
 export function getGameHistoryTag(userId: string) {
   return `game-history:${userId}`;
 }
@@ -36,4 +44,8 @@ export function getPlayerRankStandingsTag() {
 
 export function getPlayerRankHistoryTag() {
   return "player-rank:history";
+}
+
+export function getProfileIdentityTag() {
+  return "profile-identity:global";
 }

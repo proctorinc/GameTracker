@@ -15,7 +15,7 @@ export function PublicProfileCard() {
         <CardTitle>My Profile</CardTitle>
         <Link
           href={`/profile/${encodeURIComponent(user.id)}`}
-          className="flex items-center justify-between rounded-2xl border border-border bg-muted/60 px-4 py-3 transition-colors hover:bg-muted"
+          className="flex items-center justify-between rounded-xl border border-border bg-muted/60 px-4 py-3 transition-colors hover:bg-muted"
         >
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-foreground text-background">
@@ -31,7 +31,7 @@ export function PublicProfileCard() {
           <ExternalLink className="size-4 text-muted-foreground" />
         </Link>
         <SignOutButton redirectUrl="/login">
-          <div className="flex items-center justify-between rounded-2xl border border-border bg-muted/60 px-4 py-3 transition-colors hover:bg-muted">
+          <div className="flex items-center justify-between rounded-xl border border-border bg-muted/60 px-4 py-3 transition-colors hover:bg-muted">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-foreground text-background">
                 <DoorOpen className="size-4" />

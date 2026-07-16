@@ -178,13 +178,15 @@ export default function GameHistoryList({
         return (
           <article
             key={game.id}
-            className="overflow-hidden rounded-[1.75rem] border border-border/70 bg-card shadow-lg"
+            className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-lg"
           >
             <GameTitleImage
-              className="min-h-52 border-b border-border/40"
+              className="rounded-b-none border-b"
               color={title?.color}
               contentClassName="h-full"
               imageUrl={title?.imageUrl}
+              size="xl"
+              verticalFocus={title?.imageVerticalFocus}
               variant="card"
             >
               <div className="flex h-full flex-col justify-between gap-4 p-4 text-white">
@@ -245,7 +247,7 @@ export default function GameHistoryList({
                     </div>
                   </div>
 
-                  <div className="rounded-[1.4rem] border border-white/15 bg-black/18 px-3 py-2.5 backdrop-blur-sm">
+                  <div className="rounded-xl border border-white/15 bg-slate-900/18 px-3 py-2.5 backdrop-blur-sm dark:bg-black/18">
                     <div className="flex items-center justify-start">
                       <PlayerStack
                         currentUserId={currentUserId}

@@ -96,7 +96,7 @@ export function GameTitleHistoryList({
             href={`/game/${game.id}/play`}
             className={cn(
               sectionItemClassName,
-              "block rounded-[1.6rem] border-border/70 bg-card/95 px-4 py-3 transition-colors hover:bg-muted/75",
+              "block rounded-xl border-border/70 bg-card/95 px-4 py-3 transition-colors hover:bg-muted/75",
             )}
           >
             <div className="flex items-start justify-between gap-3">
@@ -139,7 +139,7 @@ export function GameTitleHistoryList({
 
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               {game.currentUser ? (
-                <div className="rounded-2xl border border-border/70 bg-muted/45 p-3">
+                <div className="rounded-xl border border-border/70 bg-muted/45 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                       You
@@ -166,7 +166,7 @@ export function GameTitleHistoryList({
               ) : null}
 
               {comparisonPlayer ? (
-                <div className="rounded-2xl border border-border/70 bg-muted/35 p-3">
+                <div className="rounded-xl border border-border/70 bg-muted/35 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="truncate text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                       {comparisonPlayer.displayName}
@@ -191,7 +191,7 @@ export function GameTitleHistoryList({
                   </div>
                 </div>
               ) : (
-                <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 p-3 text-sm text-muted-foreground">
+                <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 p-3 text-sm text-muted-foreground">
                   Select a comparison player to see side-by-side game results.
                 </div>
               )}

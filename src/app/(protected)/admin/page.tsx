@@ -1,7 +1,9 @@
 import {
   AlertTriangle,
+  Compass,
   Gamepad2,
   ListOrdered,
+  Layers3,
   Settings2,
   Trophy,
   Users,
@@ -17,8 +19,16 @@ import {
 import { getPlayerRankHealthCheck } from "@/lib/db/store/player-rank.store";
 import Link from "next/link";
 import { requireAdminPageUser } from "./admin-guard";
+import { AdminCardsFeatureToggle } from "@/components/admin/admin-cards-feature-toggle";
+import { areCardsEnabled } from "@/lib/db/store/feature-flags.store";
 
 const adminLinks = [
+  {
+    href: "/admin/cards",
+    title: "Card catalog",
+    description: "Manage collectible decks, rarities, and templates.",
+    icon: Layers3,
+  },
   {
     href: "/admin/titles",
     title: "Game titles",
@@ -49,6 +59,12 @@ const adminLinks = [
     description: "Manage users, invites, and merges.",
     icon: Users,
   },
+  {
+    href: "/admin/dashboard-style-demo",
+    title: "Dashboard style sandbox",
+    description: "Preview the experimental map-and-scroll dashboard vibe.",
+    icon: Compass,
+  },
 ] satisfies Array<{
   href: string;
   title: string;
@@ -70,7 +86,10 @@ function getHealthTone(status: "good" | "review" | "error") {
 
 export default async function AdminPage() {
   await requireAdminPageUser();
-  const playerRankHealthCheck = await getPlayerRankHealthCheck();
+  const [playerRankHealthCheck, cardsEnabled] = await Promise.all([
+    getPlayerRankHealthCheck(),
+    areCardsEnabled(),
+  ]);
 
   return (
     <div className="min-h-screen overflow-y-auto px-4 pb-40">
@@ -82,6 +101,8 @@ export default async function AdminPage() {
           </p>
         </div>
 
+        <AdminCardsFeatureToggle initiallyEnabled={cardsEnabled} />
+
         <div className="grid gap-4 md:grid-cols-2">
           {adminLinks.map((link) => (
             <Link key={link.href} href={link.href} className="block">
@@ -89,7 +110,7 @@ export default async function AdminPage() {
                 <CardHeader>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex gap-1 items-center">
-                      <div className="mb-2 flex size-11 items-center justify-center rounded-2xl border border-border/70 bg-muted/50">
+                      <div className="mb-2 flex size-11 items-center justify-center rounded-xl border border-border/70 bg-muted/50">
                         <link.icon className="size-5" />
                       </div>
                       <CardTitle className="text-lg font-black">

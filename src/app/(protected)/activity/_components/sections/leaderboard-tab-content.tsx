@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { PlayerRankPodium } from "@/components/player-rank/player-rank-podium";
-import { PlayerRankTrendCard } from "@/components/player-rank/player-rank-trend-card";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardEmpty } from "@/components/ui/card";
@@ -47,7 +46,7 @@ function LeaderboardDetailPanel({
 }) {
   return (
     <div
-      className="mx-3 mb-3 rounded-[1.4rem] border border-border/70 bg-card p-4"
+      className="mx-3 mb-3 rounded-xl border border-border/70 bg-card p-4"
       onClick={onClick}
     >
       <div className="mb-3">
@@ -68,7 +67,7 @@ function LeaderboardDetailPanel({
         </Link>
       </div>
       <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-2xl border border-border/70 bg-muted/40 px-3 py-3 text-center">
+        <div className="rounded-xl border border-border/70 bg-muted/40 px-3 py-3 text-center">
           <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-muted-foreground">
             Recent Activity
           </p>
@@ -76,7 +75,7 @@ function LeaderboardDetailPanel({
             {friend.recentActivityCount}
           </p>
         </div>
-        <div className="rounded-2xl border border-border/70 bg-muted/40 px-3 py-3 text-center">
+        <div className="rounded-xl border border-border/70 bg-muted/40 px-3 py-3 text-center">
           <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-muted-foreground">
             Ranked Games
           </p>
@@ -84,7 +83,7 @@ function LeaderboardDetailPanel({
             {friend.playerRankGamesCount}
           </p>
         </div>
-        <div className="rounded-2xl border border-border/70 bg-muted/40 px-3 py-3 text-center sm:col-span-2">
+        <div className="rounded-xl border border-border/70 bg-muted/40 px-3 py-3 text-center sm:col-span-2">
           <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-muted-foreground">
             Top 3 Finishes
           </p>
@@ -121,7 +120,7 @@ function LeaderboardListRow({
   return (
     <Card
       className={cn(
-        "w-full gap-0 overflow-hidden rounded-3xl bg-card py-0 text-left transition-transform hover:scale-[1.01]",
+        "w-full gap-0 overflow-hidden rounded-xl bg-card py-0 text-left transition-transform hover:scale-[1.01]",
         entryHasNoActivity && "opacity-70 saturate-[0.85]",
       )}
       onClick={onToggle}
@@ -150,7 +149,6 @@ function LeaderboardListRow({
             user={friend.user}
             className="border-none"
             linkToProfile
-            size="sm"
           />
         </div>
         <div className="flex min-w-0 flex-1 items-center gap-3">

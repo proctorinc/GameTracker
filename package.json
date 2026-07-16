@@ -6,6 +6,8 @@
     "dev": "node --import tsx scripts/dev.ts",
     "dev:next": "next dev",
     "db:seed": "node --import tsx scripts/seed-dev.ts",
+    "cards:reset": "node --import tsx scripts/reset-card-collections.ts",
+    "cards:catalog:seed": "node --import tsx scripts/seed-card-catalog.ts",
     "db:seed:staging": "node --import tsx scripts/seed-staging.ts",
     "auth:backfill:clerk": "node --env-file=.env.production --import tsx scripts/backfill-clerk-users.ts",
     "db:repair:guest-merge": "node --import tsx scripts/repair-guest-merge.ts",

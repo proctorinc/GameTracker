@@ -72,6 +72,7 @@ function createSnapshot(): PlayGameSnapshot {
         normalizedTitle: "skyjo",
         color: "#123456",
         imageUrl: "/images/skyjo.png",
+        imageVerticalFocus: 50,
         defaultScoringMode: null,
         defaultEndingMode: null,
         defaultTrackRounds: null,

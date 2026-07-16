@@ -84,20 +84,20 @@ export function deriveGamePlacementOutcome(input: {
     input.participants.map((participant) => participant.userId),
   );
 
-  if (input.scoringMode === "no_score") {
-    const explicitPlacements = (input.resultPlacements ?? [])
-      .filter(
-        (placement) =>
-          allowedUserIds.has(placement.userId) && placement.placement > 0,
-      )
-      .sort((left, right) => {
-        if (left.placement !== right.placement) {
-          return left.placement - right.placement;
-        }
+  const explicitPlacements = (input.resultPlacements ?? [])
+    .filter(
+      (placement) =>
+        allowedUserIds.has(placement.userId) && placement.placement > 0,
+    )
+    .sort((left, right) => {
+      if (left.placement !== right.placement) {
+        return left.placement - right.placement;
+      }
 
-        return left.userId.localeCompare(right.userId);
-      });
+      return left.userId.localeCompare(right.userId);
+    });
 
+  if (input.scoringMode === "no_score" || explicitPlacements.length > 0) {
     const placementByUserId = Object.fromEntries(
       explicitPlacements.map((placement) => [
         placement.userId,

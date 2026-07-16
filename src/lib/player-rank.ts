@@ -120,7 +120,7 @@ function buildTiedPlacementGroups(input: {
   winnerUserIds?: string[];
   placementSelections?: PlayerRankGameLike["placementSelections"];
 }) {
-  if (input.scoringMode === "no_score") {
+  if (input.scoringMode === "no_score" || (input.placementSelections?.length ?? 0) > 0) {
     const normalizedSelections = normalizePlacementSelections(
       input.placementSelections,
       input.players,

@@ -15,7 +15,10 @@ import { GameTitleHistoryList } from "@/components/game/game-title-history-list"
 import GameTitleImage from "@/components/game/game-title-image";
 import GameTitleImageEditor from "@/components/game/game-title-image-editor";
 import { GameTitleRankChart } from "@/components/game/game-title-rank-chart";
-import { getProfileColorFillStyles } from "@/components/profile/profile-color-styles";
+import {
+  ComparisonMetricRow,
+  compareMetricValues,
+} from "@/components/profile/comparison-metric-row";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { ProfileMatchupSelector } from "@/components/profile/profile-matchup-selector";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +29,6 @@ import type {
   GameTitleStatsPageData,
   GameTitleStatsSummary,
 } from "@/lib/db/store/game.store";
-import { cn } from "@/lib/utils";
 import { useRememberedPageTabState } from "@/lib/use-remembered-page-tab-state";
 
 type GameTitlePageTab = "stats" | "admin";
@@ -58,93 +60,6 @@ function formatScore(value: number | null) {
   return value.toFixed(1).replace(".0", "");
 }
 
-function ComparisonMetricRow(props: {
-  label: string;
-  currentValue: string | number;
-  comparisonValue: string | number;
-  currentWins: boolean;
-  comparisonWins: boolean;
-  currentColor: string;
-  comparisonColor: string;
-}) {
-  return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-border/70 bg-muted/30 px-4 py-3 text-sm">
-      <div
-        className={cn(
-          "flex items-center",
-          props.currentWins ? "font-bold text-foreground" : "text-muted-foreground",
-        )}
-      >
-        <span
-          className={cn(
-            "inline-flex min-h-9 min-w-9 items-center justify-center rounded-full px-3 py-1",
-            props.currentWins && "font-bold",
-          )}
-          style={
-            props.currentWins
-              ? getProfileColorFillStyles(props.currentColor)
-              : undefined
-          }
-        >
-          {props.currentValue}
-        </span>
-      </div>
-      <div className="text-center">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          {props.label}
-        </p>
-      </div>
-      <div
-        className={cn(
-          "flex items-center justify-end",
-          props.comparisonWins ? "font-bold text-foreground" : "text-muted-foreground",
-        )}
-      >
-        <span
-          className={cn(
-            "inline-flex min-h-9 min-w-9 items-center justify-center rounded-full px-3 py-1",
-            props.comparisonWins && "font-bold",
-          )}
-          style={
-            props.comparisonWins
-              ? getProfileColorFillStyles(props.comparisonColor)
-              : undefined
-          }
-        >
-          {props.comparisonValue}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function compareMetric(input: {
-  current: number | null;
-  comparison: number | null;
-  higherIsBetter?: boolean;
-  lowerIsBetter?: boolean;
-}) {
-  if (input.current === null || input.comparison === null) {
-    return { currentWins: false, comparisonWins: false };
-  }
-
-  if (input.current === input.comparison) {
-    return { currentWins: true, comparisonWins: true };
-  }
-
-  if (input.lowerIsBetter) {
-    return {
-      currentWins: input.current < input.comparison,
-      comparisonWins: input.comparison < input.current,
-    };
-  }
-
-  return {
-    currentWins: input.current > input.comparison,
-    comparisonWins: input.comparison > input.current,
-  };
-}
-
 function buildComparisonMetrics(
   current: GameTitleStatsSummary,
   comparison: GameTitleStatsSummary,
@@ -156,37 +71,49 @@ function buildComparisonMetrics(
       label: "Games played",
       currentValue: current.totalGames,
       comparisonValue: comparison.totalGames,
-      ...compareMetric({ current: current.totalGames, comparison: comparison.totalGames }),
+      ...compareMetricValues({
+        current: current.totalGames,
+        comparison: comparison.totalGames,
+      }),
     },
     {
       label: "Completed",
       currentValue: current.completedGames,
       comparisonValue: comparison.completedGames,
-      ...compareMetric({ current: current.completedGames, comparison: comparison.completedGames }),
+      ...compareMetricValues({
+        current: current.completedGames,
+        comparison: comparison.completedGames,
+      }),
     },
     {
       label: "Active games",
       currentValue: current.activeGames,
       comparisonValue: comparison.activeGames,
-      ...compareMetric({ current: current.activeGames, comparison: comparison.activeGames }),
+      ...compareMetricValues({
+        current: current.activeGames,
+        comparison: comparison.activeGames,
+      }),
     },
     {
       label: "Wins",
       currentValue: current.wins,
       comparisonValue: comparison.wins,
-      ...compareMetric({ current: current.wins, comparison: comparison.wins }),
+      ...compareMetricValues({ current: current.wins, comparison: comparison.wins }),
     },
     {
       label: "Win rate",
       currentValue: formatPercent(current.winRate),
       comparisonValue: formatPercent(comparison.winRate),
-      ...compareMetric({ current: current.winRate, comparison: comparison.winRate }),
+      ...compareMetricValues({
+        current: current.winRate,
+        comparison: comparison.winRate,
+      }),
     },
     {
       label: "Avg score",
       currentValue: formatScore(current.averageScore),
       comparisonValue: formatScore(comparison.averageScore),
-      ...compareMetric({
+      ...compareMetricValues({
         current: current.averageScore,
         comparison: comparison.averageScore,
         lowerIsBetter: true,
@@ -196,7 +123,7 @@ function buildComparisonMetrics(
       label: "Best score",
       currentValue: formatScore(current.bestScore),
       comparisonValue: formatScore(comparison.bestScore),
-      ...compareMetric({
+      ...compareMetricValues({
         current: current.bestScore,
         comparison: comparison.bestScore,
         lowerIsBetter: true,
@@ -206,7 +133,7 @@ function buildComparisonMetrics(
       label: rankWindowLabel,
       currentValue: current.rankGainInWindow.formatted,
       comparisonValue: comparison.rankGainInWindow.formatted,
-      ...compareMetric({
+      ...compareMetricValues({
         current: current.rankGainInWindow.minor,
         comparison: comparison.rankGainInWindow.minor,
       }),
@@ -215,7 +142,7 @@ function buildComparisonMetrics(
       label: "All-time rank gain",
       currentValue: current.rankGainAllTime.formatted,
       comparisonValue: comparison.rankGainAllTime.formatted,
-      ...compareMetric({
+      ...compareMetricValues({
         current: current.rankGainAllTime.minor,
         comparison: comparison.rankGainAllTime.minor,
       }),
@@ -224,7 +151,7 @@ function buildComparisonMetrics(
       label: "Best rank game",
       currentValue: current.bestRankGain?.formatted ?? "--",
       comparisonValue: comparison.bestRankGain?.formatted ?? "--",
-      ...compareMetric({
+      ...compareMetricValues({
         current: current.bestRankGain?.minor ?? null,
         comparison: comparison.bestRankGain?.minor ?? null,
       }),
@@ -233,7 +160,7 @@ function buildComparisonMetrics(
       label: "Avg rank per game",
       currentValue: current.averageRankGain?.formatted ?? "--",
       comparisonValue: comparison.averageRankGain?.formatted ?? "--",
-      ...compareMetric({
+      ...compareMetricValues({
         current: current.averageRankGain?.minor ?? null,
         comparison: comparison.averageRankGain?.minor ?? null,
       }),
@@ -242,7 +169,7 @@ function buildComparisonMetrics(
       label: "1st places",
       currentValue: current.placements.first,
       comparisonValue: comparison.placements.first,
-      ...compareMetric({
+      ...compareMetricValues({
         current: current.placements.first,
         comparison: comparison.placements.first,
       }),
@@ -251,7 +178,7 @@ function buildComparisonMetrics(
       label: "2nd places",
       currentValue: current.placements.second,
       comparisonValue: comparison.placements.second,
-      ...compareMetric({
+      ...compareMetricValues({
         current: current.placements.second,
         comparison: comparison.placements.second,
       }),
@@ -260,7 +187,7 @@ function buildComparisonMetrics(
       label: "3rd places",
       currentValue: current.placements.third,
       comparisonValue: comparison.placements.third,
-      ...compareMetric({
+      ...compareMetricValues({
         current: current.placements.third,
         comparison: comparison.placements.third,
       }),
@@ -277,13 +204,14 @@ function ComparisonSection(props: {
     firstName: string | null;
     lastName: string | null;
     color: string;
+    avatarUrl: string | null;
   };
 }) {
   const [showAllMetrics, setShowAllMetrics] = useState(false);
 
   if (!props.comparison) {
     return (
-      <div className="rounded-[1.6rem] border border-dashed border-border/70 bg-muted/20 p-5 text-sm text-muted-foreground">
+      <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 p-5 text-sm text-muted-foreground">
         Select a player to compare title performance side by side.
       </div>
     );
@@ -299,7 +227,7 @@ function ComparisonSection(props: {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-[1.6rem] border border-border/70 bg-card/95 p-4">
+        <div className="rounded-xl border border-border/70 bg-card/95 p-4">
           <ProfilePicture user={props.currentUser} size="sm" />
           <p className="mt-2 text-2xl font-black">
             {props.currentStats.rankGainInWindow.formatted}
@@ -308,7 +236,7 @@ function ComparisonSection(props: {
             {props.currentStats.rankWindowLabel ?? "Window rank gain"}
           </p>
         </div>
-        <div className="rounded-[1.6rem] border border-border/70 bg-card/95 p-4">
+        <div className="rounded-xl border border-border/70 bg-card/95 p-4">
           <ProfilePicture user={props.comparison.user} size="sm" />
           <p className="mt-2 text-2xl font-black">
             {props.comparison.stats.rankGainInWindow.formatted}
@@ -334,7 +262,7 @@ function ComparisonSection(props: {
         <Button
           type="button"
           variant="ghost"
-          className="w-full rounded-2xl border border-border/70"
+          className="w-full rounded-xl border border-border/70"
           onClick={() => setShowAllMetrics((current) => !current)}
         >
           {showAllMetrics ? <ChevronUp /> : <ChevronDown />}
@@ -379,9 +307,11 @@ export default function GameTitlePage({
     <div className="min-h-screen px-4 pb-40">
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <GameTitleImage
-          className="rounded-[2rem] border border-black/5 p-6 text-white shadow-xl"
+          className="p-6 text-white shadow-xl"
           color={title.color}
           imageUrl={title.imageUrl}
+          size="lg"
+          verticalFocus={title.imageVerticalFocus}
           variant="hero"
         >
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -399,7 +329,7 @@ export default function GameTitlePage({
               </div>
             </div>
             <Link
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-white/90"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition-colors hover:bg-white/90 dark:text-slate-950"
               href={`/game/create/settings?titleId=${title.id}`}
             >
               Start a new game
@@ -414,7 +344,7 @@ export default function GameTitlePage({
         />
 
         {canManageDefaults || canManageTitleArtwork ? (
-          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-muted/70 p-1">
+          <div className="grid grid-cols-2 gap-2 rounded-xl border border-border/70 bg-muted/70 p-1">
             <Button
               variant={activeTab === "stats" ? "default" : "ghost"}
               className="rounded-xl"
@@ -468,6 +398,7 @@ export default function GameTitlePage({
                     firstName: null,
                     lastName: null,
                     color: currentUserColor,
+                    avatarUrl: data.currentUserAvatarUrl,
                   }}
                 />
               </CardContent>
@@ -501,7 +432,7 @@ export default function GameTitlePage({
                 <CardTitle className="text-xl font-black">Snapshot</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
-                <div className="flex items-start gap-3 rounded-2xl bg-muted/50 p-4">
+                <div className="flex items-start gap-3 rounded-xl bg-muted/50 p-4">
                   <Clock3 className="mt-0.5 size-4 text-muted-foreground" />
                   <div>
                     <p className="font-semibold">Last played</p>
@@ -510,13 +441,13 @@ export default function GameTitlePage({
                     </p>
                   </div>
                 </div>
-                <div className="rounded-2xl bg-muted/50 p-4">
+                <div className="rounded-xl bg-muted/50 p-4">
                   <p className="font-semibold">Active games</p>
                   <p className="text-muted-foreground">
                     {stats.activeGames} still underway with this title.
                   </p>
                 </div>
-                <div className="rounded-2xl bg-muted/50 p-4">
+                <div className="rounded-xl bg-muted/50 p-4">
                   <p className="font-semibold">Rounds logged</p>
                   <p className="text-muted-foreground">
                     {stats.totalRounds} completed rounds across your history.

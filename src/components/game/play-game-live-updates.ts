@@ -1,4 +1,6 @@
 import type { PlayGameSnapshot } from "@/components/game/play-game-state";
+import { getStoredGamePlayerRole } from "@/lib/game/player-roles";
+import type { GamePlayerRole } from "@/lib/db/schema";
 
 export type RemotePlayGameEvent =
   | {
@@ -35,6 +37,12 @@ export type RemotePlayGameEvent =
       type: "manager-changed";
       userId: string;
       isManager: boolean;
+      localKeys: string[];
+    }
+  | {
+      type: "role-changed";
+      userId: string;
+      role: GamePlayerRole;
       localKeys: string[];
     }
   | {
@@ -205,6 +213,18 @@ export function deriveRemotePlayGameEvents(input: {
       });
     }
 
+    if (
+      getStoredGamePlayerRole(previousPlayer) !==
+      getStoredGamePlayerRole(nextPlayer)
+    ) {
+      events.push({
+        type: "role-changed",
+        userId,
+        role: getStoredGamePlayerRole(nextPlayer),
+        localKeys: [`set-role:${userId}`],
+      });
+    }
+
     if (previousPlayer.user.color !== nextPlayer.user.color) {
       events.push({
         type: "guest-color-updated",
@@ -251,6 +271,7 @@ export function getRemoteHighlightTarget(events: RemotePlayGameEvent[]) {
         break;
       case "player-added":
       case "manager-changed":
+      case "role-changed":
       case "guest-color-updated":
         playerIds.add(event.userId);
         roster = true;
@@ -299,6 +320,7 @@ export function summarizeRemotePlayGameEvents(events: RemotePlayGameEvent[]) {
   const hasPlayerAdded = events.some((event) => event.type === "player-added");
   const hasPlayerRemoved = events.some((event) => event.type === "player-removed");
   const hasManagerChanged = events.some((event) => event.type === "manager-changed");
+  const hasRoleChanged = events.some((event) => event.type === "role-changed");
   const hasColorUpdate = events.some(
     (event) => event.type === "guest-color-updated",
   );
@@ -335,8 +357,8 @@ export function summarizeRemotePlayGameEvents(events: RemotePlayGameEvent[]) {
     summaries.push("Player removed");
   }
 
-  if (hasManagerChanged) {
-    summaries.push("Manager access updated");
+  if (hasManagerChanged || hasRoleChanged) {
+    summaries.push("Player role updated");
   }
 
   if (hasColorUpdate) {

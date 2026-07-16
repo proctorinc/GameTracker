@@ -6,7 +6,11 @@ import {
   getTitlesPageCollections,
 } from "@/app/actions/pages/titles";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
-import { getTitlesGlobalTag, getTitlesTag } from "@/lib/cache-tags";
+import {
+  getProfileIdentityTag,
+  getTitlesGlobalTag,
+  getTitlesTag,
+} from "@/lib/cache-tags";
 import { isNextRedirectError } from "@/lib/next-navigation-errors";
 import { logError, logInfo } from "@/lib/server-log";
 import { getServerRequestContext } from "@/lib/server-request-context";
@@ -65,7 +69,11 @@ async function getTitlesOverviewPageDataCached(
       }),
     [userId, cacheKey],
     {
-      tags: [getTitlesTag(userId), getTitlesGlobalTag()],
+      tags: [
+        getTitlesTag(userId),
+        getTitlesGlobalTag(),
+        getProfileIdentityTag(),
+      ],
     },
   )();
 }

@@ -5,6 +5,7 @@ export type ProfileStatsUser = {
   firstName: string | null;
   lastName: string | null;
   color: string;
+  avatarUrl: string | null;
   isGuest: boolean;
   mergedIntoUserId?: string | null;
 };
@@ -14,6 +15,7 @@ export type ProfileStatsComparisonOption = {
   firstName: string | null;
   lastName: string | null;
   color: string;
+  avatarUrl: string | null;
   displayName: string;
   isGuest: boolean;
 };
@@ -23,6 +25,7 @@ export type ProfileStatsTitle = {
   title: string;
   color: string;
   imageUrl: string;
+  imageVerticalFocus: number;
 };
 
 export type ProfileStatsCompletedGame = {
@@ -56,6 +59,7 @@ export type ProfileStatsSignatureTitle = {
   title: string;
   color: string;
   imageUrl: string;
+  imageVerticalFocus: number;
   completedCount: number;
   winRate: number;
   lastPlayedAt: string;
@@ -280,6 +284,7 @@ export function buildProfileStats(input: {
         title: game.title.title,
         color: game.title.color,
         imageUrl: game.title.imageUrl,
+        imageVerticalFocus: game.title.imageVerticalFocus,
         completedCount: (existing?.completedCount ?? 0) + 1,
         wins: (existing?.wins ?? 0) + (profileWon ? 1 : 0),
         lastPlayedAt:
@@ -482,6 +487,7 @@ function toComparisonOption(user: ProfileStatsUser): ProfileStatsComparisonOptio
     firstName: user.firstName,
     lastName: user.lastName,
     color: user.color,
+    avatarUrl: user.avatarUrl ?? null,
     displayName: formatProfileDisplayName(user),
     isGuest: user.isGuest,
   };
@@ -600,6 +606,7 @@ function summarizeOverallComparisonStats(input: {
       title: game.title.title,
       color: game.title.color,
       imageUrl: game.title.imageUrl,
+      imageVerticalFocus: game.title.imageVerticalFocus,
       completedCount: (existing?.completedCount ?? 0) + 1,
       wins: (existing?.wins ?? 0) + (profileWon ? 1 : 0),
       lastPlayedAt:

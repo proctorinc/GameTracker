@@ -5,6 +5,7 @@ import {
   primaryKey,
   check,
   index,
+  uniqueIndex,
   type AnySQLiteColumn,
 } from "drizzle-orm/sqlite-core";
 import { createId } from "@paralleldrive/cuid2";
@@ -31,8 +32,12 @@ export const gameTitleAcquisitionSources = [
 ] as const;
 export type GameTitleAcquisitionSource =
   (typeof gameTitleAcquisitionSources)[number];
-export const gameVersions = ["v1"] as const;
+export const gameVersions = ["v1", "v2"] as const;
 export type GameVersion = (typeof gameVersions)[number];
+export const gameSettingsVersions = ["v1", "v2"] as const;
+export type GameSettingsVersion = (typeof gameSettingsVersions)[number];
+export const gamePlayerRoles = ["player", "self_scorer", "manager"] as const;
+export type GamePlayerRole = (typeof gamePlayerRoles)[number];
 export const gameScoringModes = [
   "highest_wins",
   "lowest_wins",
@@ -61,6 +66,22 @@ export type UserRole = (typeof userRoles)[number];
 export const playerRankConfigVersions = ["v1"] as const;
 export type PlayerRankConfigVersion =
   (typeof playerRankConfigVersions)[number];
+export const cardRarities = ["common", "uncommon", "rare", "legendary"] as const;
+export type CardRarity = (typeof cardRarities)[number];
+export const cardRendererTypes = [
+  "game_piece",
+  "skyjo_number",
+  "friend_profile",
+  "played_title",
+] as const;
+export type CardRendererType = (typeof cardRendererTypes)[number];
+export const cardSubjectTypes = ["friend", "game_title"] as const;
+export type CardSubjectType = (typeof cardSubjectTypes)[number];
+export const deckBackStyles = ["geometric", "sunburst", "classic"] as const;
+export type DeckBackStyle = (typeof deckBackStyles)[number];
+
+export const featureFlagKeys = ["cards"] as const;
+export type FeatureFlagKey = (typeof featureFlagKeys)[number];
 
 export const users = sqliteTable("users", {
   id: text("id")
@@ -97,45 +118,142 @@ export const users = sqliteTable("users", {
   updatedAt: text("updated_at"),
 });
 
-export const cardDrops = sqliteTable("card_drops", {
-  id: text("id")
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  gameId: text("game_id").references(() => games.id, { onDelete: "cascade" }),
-  cardCount: integer("card_count").notNull().default(1),
-  deckName: text("deck_id").references(() => decks.name, {
-    onDelete: "cascade",
+export const featureFlags = sqliteTable("feature_flags", {
+  key: text("key").$type<FeatureFlagKey>().notNull().primaryKey(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+  updatedByUserId: text("updated_by_user_id").references(() => users.id, {
+    onDelete: "set null",
   }),
+  updatedAt: text("updated_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
 });
+
+export const cardDrops = sqliteTable(
+  "card_drops",
+  {
+    id: text("id")
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    gameId: text("game_id").references(() => games.id, {
+      onDelete: "cascade",
+    }),
+    cardCount: integer("card_count").notNull().default(1),
+    deckName: text("deck_id").references(() => decks.name, {
+      onDelete: "cascade",
+    }),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    openedAt: text("opened_at"),
+  },
+  (table) => [
+    uniqueIndex("card_drops_user_game_deck_unique").on(
+      table.userId,
+      table.gameId,
+      table.deckName,
+    ),
+  ],
+);
 
 export const decks = sqliteTable("decks", {
-  name: text("name").notNull().primaryKey(),
-  description: text("description").notNull().default(""),
+    name: text("name").notNull().primaryKey(),
+    label: text("label").notNull().default("Deck"),
+    description: text("description").notNull().default(""),
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    packSize: integer("pack_size").notNull().default(5),
+    commonOdds: integer("common_odds").notNull().default(70),
+    uncommonOdds: integer("uncommon_odds").notNull().default(20),
+    rareOdds: integer("rare_odds").notNull().default(8),
+    legendaryOdds: integer("legendary_odds").notNull().default(2),
+    backStyle: text("back_style")
+      .$type<DeckBackStyle>()
+      .notNull()
+      .default("geometric"),
+    backPrimaryColor: text("back_primary_color").notNull().default("#4f46e5"),
+    backSecondaryColor: text("back_secondary_color").notNull().default("#0f172a"),
+    backAccentColor: text("back_accent_color").notNull().default("#f8fafc"),
+    createdAt: text("created_at")
+      .notNull()
+      .default("1970-01-01T00:00:00.000Z")
+      .$defaultFn(() => new Date().toISOString()),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default("1970-01-01T00:00:00.000Z")
+      .$defaultFn(() => new Date().toISOString()),
 });
 
-export const cards = sqliteTable("cards", {
-  id: text("id")
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  ownerId: text("owner_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }), // 🌟 Cascades on user deletion
-  deckName: text("deck_name")
-    .notNull()
-    .references(() => decks.name, { onDelete: "cascade" }), // 🌟 Cascades on deck deletion
-  value: integer("value").notNull(),
-  suit: text("suit").notNull(),
-  weight: integer("weight").notNull(),
-  modifier: text("modifier").notNull().default("Basic"),
-  probability: integer("exact_pull_chance").notNull(),
-  suitProbability: integer("generic_pull_chance").notNull(),
-  createdAt: text("created_at"),
-});
+export const cardTemplates = sqliteTable(
+  "card_templates",
+  {
+    id: text("id")
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    deckName: text("deck_name")
+      .notNull()
+      .references(() => decks.name, { onDelete: "cascade" }),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    rarity: text("rarity").$type<CardRarity>().notNull(),
+    renderer: text("renderer").$type<CardRendererType>().notNull(),
+    configJson: text("config_json").notNull().default("{}"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    updatedAt: text("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    uniqueIndex("card_templates_deck_slug_unique").on(
+      table.deckName,
+      table.slug,
+    ),
+    index("card_templates_deck_sort_idx").on(table.deckName, table.sortOrder),
+  ],
+);
+
+export const cards = sqliteTable(
+  "cards",
+  {
+    id: text("id")
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    deckName: text("deck_name")
+      .notNull()
+      .references(() => decks.name, { onDelete: "cascade" }),
+    value: integer("value").notNull(),
+    suit: text("suit").notNull(),
+    weight: integer("weight").notNull(),
+    modifier: text("modifier").notNull().default("Basic"),
+    probability: integer("exact_pull_chance").notNull(),
+    suitProbability: integer("generic_pull_chance").notNull(),
+    cardTemplateId: text("card_template_id").references(
+      () => cardTemplates.id,
+      { onDelete: "restrict" },
+    ),
+    rarity: text("rarity").$type<CardRarity>(),
+    subjectType: text("subject_type").$type<CardSubjectType>(),
+    subjectId: text("subject_id"),
+    createdAt: text("created_at"),
+  },
+  (table) => [
+    index("cards_owner_deck_idx").on(table.ownerId, table.deckName),
+    index("cards_template_subject_idx").on(table.cardTemplateId, table.subjectId),
+  ],
+);
 
 export const friendships = sqliteTable(
   "friendships",
@@ -211,6 +329,15 @@ export const gameTitle = sqliteTable("game_title", {
   normalizedTitle: text("normalized_title").notNull().unique(),
   color: text("color").notNull().default("#475569"),
   imageUrl: text("image_url").notNull().default("/images/skyjo.png"),
+  rewardDeckName: text("reward_deck_name").references(() => decks.name, {
+    onDelete: "set null",
+  }),
+  imageVerticalFocus: integer("image_vertical_focus").notNull().default(50),
+  customPlayScreenEnabled: integer("custom_play_screen_enabled", {
+    mode: "boolean",
+  })
+    .notNull()
+    .default(true),
   defaultScoringMode: text("default_scoring_mode").$type<GameScoringMode>(),
   defaultEndingMode: text("default_ending_mode").$type<GameEndingMode>(),
   defaultTrackRounds: integer("default_track_rounds", { mode: "boolean" }),
@@ -219,6 +346,8 @@ export const gameTitle = sqliteTable("game_title", {
   defaultScoreThresholdDirection: text(
     "default_score_threshold_direction",
   ).$type<GameScoreThresholdDirection>(),
+  defaultSettingsVersion: text("default_settings_version").$type<GameSettingsVersion>(),
+  defaultSettingsJson: text("default_settings_json"),
   isUniversal: integer("is_universal", { mode: "boolean" })
     .notNull()
     .default(false),
@@ -262,6 +391,47 @@ export const userGameTitle = sqliteTable(
   (table) => [primaryKey({ columns: [table.userId, table.gameTitleId] })],
 );
 
+export const userGameTitleSettings = sqliteTable(
+  "user_game_title_settings",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    gameTitleId: text("game_title_id")
+      .notNull()
+      .references(() => gameTitle.id, { onDelete: "cascade" }),
+    settingsVersion: text("settings_version")
+      .$type<GameSettingsVersion>()
+      .notNull(),
+    settingsJson: text("settings_json").notNull(),
+    updatedAt: text("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.gameTitleId] })],
+);
+
+export const userGameTitlePreferences = sqliteTable(
+  "user_game_title_preferences",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    gameTitleId: text("game_title_id")
+      .notNull()
+      .references(() => gameTitle.id, { onDelete: "cascade" }),
+    gameSpecificSettingsJson: text("game_specific_settings_json"),
+    defaultPlayerRole: text("default_player_role")
+      .$type<GamePlayerRole>()
+      .notNull()
+      .default("player"),
+    updatedAt: text("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.gameTitleId] })],
+);
+
 export const games = sqliteTable("games", {
   id: text("id")
     .notNull()
@@ -290,6 +460,10 @@ export const games = sqliteTable("games", {
   scoreThresholdDirection: text(
     "score_threshold_direction",
   ).$type<GameScoreThresholdDirection>(),
+  settingsJson: text("settings_json"),
+  gameSpecificSettingsJson: text("game_specific_settings_json"),
+  defaultPlayerRole: text("default_player_role").$type<GamePlayerRole>(),
+  customPlayStateJson: text("custom_play_state_json"),
   shareToken: text("share_token").unique(),
   inviteUsersEnabled: integer("invite_users_enabled", { mode: "boolean" })
     .notNull()
@@ -353,6 +527,7 @@ export const gamePlayers = sqliteTable("game_players", {
   isManager: integer("is_manager", { mode: "boolean" })
     .notNull()
     .default(false),
+  role: text("role").$type<GamePlayerRole>(),
   gameId: text("game_id")
     .notNull()
     .references(() => games.id, { onDelete: "cascade" }),
@@ -378,6 +553,33 @@ export const gameRounds = sqliteTable("game_rounds", {
     .$defaultFn(() => new Date().toISOString()),
 });
 
+export const gameEliminations = sqliteTable(
+  "game_eliminations",
+  {
+    id: text("id")
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    gameId: text("game_id")
+      .notNull()
+      .references(() => games.id, { onDelete: "cascade" }),
+    eliminatedUserId: text("eliminated_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    placement: integer("placement").notNull(),
+    roundNumber: integer("round_number"),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    check(
+      "game_eliminations_placement_positive",
+      sql`${table.placement} > 0`,
+    ),
+  ],
+);
+
 export const gameRoundScores = sqliteTable(
   "game_round_scores",
   {
@@ -398,6 +600,62 @@ export const gameRoundScores = sqliteTable(
   },
   (table) => [
     check("game_round_score_non_null", sql`${table.scoreDelta} IS NOT NULL`),
+  ],
+);
+
+export const gameItemizedScoreCategories = sqliteTable(
+  "game_itemized_score_categories",
+  {
+    id: text("id")
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    gameId: text("game_id")
+      .notNull()
+      .references(() => games.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    value: integer("value").notNull(),
+    formula: text("formula"),
+    inputMode: text("input_mode"),
+    inputsJson: text("inputs_json"),
+    helpText: text("help_text"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+);
+
+export const gameItemizedScoreEntries = sqliteTable(
+  "game_itemized_score_entries",
+  {
+    id: text("id")
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    gameId: text("game_id")
+      .notNull()
+      .references(() => games.id, { onDelete: "cascade" }),
+    gameRoundId: text("game_round_id").references(() => gameRounds.id, {
+      onDelete: "cascade",
+    }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    categoryId: text("category_id")
+      .notNull()
+      .references(() => gameItemizedScoreCategories.id, { onDelete: "cascade" }),
+    quantity: integer("quantity").notNull().default(0),
+    valuesJson: text("values_json"),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    check(
+      "game_itemized_score_entries_quantity_non_negative",
+      sql`${table.quantity} >= 0`,
+    ),
   ],
 );
 
@@ -568,12 +826,29 @@ export const cardsRelations = relations(cards, ({ one }) => ({
     fields: [cards.deckName],
     references: [decks.name],
   }),
+  template: one(cardTemplates, {
+    fields: [cards.cardTemplateId],
+    references: [cardTemplates.id],
+  }),
 }));
 
 export const decksRelations = relations(decks, ({ many }) => ({
   cards: many(cards),
+  templates: many(cardTemplates),
   cardDrops: many(cardDrops),
+  rewardGameTitles: many(gameTitle),
 }));
+
+export const cardTemplatesRelations = relations(
+  cardTemplates,
+  ({ one, many }) => ({
+    deck: one(decks, {
+      fields: [cardTemplates.deckName],
+      references: [decks.name],
+    }),
+    cards: many(cards),
+  }),
+);
 
 export const cardDropsRelations = relations(cardDrops, ({ one }) => ({
   user: one(users, { fields: [cardDrops.userId], references: [users.id] }),
@@ -633,8 +908,11 @@ export const gamesRelations = relations(games, ({ one, many }) => ({
   }),
   players: many(gamePlayers),
   rounds: many(gameRounds),
+  eliminations: many(gameEliminations),
   winners: many(gameWinners),
   resultPlacements: many(gameResultPlacements),
+  itemizedScoreCategories: many(gameItemizedScoreCategories),
+  itemizedScoreEntries: many(gameItemizedScoreEntries),
   playerRankResults: many(gamePlayerRankResults),
   cardDrops: many(cardDrops),
   joinRequests: many(gameJoinRequests),
@@ -645,6 +923,10 @@ export const gameTitleRelations = relations(gameTitle, ({ one, many }) => ({
     fields: [gameTitle.createdByUserId],
     references: [users.id],
   }),
+  rewardDeck: one(decks, {
+    fields: [gameTitle.rewardDeckName],
+    references: [decks.name],
+  }),
   mergedInto: one(gameTitle, {
     fields: [gameTitle.mergedIntoGameTitleId],
     references: [gameTitle.id],
@@ -652,6 +934,8 @@ export const gameTitleRelations = relations(gameTitle, ({ one, many }) => ({
   }),
   games: many(games),
   ownedByUsers: many(userGameTitle),
+  userSettings: many(userGameTitleSettings),
+  userPreferences: many(userGameTitlePreferences),
 }));
 
 export const userGameTitleRelations = relations(userGameTitle, ({ one }) => ({
@@ -674,6 +958,34 @@ export const userGameTitleRelations = relations(userGameTitle, ({ one }) => ({
   }),
 }));
 
+export const userGameTitleSettingsRelations = relations(
+  userGameTitleSettings,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [userGameTitleSettings.userId],
+      references: [users.id],
+    }),
+    gameTitle: one(gameTitle, {
+      fields: [userGameTitleSettings.gameTitleId],
+      references: [gameTitle.id],
+    }),
+  }),
+);
+
+export const userGameTitlePreferencesRelations = relations(
+  userGameTitlePreferences,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [userGameTitlePreferences.userId],
+      references: [users.id],
+    }),
+    gameTitle: one(gameTitle, {
+      fields: [userGameTitlePreferences.gameTitleId],
+      references: [gameTitle.id],
+    }),
+  }),
+);
+
 export const gamePlayersRelations = relations(gamePlayers, ({ one }) => ({
   game: one(games, {
     fields: [gamePlayers.gameId],
@@ -690,8 +1002,23 @@ export const gameRoundsRelations = relations(gameRounds, ({ one, many }) => ({
     fields: [gameRounds.gameId],
     references: [games.id],
   }),
+  itemizedScoreEntries: many(gameItemizedScoreEntries),
   scores: many(gameRoundScores),
 }));
+
+export const gameEliminationsRelations = relations(
+  gameEliminations,
+  ({ one }) => ({
+    game: one(games, {
+      fields: [gameEliminations.gameId],
+      references: [games.id],
+    }),
+    eliminatedUser: one(users, {
+      fields: [gameEliminations.eliminatedUserId],
+      references: [users.id],
+    }),
+  }),
+);
 
 export const gameRoundScoresRelations = relations(
   gameRoundScores,
@@ -703,6 +1030,39 @@ export const gameRoundScoresRelations = relations(
     user: one(users, {
       fields: [gameRoundScores.userId],
       references: [users.id],
+    }),
+  }),
+);
+
+export const gameItemizedScoreCategoriesRelations = relations(
+  gameItemizedScoreCategories,
+  ({ one, many }) => ({
+    game: one(games, {
+      fields: [gameItemizedScoreCategories.gameId],
+      references: [games.id],
+    }),
+    entries: many(gameItemizedScoreEntries),
+  }),
+);
+
+export const gameItemizedScoreEntriesRelations = relations(
+  gameItemizedScoreEntries,
+  ({ one }) => ({
+    game: one(games, {
+      fields: [gameItemizedScoreEntries.gameId],
+      references: [games.id],
+    }),
+    round: one(gameRounds, {
+      fields: [gameItemizedScoreEntries.gameRoundId],
+      references: [gameRounds.id],
+    }),
+    user: one(users, {
+      fields: [gameItemizedScoreEntries.userId],
+      references: [users.id],
+    }),
+    category: one(gameItemizedScoreCategories, {
+      fields: [gameItemizedScoreEntries.categoryId],
+      references: [gameItemizedScoreCategories.id],
     }),
   }),
 );

@@ -6,7 +6,9 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { useProfileOverview } from "../profile-overview-provider";
 import { EditNameForm } from "../controls/edit-name-form";
 import { ProfileColorPanel } from "../controls/profile-color-panel";
+import { ProfileBackgroundPanel } from "../controls/profile-background-panel";
 import { ThemeModePanel } from "../controls/theme-mode-panel";
+import ProfilePicture from "@/components/profile/profile-picture";
 
 export function ProfileDetailsCard() {
   const { user } = useProfileOverview();
@@ -15,7 +17,7 @@ export function ProfileDetailsCard() {
     <Card>
       <CardHeader className="gap-3">
         <CardTitle>Edit Profile</CardTitle>
-        <details className="group rounded-2xl border border-border bg-muted/60">
+        <details className="group rounded-xl border border-border bg-muted/60">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-foreground text-sm font-black text-background">
@@ -34,11 +36,11 @@ export function ProfileDetailsCard() {
             key={`${user.firstName ?? ""}:${user.lastName ?? ""}`}
           />
         </details>
-        <details className="group rounded-2xl border border-border bg-muted/60">
+        <details className="group rounded-xl border border-border bg-muted/60">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
             <div className="flex items-center gap-3">
               <span
-                className="h-9 w-9 rounded-xl shadow-sm ring-1 ring-black/8 dark:ring-white/12"
+                className="h-9 w-9 rounded-xl shadow-sm ring-1 ring-slate-900/8 dark:ring-white/12"
                 style={{ backgroundColor: user.color }}
               />
               <div>
@@ -51,6 +53,21 @@ export function ProfileDetailsCard() {
             <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
           </summary>
           <ProfileColorPanel hidePreview />
+        </details>
+        <details className="group rounded-xl border border-border bg-muted/60">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <ProfilePicture size="sm" user={user} className="h-9 w-9 text-sm" />
+              <div>
+                <p className="text-sm font-medium">Choose your background</p>
+                <p className="text-xs text-muted-foreground">
+                  Pick the badge preview you want to use
+                </p>
+              </div>
+            </div>
+            <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          </summary>
+          <ProfileBackgroundPanel hidePreview />
         </details>
         <ThemeModePanel />
       </CardHeader>

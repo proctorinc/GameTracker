@@ -34,6 +34,7 @@ export function EditNameForm() {
         firstName,
         lastName,
         color: user.color,
+        avatarUrl: user.avatarUrl,
       });
       startTransition(() => {
         router.refresh();

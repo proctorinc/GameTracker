@@ -103,7 +103,7 @@ export default function GameHistoryFilters({
   }
 
   return (
-    <details className="group rounded-2xl border border-border bg-muted/60">
+    <details className="group rounded-xl border border-border bg-muted/60">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
         <div>
           <p className="text-sm font-medium">Filters</p>

@@ -49,6 +49,7 @@ function createDashboardPageData(): DashboardPageData {
       friendshipsAsUser2: [],
     },
     incomingInvitations: [],
+    unopenedCardPacks: [],
     canViewPlayerRank: true,
     playerRankTotal: "270",
     playerRankPosition: 1,
@@ -88,6 +89,8 @@ function createDashboardPageData(): DashboardPageData {
         title: "Skyjo",
         color: "#123456",
         imageUrl: "https://example.com/skyjo.png",
+        imageVerticalFocus: 50,
+        timesPlayed: 6,
       },
     ],
     recentActiveGames: [
@@ -97,6 +100,7 @@ function createDashboardPageData(): DashboardPageData {
         scoringMode: "lowest_wins",
         gameTitle: {
           title: "Skyjo",
+          imageVerticalFocus: 50,
         },
         players: [
           {
@@ -180,6 +184,7 @@ function createDashboardPageData(): DashboardPageData {
         scoringMode: "lowest_wins",
         gameTitle: {
           title: "Skyjo Classic",
+          imageVerticalFocus: 50,
         },
         players: [
           {
@@ -226,6 +231,8 @@ describe("DashboardPageView", () => {
     expect(markup).toContain("Recent games");
     expect(markup).toContain("Continue Playing");
     expect(markup).toContain("Play");
+    expect(markup).toContain("View library");
+    expect(markup).toContain("/titles/played");
     expect(markup).toContain("12");
     expect(markup).toContain("28");
     expect(markup).toContain("Recent games");
@@ -233,5 +240,26 @@ describe("DashboardPageView", () => {
     expect(markup).toContain("1st");
     expect(markup).toContain("Rematch");
     expect(markup).toContain("2nd");
+  });
+
+  it("shows a compact unopened card pack summary", () => {
+    const data = createDashboardPageData();
+    data.unopenedCardPacks = [
+      {
+        deckName: "standard",
+        deckLabel: "Standard",
+        description: "Generic rewards",
+        packCount: 2,
+        cardsPerPack: 5,
+      },
+    ];
+
+    const markup = renderToStaticMarkup(<DashboardPageView data={data} />);
+
+    expect(markup).toContain("Packs ready to open");
+    expect(markup).toContain("2 packs");
+    expect(markup).toContain('href="/card/pull"');
+    expect(markup).not.toContain("Generic rewards");
+    expect(markup).not.toContain("5 cards each");
   });
 });

@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GameForPlayPage } from "@/lib/db/store/game.store";
 import type { PlayerRankGameDelta } from "@/lib/db/store/player-rank.store";
@@ -7,6 +8,7 @@ import { PROFILE_COLORS } from "@/components/profile/profile-color-selector";
 import { renderWithProviders } from "../../../tests/helpers/render";
 import type { PlayGameSnapshot } from "./play-game-state";
 import PlayGame from "./PlayGame";
+import { serializeGameSettingsV2 } from "@/lib/game/v2";
 
 const routerPush = vi.fn();
 const routerRefresh = vi.fn();
@@ -20,6 +22,7 @@ const addGamePlayer = vi.fn();
 const addGuestGamePlayer = vi.fn();
 const approveGameJoinRequest = vi.fn();
 const commitGameRound = vi.fn();
+const completeGame = vi.fn();
 const createRematchGameAndRedirect = vi.fn();
 const declineGameJoinRequest = vi.fn();
 const deleteCreatedGame = vi.fn();
@@ -29,8 +32,11 @@ const reopenCompletedGame = vi.fn();
 const removeGamePlayer = vi.fn();
 const resumeGame = vi.fn();
 const setGameInviteUsersEnabled = vi.fn();
-const setGamePlayerManager = vi.fn();
+const setGamePlayerRole = vi.fn();
+const uneliminateGamePlayer = vi.fn();
+const updateRecordedRoundItemizedScore = vi.fn();
 const updateRecordedRoundScore = vi.fn();
+const upsertActiveRoundItemizedScore = vi.fn();
 const upsertActiveRoundScore = vi.fn();
 const updateOwnedGuestColor = vi.fn();
 
@@ -56,6 +62,7 @@ vi.mock("@/app/actions/game", () => ({
   addGamePlayer: (...args: unknown[]) => addGamePlayer(...args),
   addGuestGamePlayer: (...args: unknown[]) => addGuestGamePlayer(...args),
   commitGameRound: (...args: unknown[]) => commitGameRound(...args),
+  completeGame: (...args: unknown[]) => completeGame(...args),
   createRematchGameAndRedirect: (...args: unknown[]) =>
     createRematchGameAndRedirect(...args),
   declineGameJoinRequest: (...args: unknown[]) => declineGameJoinRequest(...args),
@@ -67,9 +74,14 @@ vi.mock("@/app/actions/game", () => ({
   resumeGame: (...args: unknown[]) => resumeGame(...args),
   setGameInviteUsersEnabled: (...args: unknown[]) =>
     setGameInviteUsersEnabled(...args),
-  setGamePlayerManager: (...args: unknown[]) => setGamePlayerManager(...args),
+  setGamePlayerRole: (...args: unknown[]) => setGamePlayerRole(...args),
+  uneliminateGamePlayer: (...args: unknown[]) => uneliminateGamePlayer(...args),
+  updateRecordedRoundItemizedScore: (...args: unknown[]) =>
+    updateRecordedRoundItemizedScore(...args),
   updateRecordedRoundScore: (...args: unknown[]) =>
     updateRecordedRoundScore(...args),
+  upsertActiveRoundItemizedScore: (...args: unknown[]) =>
+    upsertActiveRoundItemizedScore(...args),
   upsertActiveRoundScore: (...args: unknown[]) =>
     upsertActiveRoundScore(...args),
 }));
@@ -129,6 +141,7 @@ function createGameSnapshot(score = 0): GameForPlayPage {
     targetRounds: null,
     scoreThreshold: null,
     scoreThresholdDirection: null,
+    settingsJson: null,
     shareToken: "game-share-token",
     inviteUsersEnabled: true,
     completedRounds: 0,
@@ -143,12 +156,15 @@ function createGameSnapshot(score = 0): GameForPlayPage {
       normalizedTitle: "skyjo",
       color: "#123456",
       imageUrl: "/images/skyjo.png",
+      imageVerticalFocus: 50,
       defaultScoringMode: null,
       defaultEndingMode: null,
       defaultTrackRounds: null,
       defaultTargetRounds: null,
       defaultScoreThreshold: null,
       defaultScoreThresholdDirection: null,
+      defaultSettingsVersion: null,
+      defaultSettingsJson: null,
       isUniversal: true,
       createdByUserId: creator.id,
       mergedIntoGameTitleId: null,
@@ -156,6 +172,8 @@ function createGameSnapshot(score = 0): GameForPlayPage {
     },
     winners: [],
     resultPlacements: [],
+    itemizedScoreCategories: [],
+    itemizedScoreEntries: [],
     players: [
       {
         id: "game-player-1",
@@ -175,6 +193,7 @@ function createGameSnapshot(score = 0): GameForPlayPage {
       },
     ],
     rounds: [],
+    eliminations: [],
   };
 }
 
@@ -282,6 +301,80 @@ function createCompletedTieGameSnapshot(): GameForPlayPage {
   };
 }
 
+function createEliminationModeSnapshot(): GameForPlayPage {
+  const game = createGameSnapshot();
+  const thirdPlayer = createUser({
+    id: "user-3",
+    firstName: "Noa",
+    color: "#cccccc",
+  });
+
+  return {
+    ...game,
+    version: "v2",
+    scoringMode: "no_score",
+    endingMode: "round_count",
+    trackRounds: true,
+    settingsJson: serializeGameSettingsV2({
+      version: "v2",
+      gameEndTrigger: "player_eliminated",
+      scoringType: "ranked_placement_only",
+      winMetric: "last_man_standing",
+    }),
+    players: [
+      ...game.players,
+      {
+        id: "game-player-3",
+        gameId: game.id,
+        isManager: false,
+        userId: "user-3",
+        score: 0,
+        user: thirdPlayer,
+      },
+    ],
+    eliminations: [
+      {
+        id: "elim-1",
+        gameId: game.id,
+        eliminatedUserId: "user-2",
+        placement: 3,
+        roundNumber: 1,
+        createdAt: "2025-01-01T00:01:00.000Z",
+      },
+    ],
+    completedRounds: 1,
+  };
+}
+
+function createRoundWinnerModeSnapshot(): GameForPlayPage {
+  const game = createGameSnapshot(1);
+
+  return {
+    ...game,
+    version: "v2",
+    scoringMode: "highest_wins",
+    endingMode: "round_count",
+    trackRounds: true,
+    targetRounds: 5,
+    settingsJson: serializeGameSettingsV2({
+      version: "v2",
+      gameEndTrigger: "rounds_exhausted",
+      scoringType: "incremental",
+      winMetric: "highest_score",
+      initialPlayerScore: 0,
+      roundConfig: {
+        enabled: true,
+        targetRounds: 5,
+        requiresRoundWinner: true,
+      },
+      tiePolicy: {
+        allowTies: false,
+        resolution: "manual_winner_override",
+      },
+    }),
+  };
+}
+
 function createRoundTrackedGameSnapshot(): GameForPlayPage {
   return {
     ...createGameSnapshot(),
@@ -370,6 +463,179 @@ function createFreePlayWithRoundsSnapshot(): GameForPlayPage {
     endingMode: "none",
     trackRounds: true,
     completedRounds: 1,
+  };
+}
+
+function createItemizedGameSnapshot(): GameForPlayPage {
+  const game = createGameSnapshot();
+
+  return {
+    ...game,
+    version: "v2",
+    settingsJson: serializeGameSettingsV2({
+      version: "v2",
+      gameEndTrigger: "manual_finish",
+      scoringType: "end_game_tally",
+      winMetric: "highest_score",
+      initialPlayerScore: 0,
+      roundConfig: {
+        enabled: false,
+        targetRounds: null,
+        requiresRoundWinner: false,
+      },
+      thresholdConfig: {
+        value: null,
+        direction: null,
+      },
+      tiePolicy: {
+        allowTies: true,
+        resolution: "allow",
+      },
+      itemizedCategories: [
+        {
+          id: "coins",
+          name: "Coins",
+          optional: false,
+          sortOrder: 0,
+          inputMode: "single",
+          formula: "count * 20",
+          helpText: "Enter coins collected",
+          inputs: [
+            {
+              key: "count",
+              label: "Coins",
+              defaultValue: 0,
+            },
+          ],
+        },
+      ],
+      resourceConfig: {},
+      objectiveConfig: {},
+    }),
+  };
+}
+
+function createAdvancedItemizedGameSnapshot(): GameForPlayPage {
+  const game = createGameSnapshot();
+
+  return {
+    ...game,
+    version: "v2",
+    settingsJson: serializeGameSettingsV2({
+      version: "v2",
+      gameEndTrigger: "manual_finish",
+      scoringType: "end_game_tally",
+      winMetric: "highest_score",
+      initialPlayerScore: 0,
+      roundConfig: {
+        enabled: false,
+        targetRounds: null,
+        requiresRoundWinner: false,
+      },
+      thresholdConfig: {
+        value: null,
+        direction: null,
+      },
+      tiePolicy: {
+        allowTies: true,
+        resolution: "allow",
+      },
+      itemizedCategories: [
+        {
+          id: "coins",
+          name: "Coins",
+          optional: false,
+          sortOrder: 0,
+          inputMode: "single",
+          formula: "count * 20",
+          helpText: "Enter coins collected",
+          inputs: [
+            {
+              key: "count",
+              label: "Coins",
+              defaultValue: 0,
+            },
+          ],
+        },
+        {
+          id: "relics",
+          name: "Relics",
+          optional: true,
+          sortOrder: 1,
+          inputMode: "multi",
+          formula: "if(penalty > 0, base + bonus - penalty, base + bonus)",
+          helpText: "Score each relic modifier",
+          inputs: [
+            {
+              key: "base",
+              label: "Base",
+              defaultValue: 0,
+            },
+            {
+              key: "bonus",
+              label: "Bonus",
+              defaultValue: 0,
+            },
+            {
+              key: "penalty",
+              label: "Penalty",
+              defaultValue: 0,
+            },
+          ],
+        },
+      ],
+      resourceConfig: {},
+      objectiveConfig: {},
+    }),
+  };
+}
+
+function createIncrementalItemizedGameSnapshot(): GameForPlayPage {
+  const game = createGameSnapshot();
+
+  return {
+    ...game,
+    version: "v2",
+    settingsJson: serializeGameSettingsV2({
+      version: "v2",
+      gameEndTrigger: "rounds_exhausted",
+      scoringType: "incremental",
+      winMetric: "highest_score",
+      initialPlayerScore: 0,
+      roundConfig: {
+        enabled: true,
+        targetRounds: 5,
+        requiresRoundWinner: false,
+      },
+      thresholdConfig: {
+        value: null,
+        direction: null,
+      },
+      tiePolicy: {
+        allowTies: true,
+        resolution: "allow",
+      },
+      itemizedCategories: [
+        {
+          id: "coins",
+          name: "Coins",
+          optional: false,
+          sortOrder: 0,
+          inputMode: "single",
+          formula: "count * 20",
+          helpText: "Enter coins collected",
+          inputs: [
+            {
+              key: "count",
+              label: "Coins",
+              defaultValue: 0,
+            },
+          ],
+        },
+      ],
+      resourceConfig: {},
+      objectiveConfig: {},
+    }),
   };
 }
 
@@ -478,6 +744,12 @@ function createCompletedNoScorePodiumSnapshot(): GameForPlayPage {
 
 function renderComponent(input?: {
   canManageLiveGame?: boolean;
+  canEditOwnScore?: boolean;
+  compatibilityConfig?: {
+    allowAnyVersion?: boolean;
+    liveMode?: "standard" | "round_winner" | "elimination";
+    requiresScoredTieBreak?: boolean;
+  };
   currentUserId?: string;
   gameSharePath?: string | null;
   isCreator?: boolean;
@@ -504,6 +776,8 @@ function renderComponent(input?: {
   return renderWithProviders(
     <PlayGame
       canManageLiveGame={input?.canManageLiveGame ?? true}
+      canEditOwnScore={input?.canEditOwnScore}
+      compatibilityConfig={input?.compatibilityConfig}
       currentUserId={input?.currentUserId ?? creator.id}
       game={game}
       gameSharePath={input?.gameSharePath ?? null}
@@ -578,6 +852,7 @@ describe("PlayGame", () => {
     addGuestGamePlayer.mockReset();
     approveGameJoinRequest.mockReset();
     commitGameRound.mockReset();
+    completeGame.mockReset();
     deleteCreatedGame.mockReset();
     declineGameJoinRequest.mockReset();
     getPlayGameSnapshot.mockReset();
@@ -586,14 +861,169 @@ describe("PlayGame", () => {
     removeGamePlayer.mockReset();
     resumeGame.mockReset();
     setGameInviteUsersEnabled.mockReset();
-    setGamePlayerManager.mockReset();
+    setGamePlayerRole.mockReset();
+    uneliminateGamePlayer.mockReset();
     updateRecordedRoundScore.mockReset();
     upsertActiveRoundScore.mockReset();
     updateOwnedGuestColor.mockReset();
     pauseGame.mockResolvedValue(undefined);
+    completeGame.mockResolvedValue(undefined);
     reopenCompletedGame.mockResolvedValue(undefined);
     resumeGame.mockResolvedValue(undefined);
+    uneliminateGamePlayer.mockResolvedValue(undefined);
     vi.useRealTimers();
+  });
+
+  it("uses the standard PlayGame shell for elimination mode and restores eliminated players from the roster", async () => {
+    renderComponent({
+      compatibilityConfig: {
+        allowAnyVersion: true,
+        liveMode: "elimination",
+      },
+      game: createEliminationModeSnapshot(),
+    });
+
+    expect(screen.getByLabelText("Game options")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Round" })).toBeInTheDocument();
+    expect(screen.getByTestId("player-score-display-user-2")).toHaveTextContent(
+      "X",
+    );
+
+    fireEvent.click(screen.getByTestId("player-card-content-user-2"));
+
+    expect(screen.getByText("Undo elimination?")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Restore player" }));
+
+    await waitFor(() => {
+      expect(uneliminateGamePlayer).toHaveBeenCalledWith({
+        eliminatedUserId: "user-2",
+        gameId: "game-1",
+      });
+    });
+  });
+
+  it("confirms the round summary before starting the next elimination round", async () => {
+    const game = createEliminationModeSnapshot();
+
+    renderComponent({
+      compatibilityConfig: {
+        allowAnyVersion: true,
+        liveMode: "elimination",
+      },
+      game: {
+        ...game,
+        completedRounds: 0,
+        settingsJson: serializeGameSettingsV2({
+          version: "v2",
+          gameEndTrigger: "rounds_exhausted",
+          scoringType: "elimination",
+          winMetric: "highest_score",
+          roundConfig: { enabled: true, targetRounds: 3 },
+          tiePolicy: { allowTies: true, resolution: "allow" },
+        }),
+      },
+    });
+
+    fireEvent.click(screen.getByTestId("player-card-content-user-1"));
+
+    expect(commitGameRound).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "End of round 1" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Round winner")).toBeInTheDocument();
+    expect(screen.getAllByText("Noa").length).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("button", { name: "Keep playing" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "End game" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Start next round" }));
+
+    await waitFor(() => {
+      expect(commitGameRound).toHaveBeenCalledWith({
+        completeGame: false,
+        eliminatedUserId: "user-1",
+        gameId: "game-1",
+        placementSelections: [
+          { placement: 1, userIds: ["user-3"] },
+          { placement: 2, userIds: ["user-1"] },
+          { placement: 3, userIds: ["user-2"] },
+        ],
+      });
+    });
+  });
+
+  it("offers ending a free-play elimination game from the round summary", async () => {
+    const game = createEliminationModeSnapshot();
+
+    renderComponent({
+      compatibilityConfig: {
+        allowAnyVersion: true,
+        liveMode: "elimination",
+      },
+      game: {
+        ...game,
+        completedRounds: 0,
+        endingMode: "none",
+        settingsJson: serializeGameSettingsV2({
+          version: "v2",
+          gameEndTrigger: "manual_finish",
+          scoringType: "elimination",
+          winMetric: "highest_score",
+          roundConfig: { enabled: true, targetRounds: null },
+          tiePolicy: { allowTies: true, resolution: "allow" },
+        }),
+      },
+    });
+
+    fireEvent.click(screen.getByTestId("player-card-content-user-1"));
+
+    expect(
+      screen.getByRole("button", { name: "Start next round" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "End game" }));
+
+    await waitFor(() => {
+      expect(commitGameRound).toHaveBeenCalledWith(
+        expect.objectContaining({
+          completeGame: true,
+          eliminatedUserId: "user-1",
+          gameId: "game-1",
+        }),
+      );
+    });
+  });
+
+  it("uses the standard PlayGame shell for round-winner mode and commits by tapping a player card", async () => {
+    renderComponent({
+      compatibilityConfig: {
+        allowAnyVersion: true,
+        liveMode: "round_winner",
+      },
+      game: createRoundWinnerModeSnapshot(),
+    });
+
+    expect(screen.getByLabelText("Game options")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Scores" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Round" })).toBeInTheDocument();
+    expect(screen.getByTestId("player-score-display-user-2")).toHaveTextContent(
+      "1",
+    );
+
+    fireEvent.click(screen.getByTestId("player-card-content-user-2"));
+
+    await waitFor(() => {
+      expect(commitGameRound).toHaveBeenCalledWith({
+        completeGame: false,
+        gameId: "game-1",
+        winnerUserIds: ["user-2"],
+      });
+    });
   });
 
   it("updates the board score immediately before the server action resolves", async () => {
@@ -875,10 +1305,24 @@ describe("PlayGame", () => {
 
     expect(
       screen.getByText(
-        "View Mode. Only the creator or a manager can update scores and manage the game.",
+        "View Mode. Your current role does not allow score changes or game management.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Game options" })).not.toBeInTheDocument();
+  });
+
+  it("lets self scorers open only their own score control", () => {
+    renderComponent({
+      canEditOwnScore: true,
+      canManageLiveGame: false,
+      currentUserId: "user-2",
+      isCreator: false,
+      isManager: false,
+    });
+
+    expect(screen.getByTestId("player-score-button-user-2")).toBeInTheDocument();
+    expect(screen.queryByTestId("player-score-button-user-1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("player-score-display-user-1")).toBeInTheDocument();
   });
 
   it("lets managers use live-play controls without creator-only options", async () => {
@@ -964,9 +1408,11 @@ describe("PlayGame", () => {
         nextUserId: null,
       });
     });
-    expect(screen.getByText("No next player selected yet.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Tap continue when you are ready"),
+    ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Continue playing" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     await waitFor(() => {
       expect(resumeGame).toHaveBeenCalledWith({
@@ -987,7 +1433,7 @@ describe("PlayGame", () => {
     expect(screen.getByRole("heading", { name: "Game paused" })).toBeInTheDocument();
     expect(screen.getByText("Mia's turn is next.")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Continue playing" }),
+      screen.queryByRole("button", { name: "Continue" }),
     ).not.toBeInTheDocument();
   });
 
@@ -1428,7 +1874,7 @@ describe("PlayGame", () => {
       screen.getByTestId("remove-player-button-user-2"),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId("toggle-manager-button-user-2"),
+      screen.getByTestId("player-role-select-user-2"),
     ).toBeInTheDocument();
     expect(
       screen.queryByTestId("remove-player-button-user-1"),
@@ -1439,8 +1885,9 @@ describe("PlayGame", () => {
     ).toBeInTheDocument();
   });
 
-  it("lets the creator toggle manager access from manage users", async () => {
-    setGamePlayerManager.mockResolvedValue(undefined);
+  it("lets the creator update a player role from manage users", async () => {
+    const user = userEvent.setup();
+    setGamePlayerRole.mockResolvedValue(undefined);
     getPlayGameSnapshot.mockResolvedValue(
       createPlayGameSnapshot({
         game: createManagedGameSnapshot(),
@@ -1451,13 +1898,14 @@ describe("PlayGame", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Game options" }));
     fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
-    fireEvent.click(screen.getByTestId("toggle-manager-button-user-2"));
+    await user.click(screen.getByTestId("player-role-select-user-2"));
+    await user.click(await screen.findByRole("option", { name: "Manager" }));
 
     await waitFor(() => {
-      expect(setGamePlayerManager).toHaveBeenCalledWith({
+      expect(setGamePlayerRole).toHaveBeenCalledWith({
         gameId: "game-1",
         userId: "user-2",
-        isManager: true,
+        role: "manager",
       });
     });
   });
@@ -1480,9 +1928,9 @@ describe("PlayGame", () => {
     });
 
     await waitFor(() => {
-      expect(toastMessage).toHaveBeenCalledWith("Manager access updated");
+      expect(toastMessage).toHaveBeenCalledWith("Player role updated");
     });
-    expect(screen.getByTestId("toggle-manager-button-user-2")).toHaveClass(
+    expect(screen.getByTestId("player-role-select-user-2")).toHaveClass(
       "animate-live-update-flash",
     );
   });
@@ -1499,9 +1947,9 @@ describe("PlayGame", () => {
     fireEvent.click(screen.getByRole("button", { name: "Game options" }));
     fireEvent.click(screen.getByRole("button", { name: "Manage players" }));
 
-    expect(screen.getByTestId("toggle-manager-button-user-2")).toBeDisabled();
+    expect(screen.getByTestId("player-role-select-user-2")).toBeDisabled();
     expect(
-      screen.queryByTestId("toggle-manager-button-user-1"),
+      screen.queryByTestId("player-role-select-user-1"),
     ).not.toBeInTheDocument();
   });
 
@@ -2072,5 +2520,182 @@ describe("PlayGame", () => {
         winnerUserIds: undefined,
       });
     });
+  });
+
+  it("submits itemized end-game breakdowns for v2 tally games", async () => {
+    renderComponent({
+      game: createItemizedGameSnapshot(),
+    });
+
+    fireEvent.click(screen.getByTestId("player-score-button-user-1"));
+    expect(screen.getByTestId("itemized-player-total")).toHaveTextContent("0");
+
+    fireEvent.click(screen.getByTestId("itemized-category-row-coins"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete digit" }));
+    tapScoreDigits("3");
+    expect(screen.getByTestId("score-drawer-entry")).toHaveTextContent("3");
+    expect(screen.getByText("Category total 60")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByTestId("itemized-player-total")).toHaveTextContent("60");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close score drawer" }));
+
+    fireEvent.click(screen.getByTestId("player-card-content-user-2"));
+    fireEvent.click(screen.getByTestId("itemized-category-row-coins"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete digit" }));
+    tapScoreDigits("1");
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close score drawer" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Game options" }));
+    fireEvent.click(screen.getByRole("button", { name: "End game" }));
+
+    expect(
+      screen.getByRole("heading", { name: /Enter final scoring/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/from their player card/i)).toBeInTheDocument();
+    expect(screen.getAllByText("Coins").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("button", { name: /^End game$/i }));
+
+    await waitFor(() => {
+      expect(completeGame).toHaveBeenCalledWith({
+        gameId: "game-1",
+        itemizedScoreEntries: [
+          {
+            userId: "user-1",
+            categoryId: "coins",
+            values: { count: 3 },
+          },
+          {
+            userId: "user-2",
+            categoryId: "coins",
+            values: { count: 1 },
+          },
+        ],
+      });
+    });
+  });
+
+  it("saves itemized round scores for incremental v2 games", async () => {
+    upsertActiveRoundItemizedScore.mockResolvedValue(undefined);
+
+    renderComponent({
+      game: createIncrementalItemizedGameSnapshot(),
+    });
+
+    fireEvent.click(screen.getByTestId("player-score-button-user-1"));
+    fireEvent.click(screen.getByTestId("itemized-category-row-coins"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete digit" }));
+    tapScoreDigits("4");
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    fireEvent.click(screen.getByRole("button", { name: /Save round score/i }));
+
+    await waitFor(() => {
+      expect(upsertActiveRoundItemizedScore).toHaveBeenCalledWith({
+        gameId: "game-1",
+        userId: "user-1",
+        entries: [
+          {
+            userId: "user-1",
+            categoryId: "coins",
+            values: {
+              count: 4,
+            },
+          },
+        ],
+      });
+    });
+  });
+
+  it("uses an itemized category list and detail drawer flow", () => {
+    renderComponent({
+      game: createAdvancedItemizedGameSnapshot(),
+    });
+
+    fireEvent.click(screen.getByTestId("player-score-button-user-1"));
+
+    expect(screen.getByTestId("itemized-player-total")).toHaveTextContent("0");
+    expect(screen.getByTestId("itemized-category-row-coins")).toBeInTheDocument();
+    expect(screen.getByTestId("itemized-category-row-relics")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("itemized-category-row-coins"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete digit" }));
+    tapScoreDigits("2");
+    expect(screen.getByText("Category total 40")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+
+    expect(screen.getByTestId("itemized-player-total")).toHaveTextContent("40");
+  });
+
+  it("updates multi-input itemized categories and preserves values when navigating back", () => {
+    renderComponent({
+      game: createAdvancedItemizedGameSnapshot(),
+    });
+
+    fireEvent.click(screen.getByTestId("player-score-button-user-1"));
+    fireEvent.click(screen.getByTestId("itemized-category-row-relics"));
+    expect(
+      screen.getByText(/Use Relics for Mia/i),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Yes, use it" }));
+
+    fireEvent.change(screen.getByTestId("itemized-input-relics-base"), {
+      target: { value: "10" },
+    });
+    fireEvent.change(screen.getByTestId("itemized-input-relics-bonus"), {
+      target: { value: "4" },
+    });
+    fireEvent.change(screen.getByTestId("itemized-input-relics-penalty"), {
+      target: { value: "1" },
+    });
+
+    expect(screen.getByTestId("itemized-category-total")).toHaveTextContent("13");
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to categories" }));
+    expect(screen.getByTestId("itemized-player-total")).toHaveTextContent("13");
+    expect(screen.getByText("Included")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("itemized-category-row-relics"));
+    expect(screen.getByTestId("itemized-input-relics-base")).toHaveValue(10);
+    expect(screen.getByTestId("itemized-input-relics-bonus")).toHaveValue(4);
+    expect(screen.getByTestId("itemized-input-relics-penalty")).toHaveValue(1);
+  });
+
+  it("uses conditional itemized formulas in the live play preview", () => {
+    renderComponent({
+      game: createAdvancedItemizedGameSnapshot(),
+    });
+
+    fireEvent.click(screen.getByTestId("player-score-button-user-1"));
+    fireEvent.click(screen.getByTestId("itemized-category-row-relics"));
+    fireEvent.click(screen.getByRole("button", { name: "Yes, use it" }));
+
+    fireEvent.change(screen.getByTestId("itemized-input-relics-base"), {
+      target: { value: "10" },
+    });
+    fireEvent.change(screen.getByTestId("itemized-input-relics-bonus"), {
+      target: { value: "4" },
+    });
+    fireEvent.change(screen.getByTestId("itemized-input-relics-penalty"), {
+      target: { value: "0" },
+    });
+
+    expect(screen.getByTestId("itemized-category-total")).toHaveTextContent("14");
+    fireEvent.click(screen.getByRole("button", { name: "Back to categories" }));
+    expect(screen.getByTestId("itemized-player-total")).toHaveTextContent("14");
+  });
+
+  it("lets players skip optional itemized categories after confirming they are not used", () => {
+    renderComponent({
+      game: createAdvancedItemizedGameSnapshot(),
+    });
+
+    fireEvent.click(screen.getByTestId("player-score-button-user-1"));
+    fireEvent.click(screen.getByTestId("itemized-category-row-relics"));
+    fireEvent.click(screen.getByRole("button", { name: "No, skip it" }));
+
+    expect(screen.getAllByText("Skipped").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("itemized-player-total")).toHaveTextContent("0");
   });
 });

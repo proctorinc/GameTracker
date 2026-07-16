@@ -14,6 +14,7 @@ export type PlayerRankChartSeries = {
     firstName: string | null;
     lastName: string | null;
     color: string;
+    avatarUrl: string | null;
   };
   points: PlayerRankChartPoint[];
 };
@@ -34,6 +35,7 @@ export type PlayerRankChartHighlightSummary = {
   lastName: string | null;
   displayName: string;
   color: string;
+  avatarUrl: string | null;
   rankTotal: string;
   rankPosition: number | null;
   rankGamesCount: number;

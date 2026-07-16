@@ -86,7 +86,7 @@ export function LandingHeroCarousel() {
             className="relative w-[84%] shrink-0 snap-start overflow-hidden rounded-xl border border-border/80 shadow-[0_22px_44px_rgba(15,23,42,0.12),0_8px_18px_rgba(15,23,42,0.08)] dark:border-white/12 dark:shadow-[0_28px_64px_rgba(0,0,0,0.56),0_10px_24px_rgba(255,255,255,0.04)]"
           >
             <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(255,255,255,0.18)_0%,rgba(255,255,255,0.07)_16%,rgba(255,255,255,0)_34%,rgba(0,0,0,0.06)_100%)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.12)_0%,rgba(255,255,255,0.05)_14%,rgba(255,255,255,0)_32%,rgba(0,0,0,0.18)_100%)]" />
-            <div className="pointer-events-none absolute inset-x-8 top-0 z-10 h-10 rounded-b-[2rem] bg-white/14 blur-2xl dark:bg-white/7" />
+            <div className="pointer-events-none absolute inset-x-8 top-0 z-10 h-10 rounded-b-xl bg-white/14 blur-2xl dark:bg-white/7" />
             <div className="relative aspect-[9/14] w-full bg-muted">
               <Image
                 src={slide.lightSrc}

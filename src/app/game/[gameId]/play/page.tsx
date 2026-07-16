@@ -1,4 +1,5 @@
 import PlayGame from "@/components/game/PlayGame";
+import PlayGameV2 from "@/components/game/play-game-v2";
 import { getOrCreateGameShareToken } from "@/lib/db/store/game.store";
 import { loadOptionalCurrentUser } from "@/lib/auth/auth-me";
 import { listAcceptedFriendsForUser } from "@/lib/db/store/friendship.store";
@@ -7,6 +8,7 @@ import { listPendingJoinRequestsForGame } from "@/lib/db/store/game-join-request
 import { listPlayerRankGameDeltasForGame } from "@/lib/db/store/player-rank.store";
 import { listGuestsCreatedByUser } from "@/lib/db/store/user.store";
 import { notFound } from "next/navigation";
+import { areCardsEnabled } from "@/lib/db/store/feature-flags.store";
 
 type PageProps = {
   params: Promise<{
@@ -31,7 +33,7 @@ export default async function PlayGamePage({ params }: PageProps) {
   const isManager = currentGamePlayer?.isManager ?? false;
   const canManageLiveGame = isCreator || isManager;
 
-  const [friends, guests, shareToken, pendingJoinRequests] = viewer
+  const [friends, guests, shareToken, pendingJoinRequests, cardsEnabled] = viewer
     ? await Promise.all([
         listAcceptedFriendsForUser(viewer.id),
         listGuestsCreatedByUser(viewer.id),
@@ -41,21 +43,27 @@ export default async function PlayGamePage({ params }: PageProps) {
         canManageLiveGame
           ? listPendingJoinRequestsForGame(game.id)
           : Promise.resolve([]),
+        areCardsEnabled(),
       ])
-    : [[], [], game.shareToken ?? null, []];
+    : [[], [], game.shareToken ?? null, [], await areCardsEnabled()];
   const playerRankDeltas = await listPlayerRankGameDeltasForGame(gameId);
 
-  return (
-    <PlayGame
-      currentUserId={viewer?.id ?? ""}
-      canManageLiveGame={canManageLiveGame}
-      gameSharePath={shareToken ? `/invite/game/${shareToken}` : null}
-      isCreator={isCreator}
-      isManager={isManager}
-      pendingJoinRequests={pendingJoinRequests}
-      playerOptions={[...friends, ...guests]}
-      playerRankDeltas={playerRankDeltas}
-      game={game}
-    />
+  const playGameProps = {
+    cardsEnabled,
+    currentUserId: viewer?.id ?? "",
+    canManageLiveGame,
+    gameSharePath: shareToken ? `/invite/game/${shareToken}` : null,
+    isCreator,
+    isManager,
+    pendingJoinRequests,
+    playerOptions: [...friends, ...guests],
+    playerRankDeltas,
+    game,
+  };
+
+  return game.version === "v2" ? (
+    <PlayGameV2 {...playGameProps} />
+  ) : (
+    <PlayGame {...playGameProps} />
   );
 }

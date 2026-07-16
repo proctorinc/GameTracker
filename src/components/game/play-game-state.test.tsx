@@ -67,10 +67,11 @@ function createSnapshot(): PlayGameSnapshot {
       gameTitle: {
         id: "title-1",
         title: "Skyjo",
-        normalizedTitle: "skyjo",
-        color: "#123456",
-        imageUrl: "/images/skyjo.png",
-        defaultScoringMode: null,
+      normalizedTitle: "skyjo",
+      color: "#123456",
+      imageUrl: "/images/skyjo.png",
+      imageVerticalFocus: 50,
+      defaultScoringMode: null,
         defaultEndingMode: null,
         defaultTrackRounds: null,
         defaultTargetRounds: null,
@@ -102,6 +103,9 @@ function createSnapshot(): PlayGameSnapshot {
         },
       ],
       rounds: [],
+      eliminations: [],
+      itemizedScoreCategories: [],
+      itemizedScoreEntries: [],
     } satisfies GameForPlayPage,
   };
 }
@@ -118,6 +122,39 @@ describe("play-game-state", () => {
     expect(nextSnapshot.game.players.find((player) => player.userId === "user-2")?.score).toBe(13);
     expect(nextSnapshot.game.rounds).toHaveLength(1);
     expect(nextSnapshot.game.rounds[0]?.scores[0]?.scoreDelta).toBe(5);
+  });
+
+  it("sets a roundless player score without creating a round", () => {
+    const nextSnapshot = applyPlayGameMutation(createSnapshot(), {
+      type: "set-player-score",
+      userId: "user-2",
+      score: 21,
+    });
+
+    expect(
+      nextSnapshot.game.players.find((player) => player.userId === "user-2")
+        ?.score,
+    ).toBe(21);
+    expect(nextSnapshot.game.rounds).toEqual([]);
+  });
+
+  it("records an in-progress elimination without completing its round", () => {
+    const nextSnapshot = applyPlayGameMutation(createSnapshot(), {
+      type: "eliminate-player",
+      eliminatedUserId: "user-2",
+      roundNumber: 1,
+      placement: 2,
+      createdAt: "2025-01-01T00:02:00.000Z",
+    });
+
+    expect(nextSnapshot.game.completedRounds).toBe(0);
+    expect(nextSnapshot.game.eliminations).toEqual([
+      expect.objectContaining({
+        eliminatedUserId: "user-2",
+        roundNumber: 1,
+        placement: 2,
+      }),
+    ]);
   });
 
   it("adds optimistic guest players immediately", () => {
@@ -199,6 +236,79 @@ describe("play-game-state", () => {
     expect(nextSnapshot.game.completedAt).toBeNull();
     expect(nextSnapshot.game.winners).toEqual([]);
     expect(nextSnapshot.game.completedRounds).toBe(1);
+  });
+
+  it("rolls back an elimination and later elimination rounds optimistically", () => {
+    const baseSnapshot = createSnapshot();
+    const third = createUser({ id: "user-3", firstName: "Noa", color: "#cccccc" });
+    const eliminationSnapshot: PlayGameSnapshot = {
+      ...baseSnapshot,
+      game: {
+        ...baseSnapshot.game,
+        version: "v2",
+        scoringMode: "no_score",
+        players: [
+          ...baseSnapshot.game.players,
+          {
+            id: "game-player-3",
+            gameId: baseSnapshot.game.id,
+            isManager: false,
+            userId: third.id,
+            score: 0,
+            user: third,
+          },
+        ],
+        completedRounds: 2,
+        eliminations: [
+          {
+            id: "elim-1",
+            gameId: baseSnapshot.game.id,
+            eliminatedUserId: "user-3",
+            placement: 3,
+            roundNumber: 1,
+            createdAt: "2025-01-01T00:01:00.000Z",
+          },
+          {
+            id: "elim-2",
+            gameId: baseSnapshot.game.id,
+            eliminatedUserId: "user-2",
+            placement: 2,
+            roundNumber: 2,
+            createdAt: "2025-01-01T00:02:00.000Z",
+          },
+        ],
+        rounds: [
+          {
+            id: "round-1",
+            gameId: baseSnapshot.game.id,
+            roundNumber: 1,
+            createdAt: "2025-01-01T00:01:00.000Z",
+            completedAt: "2025-01-01T00:01:00.000Z",
+            scores: [],
+          },
+          {
+            id: "round-2",
+            gameId: baseSnapshot.game.id,
+            roundNumber: 2,
+            createdAt: "2025-01-01T00:02:00.000Z",
+            completedAt: "2025-01-01T00:02:00.000Z",
+            scores: [],
+          },
+        ],
+      },
+    };
+
+    const nextSnapshot = applyPlayGameMutation(eliminationSnapshot, {
+      type: "rollback-elimination",
+      restoredUserId: "user-3",
+    });
+
+    expect(nextSnapshot.game.completedAt).toBeNull();
+    expect(nextSnapshot.game.completedRounds).toBe(0);
+    expect(nextSnapshot.game.eliminations).toEqual([]);
+    expect(nextSnapshot.game.rounds).toEqual([]);
+    expect(nextSnapshot.game.winners).toEqual([]);
+    expect(nextSnapshot.game.resultPlacements).toEqual([]);
   });
 
   it("applies optimistic pause and resume state", () => {

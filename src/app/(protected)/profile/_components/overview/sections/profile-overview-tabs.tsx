@@ -1,18 +1,18 @@
 "use client";
 
-import { BarChart3, Settings, Users } from "lucide-react";
+import { BarChart3, Layers3, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useProfileOverview } from "../profile-overview-provider";
 
 export function ProfileOverviewTabs() {
   const {
     activeTab,
-    data: { hasPendingFriendInvitations },
+    data: { cardsEnabled, hasPendingFriendInvitations },
     setActiveTab,
   } = useProfileOverview();
 
   return (
-    <div className="grid grid-cols-2 gap-2 rounded-2xl border border-border/70 bg-muted/70 p-1">
+    <div className={`grid gap-2 rounded-xl border border-border/70 bg-muted/70 p-1 ${cardsEnabled === false ? "grid-cols-2" : "grid-cols-3"}`}>
       <Button
         variant={activeTab === "stats" ? "default" : "ghost"}
         className="rounded-xl"
@@ -22,6 +22,17 @@ export function ProfileOverviewTabs() {
         <BarChart3 />
         Stats
       </Button>
+      {cardsEnabled !== false ? (
+        <Button
+          variant={activeTab === "collection" ? "default" : "ghost"}
+          className="rounded-xl"
+          size="sm"
+          onClick={() => setActiveTab("collection")}
+        >
+          <Layers3 />
+          Cards
+        </Button>
+      ) : null}
       <Button
         variant={activeTab === "friends" ? "default" : "ghost"}
         className="relative rounded-xl"

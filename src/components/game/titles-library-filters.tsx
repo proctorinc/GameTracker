@@ -56,7 +56,7 @@ export default function TitlesLibraryFilters({
       <div className="relative">
         <Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          className="h-12 rounded-[1.2rem] pl-11"
+          className="h-12 rounded-xl pl-11"
           name="query"
           onChange={(event) =>
             onFiltersChange({
@@ -68,7 +68,7 @@ export default function TitlesLibraryFilters({
         />
       </div>
 
-      <details className="group rounded-2xl border border-border bg-muted/60">
+      <details className="group rounded-xl border border-border bg-muted/60">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
           <div>
             <p className="text-sm font-medium">Filter titles</p>

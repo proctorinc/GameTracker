@@ -80,6 +80,8 @@ describe("game title image actions", () => {
           type: "image/png",
         }),
       );
+      formData.set("selectedColor", "#2563eb");
+      formData.set("imageVerticalFocus", "72");
 
       await saveUploadedGameTitleImage(formData);
 
@@ -88,6 +90,7 @@ describe("game title image actions", () => {
         "https://cdn.example.com/game-titles/title-1/cover.webp",
       );
       expect(updatedTitle?.color).toMatch(/^#/);
+      expect(updatedTitle?.imageVerticalFocus).toBe(72);
     }, "game-title-image-upload");
   });
 
@@ -125,6 +128,8 @@ describe("game title image actions", () => {
           type: "image/png",
         }),
       );
+      formData.set("selectedColor", "#2563eb");
+      formData.set("imageVerticalFocus", "50");
 
       await expect(saveUploadedGameTitleImage(formData)).rejects.toThrow(
         /admin access required/i,
@@ -143,7 +148,9 @@ describe("game title image actions", () => {
           mimeType: "image/webp",
           width: 1536,
           height: 1024,
-          color: "#0f766e",
+          colorOptions: ["#0f766e", "#2563eb", "#8b5cf6"],
+          selectedColor: "#0f766e",
+          verticalFocus: 50,
           source: "openai",
           prompt: "custom prompt",
           model: "gpt-image-2",
@@ -175,7 +182,7 @@ describe("game title image actions", () => {
       });
 
       expect(candidate.previewUrl).toContain("data:image/webp;base64");
-      expect(candidate.color).toBe("#0f766e");
+      expect(candidate.selectedColor).toBe("#0f766e");
 
       const unchangedTitle = await getGameTitleById(title!.id);
       expect(unchangedTitle?.imageUrl).toBe("/images/skyjo.png");
@@ -217,6 +224,8 @@ describe("game title image actions", () => {
       await saveGeneratedGameTitleImage({
         gameTitleId: title!.id,
         previewUrl: `data:image/png;base64,${generatedBuffer.toString("base64")}`,
+        selectedColor: "#2563eb",
+        imageVerticalFocus: 64,
       });
 
       const updatedTitle = await getGameTitleById(title!.id);
@@ -224,6 +233,7 @@ describe("game title image actions", () => {
         "https://cdn.example.com/game-titles/title-1/generated.webp",
       );
       expect(updatedTitle?.color).toMatch(/^#/);
+      expect(updatedTitle?.imageVerticalFocus).toBe(64);
     }, "game-title-image-save-generated");
   });
 });

@@ -24,12 +24,12 @@ export function AddFriendCard() {
           render={
             <button
               type="button"
-              className="group flex aspect-square w-full flex-col rounded-2xl border border-border bg-muted/60 p-4 text-left transition-colors hover:bg-muted"
+              className="group flex aspect-square w-full flex-col rounded-xl border border-border bg-muted/60 p-4 text-left transition-colors hover:bg-muted"
             />
           }
         >
           <div className="flex flex-1 items-center justify-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-foreground text-background shadow-sm">
+            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-foreground text-background shadow-sm">
               <QrCode className="size-7" />
             </div>
           </div>
@@ -44,10 +44,10 @@ export function AddFriendCard() {
 
         <Link
           href="/activity?tab=leaderboard"
-          className="group flex aspect-square flex-col rounded-2xl border border-border bg-muted/60 p-4 text-left transition-colors hover:bg-muted"
+          className="group flex aspect-square flex-col rounded-xl border border-border bg-muted/60 p-4 text-left transition-colors hover:bg-muted"
         >
           <div className="flex flex-1 items-center justify-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-foreground text-background shadow-sm">
+            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-foreground text-background shadow-sm">
               <Users className="size-7" />
             </div>
           </div>

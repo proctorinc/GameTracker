@@ -182,7 +182,7 @@ export function getPlayerPlacementDisplay(
     place,
     label: label ?? getOrdinalLabel(place),
     className:
-      "bg-background/60 text-foreground ring-1 ring-black/8 dark:ring-white/10",
+      "bg-background/60 text-foreground ring-1 ring-slate-900/8 dark:ring-white/10",
     style: {} satisfies CSSProperties,
     trophyClassName: "",
     showTrophy: false,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AudioLines, Dices, User2, Users } from "lucide-react";
+import { AudioLines, Dices, User2 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -48,7 +48,7 @@ export default function NavBar({
           hasPendingNavigation ? "scale-x-100" : "scale-x-0",
         )}
       />
-      <div className="mx-auto w-full max-w-md rounded-[2rem] border border-border/80 bg-card/20 p-3 text-card-foreground shadow-[0_-14px_45px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:shadow-[0_-18px_50px_rgba(2,6,23,0.45)]">
+      <div className="mx-auto w-full max-w-md rounded-4xl border border-border/80 bg-card/20 p-3 text-card-foreground shadow-[0_-14px_45px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:shadow-[0_-18px_50px_rgba(2,6,23,0.45)]">
         <div className="flex justify-between gap-2">
           {navItems.map(({ href, label, icon: Icon, matches }) => {
             const isActive = matches(pathname);
@@ -69,7 +69,7 @@ export default function NavBar({
                   }
                 }}
                 className={cn(
-                  "relative flex h-16 w-20 flex-col items-center justify-center gap-1 rounded-[1.4rem] border px-4 text-[0.68rem] font-semibold tracking-[0.08em] uppercase transition-[transform,colors,opacity] duration-200",
+                  "relative flex h-16 w-20 flex-col items-center justify-center gap-1 rounded-2xl border px-4 text-[0.68rem] font-semibold tracking-[0.08em] uppercase transition-[transform,colors,opacity] duration-200",
                   isActive
                     ? "border-transparent bg-primary text-primary-foreground"
                     : "border-border bg-background hover:bg-muted",

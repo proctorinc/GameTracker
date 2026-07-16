@@ -3,7 +3,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { loadOptionalCurrentUser } from "@/lib/auth/auth-me";
-import { getPublicProfileTag } from "@/lib/cache-tags";
+import { getProfileIdentityTag, getPublicProfileTag } from "@/lib/cache-tags";
 import { buildRecentlyPlayedWithList } from "@/lib/recently-played-with";
 import {
   db,
@@ -191,6 +191,7 @@ async function getProfileStatsPageData(input: {
                     title: true,
                     color: true,
                     imageUrl: true,
+                    imageVerticalFocus: true,
                   },
                 },
                 players: {
@@ -259,6 +260,7 @@ async function getProfileStatsPageData(input: {
                         title: true,
                         color: true,
                         imageUrl: true,
+                        imageVerticalFocus: true,
                       },
                     },
                     players: {
@@ -373,6 +375,7 @@ async function getProfileStatsPageData(input: {
           firstName: profileUser.firstName,
           lastName: profileUser.lastName,
           color: profileUser.color,
+          avatarUrl: profileUser.avatarUrl,
           createdAt: profileUser.createdAt,
           displayName: formatProfileDisplayName(profileUser),
         },
@@ -395,7 +398,7 @@ async function getProfileStatsPageData(input: {
     },
     [`${input.profileId}:${input.cacheKey}`],
     {
-      tags: [getPublicProfileTag(input.profileId)],
+      tags: [getPublicProfileTag(input.profileId), getProfileIdentityTag()],
       revalidate: PUBLIC_PROFILE_REVALIDATE_SECONDS,
     },
   )();
@@ -412,6 +415,7 @@ function mapParticipationToCompletedGame(participation: {
         title: string;
         color: string;
         imageUrl: string;
+        imageVerticalFocus: number;
       } | null;
     players: Array<{ userId: string; score: number | null }>;
     winners: Array<{ userId: string }>;
@@ -434,6 +438,7 @@ function mapParticipationToCompletedGame(participation: {
           title: game.gameTitle.title,
           color: game.gameTitle.color,
           imageUrl: game.gameTitle.imageUrl,
+          imageVerticalFocus: game.gameTitle.imageVerticalFocus,
         }
       : null,
     scoringMode: game.scoringMode,

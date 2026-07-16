@@ -34,7 +34,7 @@ export function ThemeModePanel() {
   return (
     <button
       type="button"
-      className="group rounded-2xl border border-border bg-muted/60"
+      className="group rounded-xl border border-border bg-muted/60"
       onClick={handleThemeToggle}
       disabled={!mounted}
     >

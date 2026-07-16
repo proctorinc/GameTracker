@@ -64,7 +64,6 @@ function mockAuthenticatedRouteUser(userId: string) {
         (await updateUser(userId, {
           clerkUserId: "clerk_test_user",
           email: "ada@example.com",
-          avatarUrl: "https://example.com/avatar.png",
         })) ?? existing
       );
     },
@@ -81,6 +80,7 @@ describe("auth route integration", () => {
       const user = await createUserFixture({
         firstName: "Ada",
         email: "ada@example.com",
+        avatarUrl: "/images/profiles/rocks.png",
       });
       const friend = await createUserFixture({
         firstName: "Blair",
@@ -105,6 +105,7 @@ describe("auth route integration", () => {
       expect(meResponse.status).toBe(200);
       const meJson = await meResponse.json();
       expect(meJson.id).toBe(user.id);
+      expect(meJson.avatarUrl).toBe("/images/profiles/rocks.png");
       expect(meJson.network).toHaveLength(1);
 
       const { GET: dashboardGroups } = await import(

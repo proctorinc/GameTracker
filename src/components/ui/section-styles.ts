@@ -11,7 +11,7 @@ export const sectionActionToneClassName =
   "text-muted-foreground hover:text-foreground";
 
 export const sectionItemClassName =
-  "rounded-2xl border border-border bg-muted/60 px-4 py-3";
+  "rounded-xl border border-border bg-muted/60 px-4 py-3";
 
 export const sectionItemTitleClassName = "text-sm font-medium";
 

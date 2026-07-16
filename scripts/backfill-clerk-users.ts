@@ -90,7 +90,6 @@ async function main() {
         )?.phoneNumber ??
         clerkUser.phoneNumbers[0]?.phoneNumber ??
         candidate.phoneNumber,
-      avatarUrl: clerkUser.imageUrl || candidate.avatarUrl,
     });
 
     console.log(`Backfilled ${candidate.id} -> ${clerkUser.id}`);

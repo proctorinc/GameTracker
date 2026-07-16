@@ -1,5 +1,8 @@
 import type { FriendsPageData } from "@/app/actions/pages/friends";
 import type { ProfileStatsPageData } from "../../profile-types";
+import type { CardCollectionDeckView } from "@/lib/collectible-cards";
+
+export type CardCollectionDeck = CardCollectionDeckView;
 
 export type ProfileOverviewUser = {
   id: string;
@@ -7,10 +10,12 @@ export type ProfileOverviewUser = {
   firstName: string | null;
   lastName: string | null;
   color: string;
+  avatarUrl: string | null;
   createdAt: string | null;
 };
 
 export type ProfileOverviewPageData = {
+  cardsEnabled?: boolean;
   user: ProfileOverviewUser;
   profile: ProfileStatsPageData["profile"];
   canViewPlayerRank: boolean;
@@ -32,6 +37,7 @@ export type ProfileOverviewPageData = {
   hasPendingFriendInvitations: boolean;
   showInviteNotice: boolean;
   initialTab: ProfileOverviewTab;
+  cardCollection: CardCollectionDeck[];
 };
 
-export type ProfileOverviewTab = "stats" | "friends" | "settings";
+export type ProfileOverviewTab = "stats" | "friends" | "collection" | "settings";

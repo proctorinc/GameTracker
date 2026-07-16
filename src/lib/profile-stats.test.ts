@@ -11,6 +11,7 @@ function createUser(overrides: Partial<ProfileStatsUser> = {}): ProfileStatsUser
     firstName: "Alex",
     lastName: "Player",
     color: "#111111",
+    avatarUrl: null,
     isGuest: false,
     mergedIntoUserId: null,
     ...overrides,
@@ -46,13 +47,22 @@ describe("buildComparisonOptions", () => {
   it("includes friends and standalone guests on the owner's profile", () => {
     const options = buildComparisonOptions({
       profileUserId: "user-1",
-      friends: [createUser({ id: "user-2", firstName: "Ben" })],
+      friends: [
+        createUser({
+          id: "user-2",
+          firstName: "Ben",
+          avatarUrl: "/images/profiles/sea.png",
+        }),
+      ],
       guests: [createUser({ id: "guest-1", firstName: "Taylor", isGuest: true })],
       includeGuests: true,
     });
 
     expect(options.map((option) => option.id)).toEqual(["user-2", "guest-1"]);
     expect(options.find((option) => option.id === "guest-1")?.isGuest).toBe(true);
+    expect(options.find((option) => option.id === "user-2")?.avatarUrl).toBe(
+      "/images/profiles/sea.png",
+    );
   });
 
   it("excludes guests from public-profile comparison options", () => {

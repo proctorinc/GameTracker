@@ -249,7 +249,7 @@ export function PlayerRankPageChart({
     return (
       <div
         className={cn(
-          "flex min-h-32 items-center justify-center rounded-3xl border border-dashed border-border/70 bg-muted/25 px-4 text-center text-sm text-muted-foreground",
+          "flex min-h-32 items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/25 px-4 text-center text-sm text-muted-foreground",
           className,
         )}
       >
@@ -323,13 +323,6 @@ export function PlayerRankPageChart({
           {entry.label}
         </button>
       ))}
-
-      {firstHistoryDate && lastHistoryDate ? (
-        <div className="mt-3 flex items-center justify-between px-2 text-xs font-medium text-muted-foreground">
-          <span>{formatChartDate(firstHistoryDate)}</span>
-          <span>{formatChartDate(lastHistoryDate)}</span>
-        </div>
-      ) : null}
     </div>
   );
 }

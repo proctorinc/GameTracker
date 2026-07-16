@@ -2,7 +2,7 @@ import "server-only";
 
 import { unstable_cache } from "next/cache";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
-import { getFriendsTag } from "@/lib/cache-tags";
+import { getFriendsTag, getProfileIdentityTag } from "@/lib/cache-tags";
 import { getFriendsPageCollections } from "@/app/actions/pages/friends";
 import { isNextRedirectError } from "@/lib/next-navigation-errors";
 import { logError, logInfo } from "@/lib/server-log";
@@ -56,7 +56,7 @@ async function getFriendConnectionsPageDataCached(
       }),
     [userId],
     {
-      tags: [getFriendsTag(userId)],
+      tags: [getFriendsTag(userId), getProfileIdentityTag()],
       revalidate: FRIENDS_PAGE_REVALIDATE_SECONDS,
     },
   )();

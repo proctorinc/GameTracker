@@ -1,7 +1,7 @@
 import { AuthUser } from "@/lib/auth";
 import {
   GameFull,
-  GameTitleBase,
+  RecentGameTitle,
   InvitationFull,
   listIncomingInvitationsForUser,
   listRecentCompletedGames,
@@ -12,6 +12,10 @@ import type {
   PlayerRankGameDelta,
   PlayerRankRecentChangeSummary,
 } from "@/lib/db/store/player-rank.store";
+import {
+  listUnopenedCardPackGroups,
+  type UnopenedCardPackGroup,
+} from "@/lib/card-rewards";
 
 export type DashboardCompletedGame = GameFull & {
   currentUserRankDelta: PlayerRankGameDelta | null;
@@ -22,7 +26,7 @@ export type DashboardPageData = {
   incomingInvitations: InvitationFull[];
   recentActiveGames: GameFull[];
   recentCompletedGames: DashboardCompletedGame[];
-  recentGameTitles: GameTitleBase[];
+  recentGameTitles: RecentGameTitle[];
   canViewPlayerRank: boolean;
   playerRankTotal: string | null;
   playerRankPosition: number | null;
@@ -33,7 +37,7 @@ export type DashboardPageData = {
   twoPlayerPrizePool: string | null;
   threePlayerPrizePool: string | null;
   sixPlusPlayerPrizePool: string | null;
-  // cardDrops: CardDropFull[];
+  unopenedCardPacks: UnopenedCardPackGroup[];
 };
 
 export type DashboardPageCollections = Pick<
@@ -41,12 +45,14 @@ export type DashboardPageCollections = Pick<
     incomingInvitations: InvitationFull[];
     recentActiveGames: GameFull[];
     recentCompletedGames: GameFull[];
-    recentGameTitles: GameTitleBase[];
+    recentGameTitles: RecentGameTitle[];
+    unopenedCardPacks: UnopenedCardPackGroup[];
   },
   | "incomingInvitations"
   | "recentActiveGames"
   | "recentCompletedGames"
   | "recentGameTitles"
+  | "unopenedCardPacks"
 >;
 
 export async function getDashboardPageCollections(input: {
@@ -57,6 +63,7 @@ export async function getDashboardPageCollections(input: {
     recentActiveGames,
     recentCompletedGames,
     recentGameTitles,
+    unopenedCardPacks,
   ] =
     await Promise.all([
       listIncomingInvitationsForUser({
@@ -65,6 +72,7 @@ export async function getDashboardPageCollections(input: {
       listRecentActiveGames(input.userId),
       listRecentCompletedGames(input.userId),
       listRecentGameTitles(input.userId),
+      listUnopenedCardPackGroups(input.userId),
     ]);
 
   return {
@@ -72,5 +80,6 @@ export async function getDashboardPageCollections(input: {
     recentActiveGames,
     recentCompletedGames,
     recentGameTitles,
+    unopenedCardPacks,
   };
 }

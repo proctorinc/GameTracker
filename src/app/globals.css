@@ -58,19 +58,19 @@
     --font-geist-mono:
         "SFMono-Regular", "SF Mono", "Menlo", "Consolas", monospace;
     --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
+    --foreground: oklch(0.285 0.012 255);
     --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
+    --card-foreground: oklch(0.285 0.012 255);
     --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
+    --popover-foreground: oklch(0.285 0.012 255);
+    --primary: oklch(0.34 0.015 255);
     --primary-foreground: oklch(0.985 0 0);
     --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
+    --secondary-foreground: oklch(0.34 0.015 255);
     --muted: oklch(0.97 0 0);
     --muted-foreground: oklch(0.556 0 0);
     --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
+    --accent-foreground: oklch(0.34 0.015 255);
     --destructive: oklch(0.577 0.245 27.325);
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
@@ -82,11 +82,11 @@
     --chart-5: oklch(0.269 0 0);
     --radius: 0.625rem;
     --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.285 0.012 255);
+    --sidebar-primary: oklch(0.34 0.015 255);
     --sidebar-primary-foreground: oklch(0.985 0 0);
     --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
+    --sidebar-accent-foreground: oklch(0.34 0.015 255);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
     --winner-surface: oklch(0.96 0.03 88);
@@ -155,12 +155,12 @@
         background-repeat: no-repeat;
         background-attachment: fixed;
         background-color: #f1f5f9;
-        color: #000;
+        color: var(--foreground);
     }
 
     .dark body {
         background:
-            linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)),
+            linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.8)),
             url("/images/background-dark.png");
         background-size: cover;
         background-position: center;
@@ -184,16 +184,24 @@
         -webkit-backface-visibility: hidden;
     }
 
-    .winner-surface {
+    .winner-surface,
+    .podium-gold-surface {
+        background: linear-gradient(180deg, #fff8eb 0%, #fff1cf 100%);
+        border: 1px solid rgb(252 211 77 / 70%);
+        color: var(--foreground);
+        box-shadow:
+            0 10px 15px -3px rgb(69 26 3 / 10%),
+            0 4px 6px -4px rgb(69 26 3 / 10%);
+    }
+
+    .dark .winner-surface,
+    .dark .podium-gold-surface {
         background: linear-gradient(
-            135deg,
-            var(--winner-surface-soft) 0%,
-            var(--winner-surface) 52%,
-            var(--winner-surface-strong) 100%
+            180deg,
+            rgb(245 158 11 / 18%) 0%,
+            rgb(255 255 255 / 3%) 100%
         );
-        border: 1px solid var(--winner-border);
-        color: var(--winner-text);
-        box-shadow: var(--winner-shadow);
+        border-color: rgb(253 230 138 / 20%);
     }
 
     .winner-badge {
@@ -467,6 +475,26 @@
 }
 
 @layer utilities {
+    .game-title-image {
+        --game-title-border-color: color-mix(
+            in srgb,
+            var(--game-title-color) 55%,
+            white 45%
+        );
+    }
+
+    .game-title-image.game-title-scroll-card {
+        box-shadow:
+            0 4px 8px -4px
+                color-mix(in srgb, var(--game-title-color) 38%, transparent),
+            0 1px 3px -1px
+                color-mix(in srgb, var(--game-title-color) 28%, transparent);
+    }
+
+    .dark .game-title-image {
+        --game-title-border-color: var(--game-title-color);
+    }
+
     .animate-splash-float {
         animation: splash-float 4.2s ease-in-out infinite;
     }

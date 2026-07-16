@@ -485,7 +485,7 @@ export function AdminPlayerRanks(props: {
               Small-game payouts
             </h3>
             {[2, 3].map((playerCount) => (
-              <div key={playerCount} className="rounded-2xl border border-border/70 p-3">
+              <div key={playerCount} className="rounded-xl border border-border/70 p-3">
                 <div className="mb-3 flex items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold">{playerCount}-player games</p>
@@ -574,7 +574,7 @@ export function AdminPlayerRanks(props: {
               {payoutPreviews.map((preview) => (
                 <div
                   key={preview.label}
-                  className="rounded-2xl border border-border/70 bg-muted/35 p-3"
+                  className="rounded-xl border border-border/70 bg-muted/35 p-3"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-semibold">{preview.label}</p>
@@ -664,7 +664,7 @@ export function AdminPlayerRanks(props: {
               {previewRows.map((row) => (
                 <div
                   key={row.userId}
-                  className="grid grid-cols-[minmax(11rem,1.8fr)_6.5rem_6rem_6.5rem_6rem_7rem] items-center gap-2 rounded-2xl border border-border/70 bg-card/95 px-3 py-2"
+                  className="grid grid-cols-[minmax(11rem,1.8fr)_6.5rem_6rem_6.5rem_6rem_7rem] items-center gap-2 rounded-xl border border-border/70 bg-card/95 px-3 py-2"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -699,7 +699,7 @@ export function AdminPlayerRanks(props: {
               ))}
 
               {previewRows.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-border/70 px-4 py-6 text-center text-sm text-muted-foreground">
+                <div className="rounded-xl border border-dashed border-border/70 px-4 py-6 text-center text-sm text-muted-foreground">
                   No Player Rank users found.
                 </div>
               ) : null}

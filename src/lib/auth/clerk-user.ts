@@ -27,10 +27,6 @@ function getClerkUserLastName(user: ClerkUserPayload) {
   return "lastName" in user ? user.lastName : user.last_name;
 }
 
-function getClerkUserImageUrl(user: ClerkUserPayload) {
-  return "imageUrl" in user ? user.imageUrl : user.image_url;
-}
-
 function getPrimaryEmail(user: ClerkUserPayload) {
   const primary =
     ("emailAddresses" in user ? user.emailAddresses : user.email_addresses).find(
@@ -56,7 +52,6 @@ function buildIdentityPatch(user: ClerkUserPayload, existing?: UserBase | null) 
   return {
     clerkUserId: getClerkUserId(user),
     email: getPrimaryEmail(user),
-    avatarUrl: getClerkUserImageUrl(user) || null,
     firstName: existing?.firstName ?? firstName,
     lastName: existing?.lastName ?? lastName,
   };
@@ -119,6 +114,5 @@ export async function clearLocalUserClerkIdentity(
   return updateUser(existing.id, {
     clerkUserId: null,
     email: null,
-    avatarUrl: null,
   });
 }

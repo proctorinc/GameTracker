@@ -8,6 +8,11 @@ const validated = appEnv !== "production" ? validateEnv(true) : null;
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1", "localhost"],
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "8mb",
+    },
+  },
   env: {
     NEXT_PUBLIC_APP_ENV:
       validated && "NEXT_PUBLIC_APP_ENV" in validated

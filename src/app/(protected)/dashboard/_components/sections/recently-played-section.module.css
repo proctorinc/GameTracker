@@ -1,0 +1,264 @@
+.tiltWrapper {
+    --card-tilt: 0deg;
+    flex-shrink: 0;
+    transform: rotate(var(--card-tilt));
+    transform-origin: 50% 88%;
+    transition: transform 120ms ease-out;
+}
+
+.cardScene {
+    width: auto;
+    height: 30vh;
+    aspect-ratio: 5 / 7;
+    flex-shrink: 0;
+    scroll-snap-align: start;
+    perspective: 1200px;
+}
+
+.playingCard {
+    --game-title-border-color: color-mix(
+        in srgb,
+        var(--game-title-color) 42%,
+        white 58%
+    );
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 1.35rem;
+    cursor: pointer;
+    box-shadow:
+        0 24px 38px -22px
+            color-mix(in srgb, var(--game-title-color) 78%, black 22%),
+        0 10px 18px -14px rgb(15 23 42 / 75%),
+        inset 0 1px 0 rgb(255 255 255 / 55%);
+    transform: translateY(0) rotate(0deg);
+    transform-style: preserve-3d;
+    transition:
+        transform 620ms cubic-bezier(0.2, 0.72, 0.2, 1),
+        box-shadow 260ms ease;
+}
+
+.playingCard:hover,
+.playingCard:focus-within {
+    z-index: 2;
+    transform: translateY(-0.35rem) rotate(0deg) scale(1.015);
+    box-shadow:
+        0 30px 48px -22px
+            color-mix(in srgb, var(--game-title-color) 88%, black 12%),
+        0 16px 24px -18px rgb(15 23 42 / 80%),
+        inset 0 1px 0 rgb(255 255 255 / 65%);
+}
+
+.playingCard:hover .cardFace,
+.playingCard:focus-within .cardFace {
+    filter: saturate(1.08);
+}
+
+.playingCard:focus-visible {
+    outline: 2px solid
+        color-mix(in srgb, var(--game-title-color) 62%, white 38%);
+    outline-offset: 4px;
+}
+
+.cardScene .playingCard.flipped {
+    transform: rotateY(180deg);
+}
+
+.cardScene .playingCard.flipped:hover,
+.cardScene .playingCard.flipped:focus-within {
+    transform: translateY(-0.35rem) rotateY(180deg) scale(1.015);
+}
+
+.cardFace {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border: 2px solid var(--game-title-border-color);
+    border-radius: 1.35rem;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    transform-style: flat;
+    isolation: isolate;
+    transition: filter 260ms ease;
+}
+
+.cardFront {
+    transform: rotateY(0deg) translateZ(0.1px);
+}
+
+.cardBack {
+    color: white;
+    background:
+        radial-gradient(
+            circle at 86% 8%,
+            color-mix(in srgb, var(--game-title-color) 44%, white 12%),
+            transparent 29%
+        ),
+        radial-gradient(
+            circle at 5% 92%,
+            color-mix(in srgb, var(--game-title-color) 34%, transparent),
+            transparent 34%
+        ),
+        linear-gradient(
+            145deg,
+            color-mix(in srgb, var(--game-title-color) 28%, #172033 72%) 0%,
+            color-mix(in srgb, var(--game-title-color) 16%, #0b1120 84%) 52%,
+            color-mix(in srgb, var(--game-title-color) 10%, #020617 90%) 100%
+        );
+    transform: rotateY(180deg) translateZ(0.1px);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 52%),
+        inset 0 -40px 70px rgb(2 6 23 / 18%);
+}
+
+.backTitle {
+    max-width: 9.5rem;
+    font-size: 1.55rem;
+    line-height: 1.02;
+    font-weight: 900;
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+    filter: drop-shadow(0 2px 4px rgb(2 6 23 / 42%));
+}
+
+.backStat {
+    margin-block: auto;
+    text-align: center;
+    filter: drop-shadow(0 8px 16px rgb(2 6 23 / 34%));
+}
+
+.statNumber {
+    font-size: 4.25rem;
+    line-height: 1;
+    font-weight: 900;
+    letter-spacing: -0.065em;
+    color: color-mix(in srgb, var(--game-title-color) 46%, white 54%);
+    text-shadow:
+        0 0 22px color-mix(in srgb, var(--game-title-color) 66%, transparent),
+        0 4px 10px rgb(2 6 23 / 54%);
+}
+
+.backLabel {
+    margin-top: 0.2rem;
+    font-size: 0.7rem;
+    font-weight: 900;
+    letter-spacing: 0.18em;
+    color: rgb(255 255 255 / 70%);
+    text-transform: uppercase;
+}
+
+.frame {
+    position: absolute;
+    z-index: 5;
+    inset: 0.45rem;
+    border: 1px solid rgb(255 255 255 / 38%);
+    border-radius: 0.95rem;
+    box-shadow:
+        inset 0 0 0 1px rgb(15 23 42 / 14%),
+        0 0 0 1px rgb(15 23 42 / 8%);
+    pointer-events: none;
+}
+
+.dotTexture {
+    position: absolute;
+    z-index: 3;
+    inset: 0;
+    opacity: 0.18;
+    background:
+        radial-gradient(
+            circle,
+            rgb(255 255 255 / 54%) 0 0.65px,
+            transparent 0.9px
+        ),
+        radial-gradient(
+            circle,
+            color-mix(in srgb, var(--game-title-color) 48%, white 24%) 0 0.45px,
+            transparent 0.8px
+        );
+    background-position:
+        0 0,
+        3px 3px;
+    background-size:
+        6px 6px,
+        6px 6px;
+    mix-blend-mode: overlay;
+    mask-image:
+        radial-gradient(ellipse at 18% 12%, black 0 18%, transparent 58%),
+        linear-gradient(
+            to bottom,
+            rgb(0 0 0 / 78%),
+            black 35% 76%,
+            rgb(0 0 0 / 42%)
+        );
+    mask-composite: add;
+    pointer-events: none;
+}
+
+.sheen {
+    position: absolute;
+    z-index: 4;
+    inset: 0;
+    background:
+        linear-gradient(
+            118deg,
+            rgb(255 255 255 / 16%),
+            transparent 24% 72%,
+            rgb(255 255 255 / 6%)
+        ),
+        radial-gradient(
+            circle at 74% 34%,
+            rgb(255 255 255 / 9%),
+            transparent 32%
+        );
+    mix-blend-mode: screen;
+    pointer-events: none;
+}
+
+.glint {
+    position: absolute;
+    z-index: 6;
+    inset: -35% -65%;
+    opacity: 0.62;
+    background: linear-gradient(
+        112deg,
+        transparent 38%,
+        rgb(255 255 255 / 4%) 43%,
+        rgb(255 255 255 / 38%) 47%,
+        rgb(255 255 255 / 10%) 50%,
+        transparent 56%
+    );
+    mix-blend-mode: screen;
+    transform: translateX(-25%) rotate(2deg);
+    transition: transform 650ms cubic-bezier(0.2, 0.75, 0.25, 1);
+    pointer-events: none;
+}
+
+.playingCard:hover .glint,
+.playingCard:focus-within .glint {
+    transform: translateX(24%) rotate(2deg);
+}
+
+.playAction {
+    box-shadow:
+        0 8px 16px -11px rgb(2 6 23 / 92%),
+        inset 0 1px 0 rgb(255 255 255 / 48%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tiltWrapper {
+        transition: none;
+    }
+
+    .playingCard,
+    .playingCard:hover,
+    .playingCard:focus-within {
+        transition: none;
+    }
+
+    .glint,
+    .playingCard:hover .glint,
+    .playingCard:focus-within .glint {
+        transition: none;
+        transform: translateX(-25%) rotate(2deg);
+    }
+}

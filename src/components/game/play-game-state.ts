@@ -2,6 +2,7 @@ import type { GameForPlayPage } from "@/lib/db/store/game.store";
 import type { GameJoinRequestFull } from "@/lib/db/store/game-join-request.store";
 import type { PlayerRankGameDelta } from "@/lib/db/store/player-rank.store";
 import type { UserBase } from "@/lib/db/store/user.store";
+import type { EffectiveGamePlayerRole } from "@/lib/game/player-roles";
 import {
   applyRoundScores,
   getWinningUserIds,
@@ -10,10 +11,12 @@ import {
 
 export type PlayGameSnapshot = {
   canManageLiveGame: boolean;
+  canEditOwnScore?: boolean;
   currentUserId: string;
   gameSharePath: string | null;
   isCreator: boolean;
   isManager: boolean;
+  effectiveRole?: EffectiveGamePlayerRole;
   pendingJoinRequests: GameJoinRequestFull[];
   playerOptions: UserBase[];
   playerRankDeltas: PlayerRankGameDelta[];
@@ -28,14 +31,27 @@ export type PlayGameMutation =
       scoreDelta: number;
     }
   | {
+      type: "set-player-score";
+      userId: string;
+      score: number;
+    }
+  | {
       type: "commit-round";
       completeGame: boolean;
+      eliminatedUserId?: string;
       finishedAt: string;
       winnerUserIds?: string[];
       placementSelections?: Array<{
         placement: 1 | 2 | 3;
         userIds: string[];
       }>;
+    }
+  | {
+      type: "eliminate-player";
+      eliminatedUserId: string;
+      roundNumber: number;
+      placement: number;
+      createdAt: string;
     }
   | {
       type: "reopen-game";
@@ -70,6 +86,10 @@ export type PlayGameMutation =
     }
   | {
       type: "resume-game";
+    }
+  | {
+      type: "rollback-elimination";
+      restoredUserId: string;
     };
 
 export function applyPlayGameMutations(
@@ -86,8 +106,38 @@ export function applyPlayGameMutation(
   switch (mutation.type) {
     case "upsert-score":
       return applyOptimisticScore(snapshot, mutation);
+    case "set-player-score":
+      return {
+        ...snapshot,
+        game: {
+          ...snapshot.game,
+          players: snapshot.game.players.map((player) =>
+            player.userId === mutation.userId
+              ? { ...player, score: Math.trunc(mutation.score) }
+              : player,
+          ),
+        },
+      };
     case "commit-round":
       return applyOptimisticRoundCommit(snapshot, mutation);
+    case "eliminate-player":
+      return {
+        ...snapshot,
+        game: {
+          ...snapshot.game,
+          eliminations: [
+            ...snapshot.game.eliminations,
+            {
+              id: `optimistic-elimination-${snapshot.game.id}-${mutation.roundNumber}-${mutation.eliminatedUserId}`,
+              gameId: snapshot.game.id,
+              eliminatedUserId: mutation.eliminatedUserId,
+              placement: mutation.placement,
+              roundNumber: mutation.roundNumber,
+              createdAt: mutation.createdAt,
+            },
+          ],
+        },
+      };
     case "reopen-game":
       return applyOptimisticGameReopen(snapshot);
     case "add-player":
@@ -101,6 +151,8 @@ export function applyPlayGameMutation(
       return applyOptimisticPause(snapshot, mutation);
     case "resume-game":
       return applyOptimisticResume(snapshot);
+    case "rollback-elimination":
+      return applyOptimisticEliminationRollback(snapshot, mutation);
     default:
       return snapshot;
   }
@@ -191,13 +243,65 @@ function applyOptimisticRoundCommit(
       completedAt: mutation.finishedAt,
     });
 
+  const nextRoundScores =
+    mutation.winnerUserIds && mutation.winnerUserIds.length > 0
+      ? mutation.winnerUserIds
+          .map((userId) => {
+            const player = snapshot.game.players.find(
+              (entry) => entry.userId === userId,
+            );
+
+            if (!player) {
+              return null;
+            }
+
+            return {
+              id: `optimistic-score-${round.id}-${userId}`,
+              gameRoundId: round.id,
+              userId,
+              scoreDelta: 1,
+              createdAt: mutation.finishedAt,
+              user: player.user,
+            };
+          })
+          .filter(
+            (
+              score,
+            ): score is PlayGameSnapshot["game"]["rounds"][number]["scores"][number] =>
+              score !== null,
+          )
+      : round.scores;
   const nextGame = {
     ...snapshot.game,
     completedRounds: snapshot.game.completedRounds + 1,
     completedAt: mutation.completeGame ? mutation.finishedAt : null,
+    eliminations: mutation.eliminatedUserId
+      ? [
+          ...snapshot.game.eliminations,
+          {
+            id: `optimistic-elimination-${snapshot.game.id}-${mutation.eliminatedUserId}`,
+            gameId: snapshot.game.id,
+            eliminatedUserId: mutation.eliminatedUserId,
+            placement:
+              snapshot.game.players.length - snapshot.game.eliminations.length,
+            roundNumber: nextRoundNumber,
+            createdAt: mutation.finishedAt,
+          },
+        ]
+      : snapshot.game.eliminations,
+    players:
+      nextRoundScores.length > 0 && snapshot.game.scoringMode !== "no_score"
+        ? snapshot.game.players.map((player) => ({
+            ...player,
+            score:
+              (player.score ?? 0) +
+              (mutation.winnerUserIds?.includes(player.userId) ? 1 : 0),
+          }))
+        : snapshot.game.players,
     rounds: upsertRound(snapshot.game.rounds, {
       ...round,
       completedAt: mutation.finishedAt,
+      scores: nextRoundScores,
     }),
   };
 
@@ -277,6 +381,72 @@ function applyOptimisticGameReopen(snapshot: PlayGameSnapshot) {
   };
 }
 
+function applyOptimisticEliminationRollback(
+  snapshot: PlayGameSnapshot,
+  mutation: Extract<PlayGameMutation, { type: "rollback-elimination" }>,
+) {
+  const activeRoundNumber = snapshot.game.completedRounds + 1;
+  const activeEliminations = snapshot.game.eliminations
+    .filter((entry) => entry.roundNumber === activeRoundNumber)
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  const activeRollbackIndex = activeEliminations.findIndex(
+    (entry) => entry.eliminatedUserId === mutation.restoredUserId,
+  );
+
+  if (activeRollbackIndex >= 0) {
+    const removedIds = new Set(
+      activeEliminations.slice(activeRollbackIndex).map((entry) => entry.id),
+    );
+    return {
+      ...snapshot,
+      game: {
+        ...snapshot.game,
+        eliminations: snapshot.game.eliminations.filter(
+          (entry) => !removedIds.has(entry.id),
+        ),
+        rounds: snapshot.game.rounds.filter(
+          (round) => round.roundNumber !== activeRoundNumber,
+        ),
+      },
+    };
+  }
+
+  const sortedEliminations = [...snapshot.game.eliminations].sort((left, right) => {
+    const leftRound = left.roundNumber ?? Number.POSITIVE_INFINITY;
+    const rightRound = right.roundNumber ?? Number.POSITIVE_INFINITY;
+
+    if (leftRound !== rightRound) {
+      return leftRound - rightRound;
+    }
+
+    return left.createdAt.localeCompare(right.createdAt);
+  });
+  const rollbackIndex = sortedEliminations.findIndex(
+    (entry) => entry.eliminatedUserId === mutation.restoredUserId,
+  );
+
+  if (rollbackIndex < 0) {
+    return snapshot;
+  }
+
+  const nextCompletedRounds = rollbackIndex;
+
+  return {
+    ...snapshot,
+    game: {
+      ...snapshot.game,
+      completedAt: null,
+      completedRounds: nextCompletedRounds,
+      eliminations: sortedEliminations.slice(0, rollbackIndex),
+      resultPlacements: [],
+      rounds: snapshot.game.rounds.filter(
+        (round) => round.roundNumber <= nextCompletedRounds,
+      ),
+      winners: [],
+    },
+  };
+}
+
 function applyOptimisticPlayer(
   snapshot: PlayGameSnapshot,
   mutation: Extract<
@@ -302,6 +472,7 @@ function applyOptimisticPlayer(
           id: mutation.gamePlayerId,
           gameId: snapshot.game.id,
           isManager: false,
+          role: snapshot.game.defaultPlayerRole ?? null,
           userId: mutation.user.id,
           score: mutation.startingScore,
           user: mutation.user,

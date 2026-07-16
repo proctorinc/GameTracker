@@ -313,6 +313,7 @@ describe("server action integration", () => {
       const creator = await createUserFixture();
       const opponent = await createUserFixture();
       const third = await createUserFixture();
+      const fourth = await createUserFixture();
       mockAuthenticatedUser(creator.id);
 
       const {
@@ -335,6 +336,9 @@ describe("server action integration", () => {
 
       await addGamePlayer({ gameId: game.id, userId: opponent.id });
       await addGamePlayer({ gameId: game.id, userId: third.id });
+      await addGamePlayer({ gameId: game.id, userId: fourth.id });
+      await addGamePlayer({ gameId: game.id, userId: fourth.id });
+      await addGamePlayer({ gameId: game.id, userId: fourth.id });
       const guestPlayer = await addGuestGamePlayer({
         gameId: game.id,
         firstName: "Guest",
@@ -395,6 +399,11 @@ describe("server action integration", () => {
       const creator = await createUserFixture();
       const opponent = await createUserFixture();
       mockAuthenticatedUser(creator.id);
+      vi.doMock("server-only", () => ({}));
+      vi.doMock("next/cache", () => ({
+        revalidatePath: vi.fn(),
+        revalidateTag: vi.fn(),
+      }));
 
       const {
         createConfiguredGame,
@@ -460,6 +469,167 @@ describe("server action integration", () => {
       ).toBe(true);
       expect(persistedRematch?.rounds).toHaveLength(0);
     }, "game-rematch-action");
+  });
+
+  it("preserves v2 settings and makes the previous creator a manager when another player rematches", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const manager = await createUserFixture();
+      mockAuthenticatedUser(creator.id);
+      vi.doMock("server-only", () => ({}));
+      vi.doMock("next/cache", () => ({
+        revalidatePath: vi.fn(),
+        revalidateTag: vi.fn(),
+      }));
+
+      const {
+        addGamePlayer,
+        commitGameRound,
+        createConfiguredGame,
+        setGameInviteUsersEnabled,
+        setGamePlayerManager,
+        upsertActiveRoundScore,
+      } = await import("../../../src/app/actions/game");
+      const { buildCreateGameSettingsFromTemplate } = await import(
+        "../../../src/lib/game/v2"
+      );
+      const settingsV2 = buildCreateGameSettingsFromTemplate({
+        template: "point_scoring",
+        roundsEnabled: true,
+        endConditionMode: "manual",
+        winMetric: "lowest_score",
+        allowTies: false,
+        initialPlayerScore: 7,
+      });
+      const originalGame = await createConfiguredGame({
+        gameTitleName: "V2 Rematch Fixture",
+        version: "v2",
+        scoringMode: "lowest_wins",
+        endingMode: "none",
+        settingsV2,
+        managementSettings: {
+          defaultPlayerRole: "self_scorer",
+        },
+      });
+
+      await addGamePlayer({
+        gameId: originalGame.id,
+        userId: manager.id,
+      });
+      await setGamePlayerManager({
+        gameId: originalGame.id,
+        userId: manager.id,
+        isManager: true,
+      });
+      await setGameInviteUsersEnabled({
+        gameId: originalGame.id,
+        enabled: false,
+      });
+      await upsertActiveRoundScore({
+        gameId: originalGame.id,
+        userId: creator.id,
+        scoreDelta: 3,
+      });
+      await upsertActiveRoundScore({
+        gameId: originalGame.id,
+        userId: manager.id,
+        scoreDelta: 5,
+      });
+      await commitGameRound({
+        gameId: originalGame.id,
+        completeGame: true,
+      });
+
+      vi.resetModules();
+      mockAuthenticatedUser(manager.id);
+      vi.doMock("server-only", () => ({}));
+      vi.doMock("next/cache", () => ({
+        revalidatePath: vi.fn(),
+        revalidateTag: vi.fn(),
+      }));
+      const {
+        commitGameRound: commitRematchRound,
+        createRematchGame,
+        getGame,
+        upsertActiveRoundScore: upsertRematchScore,
+      } = await import("../../../src/app/actions/game");
+      const { parseGameSettingsV2 } = await import("../../../src/lib/game/v2");
+
+      const rematch = await createRematchGame(originalGame.id);
+      const persistedRematch = await getGame(rematch.id);
+
+      expect(rematch.creatorId).toBe(manager.id);
+      expect(rematch.version).toBe("v2");
+      expect(parseGameSettingsV2(rematch.settingsJson)).toEqual(settingsV2);
+      expect(rematch.defaultPlayerRole).toBe("self_scorer");
+      expect(rematch.inviteUsersEnabled).toBe(false);
+      expect(persistedRematch?.rounds).toHaveLength(0);
+      expect(persistedRematch?.players).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            userId: creator.id,
+            role: "manager",
+            isManager: true,
+            score: 7,
+          }),
+          expect.objectContaining({
+            userId: manager.id,
+            role: "manager",
+            isManager: true,
+            score: 7,
+          }),
+        ]),
+      );
+
+      await upsertRematchScore({
+        gameId: rematch.id,
+        userId: creator.id,
+        scoreDelta: 1,
+      });
+      await upsertRematchScore({
+        gameId: rematch.id,
+        userId: manager.id,
+        scoreDelta: 2,
+      });
+      await commitRematchRound({
+        gameId: rematch.id,
+        completeGame: true,
+      });
+
+      vi.resetModules();
+      mockAuthenticatedUser(creator.id);
+      vi.doMock("server-only", () => ({}));
+      vi.doMock("next/cache", () => ({
+        revalidatePath: vi.fn(),
+        revalidateTag: vi.fn(),
+      }));
+      const {
+        createRematchGame: createSecondRematch,
+        getGame: getSecondRematch,
+      } = await import("../../../src/app/actions/game");
+
+      const secondRematch = await createSecondRematch(rematch.id);
+      const persistedSecondRematch = await getSecondRematch(secondRematch.id);
+
+      expect(secondRematch.creatorId).toBe(creator.id);
+      expect(parseGameSettingsV2(secondRematch.settingsJson)).toEqual(settingsV2);
+      expect(persistedSecondRematch?.players).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            userId: creator.id,
+            role: "manager",
+            isManager: true,
+            score: 7,
+          }),
+          expect.objectContaining({
+            userId: manager.id,
+            role: "manager",
+            isManager: true,
+            score: 7,
+          }),
+        ]),
+      );
+    }, "game-rematch-v2-manager-action");
   });
 
   it("lets the creator promote a player to manager", async () => {
@@ -757,11 +927,90 @@ describe("server action integration", () => {
     }, "player-rank-complete-action");
   });
 
+  it("saves Lost Cities defaults through generic round itemized scoring", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture({ role: "admin" });
+      const opponent = await createUserFixture();
+
+      mockAuthenticatedUser(creator.id);
+      vi.doMock("next/cache", () => ({
+        revalidateTag: vi.fn(),
+      }));
+
+      const {
+        addGamePlayer,
+        createConfiguredGame,
+        upsertActiveRoundItemizedScore,
+      } = await import("../../../src/app/actions/game");
+      const { getGameForPlayPage } = await import("../../../src/lib/db/store/game.store");
+      const { getGamePlayerByGameAndUserId } = await import(
+        "../../../src/lib/db/store/game-players.store"
+      );
+      const { buildLostCitiesGameSettingsTemplate } = await import(
+        "../../../src/lib/game/lost-cities"
+      );
+
+      const game = await createConfiguredGame({
+        gameTitleName: "Lost Cities",
+        version: "v2",
+        scoringMode: "highest_wins",
+        endingMode: "round_count",
+        targetRounds: 3,
+        settingsV2: {
+          ...buildLostCitiesGameSettingsTemplate(),
+          gameEndTrigger: "rounds_exhausted",
+          scoringType: "points",
+          roundConfig: {
+            enabled: true,
+            targetRounds: 3,
+          },
+        },
+      });
+
+      await addGamePlayer({
+        gameId: game.id,
+        userId: opponent.id,
+      });
+
+      const playGame = await getGameForPlayPage(game.id);
+
+      expect(playGame).toBeTruthy();
+
+      const categories = playGame!.itemizedScoreCategories;
+
+      await upsertActiveRoundItemizedScore({
+        gameId: game.id,
+        userId: creator.id,
+        entries: categories.map((category) => ({
+          categoryId: category.id,
+          userId: creator.id,
+          values: {
+            card_count: 1,
+            card_sum: 25,
+            wagers: 0,
+          },
+        })),
+      });
+
+      const refreshedGame = await getGameForPlayPage(game.id);
+      const refreshedPlayer = await getGamePlayerByGameAndUserId(
+        game.id,
+        creator.id,
+      );
+
+      expect(refreshedPlayer?.score).toBe(30);
+      expect(
+        refreshedGame?.itemizedScoreEntries.filter((entry) => entry.userId === creator.id),
+      ).toHaveLength(categories.length);
+    }, "lost-cities-generic-itemized-round-action");
+  });
+
   it("records winner-only and optional no-score podium placements", async () => {
     await withTestDatabase(async () => {
       const creator = await createUserFixture();
       const opponent = await createUserFixture();
       const third = await createUserFixture();
+      const fourth = await createUserFixture();
 
       mockAuthenticatedUser(creator.id);
       vi.doMock("next/cache", () => ({
@@ -783,6 +1032,7 @@ describe("server action integration", () => {
 
       await addGamePlayer({ gameId: game.id, userId: opponent.id });
       await addGamePlayer({ gameId: game.id, userId: third.id });
+      await addGamePlayer({ gameId: game.id, userId: fourth.id });
 
       await commitGameRound({
         gameId: game.id,
@@ -822,6 +1072,69 @@ describe("server action integration", () => {
 
       expect(clearedPlacementRows).toHaveLength(0);
     }, "no-score-podium-action");
+  });
+
+  it("rewinds an active elimination game when a player is un-eliminated", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const opponent = await createUserFixture();
+      const third = await createUserFixture();
+      const fourth = await createUserFixture();
+
+      mockAuthenticatedUser(creator.id);
+      vi.doMock("next/cache", () => ({
+        revalidateTag: vi.fn(),
+      }));
+
+      const {
+        addGamePlayer,
+        commitGameRound,
+        createConfiguredGame,
+        getGame,
+        uneliminateGamePlayer,
+      } = await import("../../../src/app/actions/game");
+
+      const game = await createConfiguredGame({
+        gameTitleName: "Elimination Rewind Fixture",
+        scoringMode: "no_score",
+        endingMode: "round_count",
+        version: "v2",
+        settingsV2: {
+          gameEndTrigger: "player_eliminated",
+          scoringType: "ranked_placement_only",
+          winMetric: "last_man_standing",
+        },
+      });
+
+      await addGamePlayer({ gameId: game.id, userId: opponent.id });
+      await addGamePlayer({ gameId: game.id, userId: third.id });
+      await addGamePlayer({ gameId: game.id, userId: fourth.id });
+
+      await commitGameRound({
+        gameId: game.id,
+        completeGame: false,
+        eliminatedUserId: third.id,
+      });
+      await commitGameRound({
+        gameId: game.id,
+        completeGame: false,
+        eliminatedUserId: opponent.id,
+      });
+
+      await uneliminateGamePlayer({
+        gameId: game.id,
+        eliminatedUserId: third.id,
+      });
+
+      const updatedGame = await getGame(game.id);
+
+      expect(updatedGame?.completedAt).toBeNull();
+      expect(updatedGame?.completedRounds).toBe(0);
+      expect(updatedGame?.eliminations).toEqual([]);
+      expect(updatedGame?.rounds).toEqual([]);
+      expect(updatedGame?.winners).toEqual([]);
+      expect(updatedGame?.resultPlacements).toEqual([]);
+    }, "elimination-uneliminate-action");
   });
 
   it("rejects duplicate players across no-score placements", async () => {
@@ -1025,6 +1338,67 @@ describe("server action integration", () => {
     }, "game-manager-live-play-action");
   });
 
+  it("lets self scorers edit only their own score", async () => {
+    await withTestDatabase(async () => {
+      const creator = await createUserFixture();
+      const selfScorer = await createUserFixture();
+      const otherPlayer = await createUserFixture();
+
+      mockAuthenticatedUser(creator.id);
+      const {
+        addGamePlayer,
+        createConfiguredGame,
+        setGamePlayerRole,
+      } = await import("../../../src/app/actions/game");
+      const game = await createConfiguredGame({
+        gameTitleName: "Self scorer permissions",
+        scoringMode: "lowest_wins",
+        endingMode: "none",
+      });
+      await addGamePlayer({ gameId: game.id, userId: selfScorer.id });
+      await addGamePlayer({ gameId: game.id, userId: otherPlayer.id });
+      await setGamePlayerRole({
+        gameId: game.id,
+        userId: selfScorer.id,
+        role: "self_scorer",
+      });
+
+      vi.resetModules();
+      mockAuthenticatedUser(selfScorer.id);
+      const {
+        addGuestGamePlayer,
+        getGame,
+        upsertActiveRoundScore,
+      } = await import("../../../src/app/actions/game");
+
+      await upsertActiveRoundScore({
+        gameId: game.id,
+        userId: selfScorer.id,
+        scoreDelta: 4,
+      });
+      await expect(
+        upsertActiveRoundScore({
+          gameId: game.id,
+          userId: otherPlayer.id,
+          scoreDelta: 9,
+        }),
+      ).rejects.toThrow("only edit scores allowed by your game role");
+      await expect(
+        addGuestGamePlayer({ gameId: game.id, firstName: "Blocked" }),
+      ).rejects.toThrow("Only the game creator or a manager can do that");
+
+      const persisted = await getGame(game.id);
+      expect(
+        persisted?.players.find((player) => player.userId === selfScorer.id)
+          ?.score,
+      ).toBe(4);
+      expect(
+        persisted?.players.find((player) => player.userId === otherPlayer.id)
+          ?.score,
+      ).toBe(0);
+    }, "game-self-scorer-permissions-action");
+  });
+
   it("keeps manager-only ownership actions blocked for managers", async () => {
     await withTestDatabase(async () => {
       const creator = await createUserFixture();
@@ -1085,6 +1459,143 @@ describe("server action integration", () => {
         }),
       ).rejects.toThrow("Only the game creator can do that");
     }, "game-manager-owner-boundary-action");
+  });
+
+  it("saves custom v2 settings as isolated personal title defaults", async () => {
+    await withTestDatabase(async () => {
+      vi.doMock("server-only", () => ({}));
+      vi.doMock("next/cache", () => ({
+        revalidateTag: vi.fn(),
+      }));
+      const { sql } = await import("../../../src/lib/db");
+      await sql.execute(`
+        CREATE TABLE user_game_title_settings (
+          user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          game_title_id text NOT NULL REFERENCES game_title(id) ON DELETE CASCADE,
+          settings_version text NOT NULL,
+          settings_json text NOT NULL,
+          updated_at text NOT NULL,
+          PRIMARY KEY (user_id, game_title_id)
+        )
+      `);
+
+      const creator = await createUserFixture();
+      const secondUser = await createUserFixture();
+      mockAuthenticatedUser(creator.id);
+
+      const { createConfiguredGame } = await import("../../../src/app/actions/game");
+      const {
+        buildCreateGameSettingsFromTemplate,
+        parseGameSettingsV2,
+      } = await import("../../../src/lib/game/v2");
+      const firstGame = await createConfiguredGame({
+        gameTitleName: "Personal Defaults Fixture",
+        scoringMode: "highest_wins",
+        endingMode: "none",
+        version: "v2",
+        settingsSource: "custom",
+        settingsV2: buildCreateGameSettingsFromTemplate({
+          template: "point_scoring",
+          roundsEnabled: false,
+          initialPlayerScore: 0,
+        }),
+      });
+
+      expect(firstGame.gameTitleId).toBeTruthy();
+
+      const creatorSettings = buildCreateGameSettingsFromTemplate({
+        template: "point_scoring",
+        roundsEnabled: false,
+        initialPlayerScore: 12,
+      });
+      await createConfiguredGame({
+        gameTitleId: firstGame.gameTitleId,
+        scoringMode: "highest_wins",
+        endingMode: "none",
+        version: "v2",
+        settingsSource: "custom",
+        settingsV2: creatorSettings,
+      });
+
+      const { db, gameTitle, userGameTitleSettings } = await import(
+        "../../../src/lib/db"
+      );
+      const { shareGameTitleWithUser } = await import(
+        "../../../src/lib/db/store/game.store"
+      );
+      let rows = await db.query.userGameTitleSettings.findMany();
+      expect(rows).toHaveLength(1);
+      expect(parseGameSettingsV2(rows[0]?.settingsJson)?.initialPlayerScore).toBe(12);
+
+      await shareGameTitleWithUser({
+        gameTitleId: firstGame.gameTitleId!,
+        targetUserId: secondUser.id,
+        sharedByUserId: creator.id,
+      });
+      vi.resetModules();
+      mockAuthenticatedUser(secondUser.id);
+      const { createConfiguredGame: createAsSecondUser } = await import(
+        "../../../src/app/actions/game"
+      );
+      await createAsSecondUser({
+        gameTitleId: firstGame.gameTitleId,
+        scoringMode: "highest_wins",
+        endingMode: "none",
+        version: "v2",
+        settingsSource: "custom",
+        settingsV2: buildCreateGameSettingsFromTemplate({
+          template: "point_scoring",
+          roundsEnabled: false,
+          initialPlayerScore: 25,
+        }),
+      });
+
+      rows = await db.query.userGameTitleSettings.findMany();
+      expect(rows).toHaveLength(2);
+      expect(
+        parseGameSettingsV2(
+          rows.find((row) => row.userId === creator.id)?.settingsJson,
+        )?.initialPlayerScore,
+      ).toBe(12);
+      expect(
+        parseGameSettingsV2(
+          rows.find((row) => row.userId === secondUser.id)?.settingsJson,
+        )?.initialPlayerScore,
+      ).toBe(25);
+
+      const { getGameTitleLibraryEntryById } = await import(
+        "../../../src/lib/db/store/game.store"
+      );
+      const secondUserTitle = await getGameTitleLibraryEntryById({
+        userId: secondUser.id,
+        gameTitleId: firstGame.gameTitleId!,
+      });
+      expect(secondUserTitle?.personalSettingsVersion).toBe("v2");
+      expect(
+        parseGameSettingsV2(secondUserTitle?.personalSettingsJson)
+          ?.initialPlayerScore,
+      ).toBe(25);
+
+      await createAsSecondUser({
+        gameTitleId: firstGame.gameTitleId,
+        scoringMode: "highest_wins",
+        endingMode: "none",
+        version: "v2",
+        settingsSource: "game_default",
+        settingsV2: buildCreateGameSettingsFromTemplate({
+          template: "point_scoring",
+          roundsEnabled: false,
+          initialPlayerScore: 0,
+        }),
+      });
+      const unchanged = await db.query.userGameTitleSettings.findFirst({
+        where: eq(userGameTitleSettings.userId, secondUser.id),
+      });
+      expect(parseGameSettingsV2(unchanged?.settingsJson)?.initialPlayerScore).toBe(25);
+
+      await db.delete(gameTitle).where(eq(gameTitle.id, firstGame.gameTitleId!));
+      expect(await db.query.userGameTitleSettings.findMany()).toHaveLength(0);
+    }, "personal-game-title-defaults");
   });
 
   it("marks the profile complete and sets a short-lived bypass cookie", async () => {
@@ -1160,6 +1671,7 @@ describe("server action integration", () => {
       const {
         db,
         cards,
+        cardTemplates,
         cardDrops,
         decks,
         gamePlayers,
@@ -1301,17 +1813,24 @@ describe("server action integration", () => {
 
       await db.insert(decks).values({
         name: "skyjo",
+        label: "Skyjo",
         description: "Test deck",
       });
+
+      const [cardTemplate] = await db.insert(cardTemplates).values({
+        deckName: "skyjo",
+        slug: "number-1",
+        name: "Skyjo 1",
+        rarity: "uncommon",
+        renderer: "skyjo_number",
+        configJson: JSON.stringify({ value: 1 }),
+      }).returning();
 
       await db.insert(cards).values({
         ownerId: guest.id,
         deckName: "skyjo",
-        value: 1,
-        suit: "sun",
-        weight: 1,
-        probability: 1,
-        suitProbability: 1,
+        cardTemplateId: cardTemplate.id,
+        rarity: "uncommon",
       });
       await db.insert(cardDrops).values({
         userId: guest.id,
@@ -1759,5 +2278,90 @@ describe("server action integration", () => {
       expect(summary?.playerRankTotalMinor).toBe(5000);
       expect(historyRows.some((row) => row.userId === guest.id)).toBe(false);
     }, "guest-merge-rank-duplicates");
+  });
+
+  it("saves deck artwork and replaces game-title assignments atomically", async () => {
+    await withTestDatabase(async () => {
+      const admin = await createUserFixture({ role: "admin" });
+      mockAuthenticatedUser(admin.id);
+      vi.doMock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
+
+      const { db, gameTitle } = await import("../../../src/lib/db");
+      const titles = await db
+        .insert(gameTitle)
+        .values([
+          { title: "Catalog Game One", normalizedTitle: "catalog-game-one" },
+          { title: "Catalog Game Two", normalizedTitle: "catalog-game-two" },
+        ])
+        .returning();
+      const { saveCardDeck } = await import("../../../src/app/actions/card-admin");
+
+      const createData = new FormData();
+      createData.set("name", "catalog-test");
+      createData.set("label", "Catalog Test");
+      createData.set("description", "A configured test deck");
+      createData.set("packSize", "5");
+      createData.set("commonOdds", "70");
+      createData.set("uncommonOdds", "20");
+      createData.set("rareOdds", "8");
+      createData.set("legendaryOdds", "2");
+      createData.set("isActive", "on");
+      createData.set("backStyle", "sunburst");
+      createData.set("backPrimaryColor", "#ef4444");
+      createData.set("backSecondaryColor", "#450a0a");
+      createData.set("backAccentColor", "#fef2f2");
+      createData.append("gameTitleIds", titles[0]!.id);
+      createData.append("gameTitleIds", titles[1]!.id);
+      await saveCardDeck(createData);
+
+      expect(await db.query.decks.findFirst({ where: (table, { eq }) => eq(table.name, "catalog-test") }))
+        .toMatchObject({ backStyle: "sunburst", backPrimaryColor: "#ef4444" });
+      expect(
+        (await db.query.gameTitle.findMany({
+          where: (table, { inArray }) => inArray(table.id, titles.map((title) => title.id)),
+        })).every((title) => title.rewardDeckName === "catalog-test"),
+      ).toBe(true);
+
+      createData.delete("gameTitleIds");
+      createData.append("gameTitleIds", titles[1]!.id);
+      await saveCardDeck(createData);
+
+      const updatedTitles = await db.query.gameTitle.findMany({
+        where: (table, { inArray }) => inArray(table.id, titles.map((title) => title.id)),
+        orderBy: (table, { asc }) => asc(table.normalizedTitle),
+      });
+      expect(updatedTitles.map((title) => title.rewardDeckName)).toEqual([null, "catalog-test"]);
+    }, "card-catalog-admin-action");
+  });
+
+  it("rejects invalid deck artwork and inactive game assignments", async () => {
+    await withTestDatabase(async () => {
+      const admin = await createUserFixture({ role: "admin" });
+      mockAuthenticatedUser(admin.id);
+      vi.doMock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
+      const { db, gameTitle } = await import("../../../src/lib/db");
+      const [title] = await db
+        .insert(gameTitle)
+        .values({ title: "Deck Guard Game", normalizedTitle: "deck-guard-game" })
+        .returning();
+      const { saveCardDeck } = await import("../../../src/app/actions/card-admin");
+      const formData = new FormData();
+      formData.set("name", "guarded-deck");
+      formData.set("label", "Guarded Deck");
+      formData.set("packSize", "5");
+      formData.set("commonOdds", "70");
+      formData.set("uncommonOdds", "20");
+      formData.set("rareOdds", "8");
+      formData.set("legendaryOdds", "2");
+      formData.set("backStyle", "classic");
+      formData.set("backPrimaryColor", "red");
+      formData.set("backSecondaryColor", "#450a0a");
+      formData.set("backAccentColor", "#ffffff");
+
+      await expect(saveCardDeck(formData)).rejects.toThrow(/hex color/i);
+      formData.set("backPrimaryColor", "#ef4444");
+      formData.append("gameTitleIds", title!.id);
+      await expect(saveCardDeck(formData)).rejects.toThrow(/Inactive decks cannot be assigned/i);
+    }, "card-catalog-admin-guards");
   });
 });

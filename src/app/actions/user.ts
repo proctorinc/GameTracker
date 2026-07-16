@@ -14,11 +14,13 @@ import { loadCurrentUser } from "@/lib/auth/auth-me";
 import {
   revalidateDashboardPage,
   revalidateFriendsPage,
+  revalidateProfileIdentity,
   revalidateProfileOverviewPage,
   revalidatePublicProfilePage,
 } from "@/lib/cache-invalidation";
 import { PROFILE_COMPLETION_BYPASS_COOKIE } from "@/lib/auth/profile-completion-cookie";
 import { logError, logInfo, type LogMeta } from "@/lib/server-log";
+import { areCardsEnabled } from "@/lib/db/store/feature-flags.store";
 
 function buildInvitePath(friendInviteToken: string) {
   return `/invite/${friendInviteToken}`;
@@ -40,6 +42,7 @@ export async function updateUserProfile(data: {
   firstName: string;
   lastName: string;
   color?: string;
+  avatarUrl?: string | null;
 }) {
   let actorUserId: string | null = null;
 
@@ -53,6 +56,7 @@ export async function updateUserProfile(data: {
         firstName: data.firstName,
         lastName: data.lastName,
         color: data.color,
+        avatarUrl: data.avatarUrl,
         isProfileComplete: true,
       })
       .where(eq(users.id, user.id));
@@ -61,6 +65,8 @@ export async function updateUserProfile(data: {
     revalidatePublicProfilePage(user.id);
     revalidateFriendsPage(user.id);
     revalidateDashboardPage(user.id);
+    revalidateProfileIdentity();
+    revalidatePath("/", "layout");
     const cookieStore = await cookies();
     cookieStore.set(PROFILE_COMPLETION_BYPASS_COOKIE, "1", {
       httpOnly: true,
@@ -72,12 +78,14 @@ export async function updateUserProfile(data: {
     logUserActionSuccess("profile.update", {
       actorUserId: user.id,
       updatedColor: Boolean(data.color),
+      updatedAvatarUrl: Boolean(data.avatarUrl),
       profileCompleted: true,
     });
   } catch (error) {
     logUserActionFailure("profile.update", error, {
       actorUserId,
       updatedColor: Boolean(data.color),
+      updatedAvatarUrl: Boolean(data.avatarUrl),
     });
     throw error;
   }
@@ -87,8 +95,20 @@ export async function updateProfileCard(data: { profileCardId: string }) {
   let actorUserId: string | null = null;
 
   try {
+    if (!(await areCardsEnabled())) {
+      throw new Error("Cards are not available yet");
+    }
+
     const user = await loadCurrentUser();
     actorUserId = user.id;
+    const ownedCard = await db.query.cards.findFirst({
+      where: (table, { and, eq }) =>
+        and(eq(table.id, data.profileCardId), eq(table.ownerId, user.id)),
+      columns: { id: true },
+    });
+    if (!ownedCard) {
+      throw new Error("Choose a card from your own collection");
+    }
 
     await db
       .update(users)
@@ -168,6 +188,8 @@ export async function updateOwnedGuestColor(data: {
     }
 
     revalidateDashboardPage(user.id);
+    revalidateProfileIdentity();
+    revalidatePath("/", "layout");
 
     if (data.gameId) {
       revalidatePath(`/game/${data.gameId}/play`);

@@ -35,6 +35,7 @@ export async function getDeckFullByName(
     where: eq(decks.name, name),
     with: {
       cards: true,
+      templates: true,
       cardDrops: true,
     },
   });
@@ -44,6 +45,18 @@ export async function getDeckFullByName(
 
 export async function listDecks(): Promise<DeckBase[]> {
   return db.query.decks.findMany();
+}
+
+export async function listDecksWithTemplates() {
+  return db.query.decks.findMany({
+    orderBy: (table, { asc }) => asc(table.label),
+    with: {
+      templates: {
+        orderBy: (table, { asc }) => [asc(table.sortOrder), asc(table.name)],
+      },
+      rewardGameTitles: true,
+    },
+  });
 }
 
 export async function updateDeck(

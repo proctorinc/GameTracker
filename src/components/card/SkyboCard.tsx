@@ -1,4 +1,3 @@
-import { CardRow } from '@/lib/db/store/cards.store';
 import { cn } from '@/lib/utils';
 import { useState, useRef } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
@@ -38,7 +37,7 @@ export const BACKGROUND_STYLES = {
 type CardStyleVariant = keyof typeof BACKGROUND_STYLES;
 
 export const cardVariants = cva(
-  "absolute inset-0 bg-gradient-to-br p-3 rounded-2xl border-4 border-white flex flex-col justify-between select-none overflow-hidden backface-hidden shadow-xl text-slate-900 font-extrabold",
+  "absolute inset-0 bg-gradient-to-br p-3 rounded-xl border-4 border-white flex flex-col justify-between select-none overflow-hidden backface-hidden shadow-xl text-slate-900 font-extrabold",
   {
     variants: {
       cardStyle: {
@@ -57,7 +56,9 @@ export const cardVariants = cva(
   }
 );
 
-export function determineCardStyle(card: CardRow): CardStyleVariant {
+export type SkyboVisualCard = { value: number; modifier?: string };
+
+export function determineCardStyle(card: SkyboVisualCard): CardStyleVariant {
   if (card.modifier === "Holographic") return "rainbow";
   if (card.value < 0) return "dark-blue";
   if (card.value === 0) return "light-blue";
@@ -67,7 +68,7 @@ export function determineCardStyle(card: CardRow): CardStyleVariant {
 }
 
 interface SkyboCardProps extends VariantProps<typeof cardVariants> {
-  card: CardRow;
+  card: SkyboVisualCard;
   className?: string;
   isFlippedByDefault?: boolean;
   onFlip?: (isFlipped: boolean) => void;
@@ -139,7 +140,7 @@ export default function SkyboCard({
       className={cn("perspective-[1000px] w-44 h-60 aspect-5/7 inline-block cursor-pointer font-skybo", className)}
     >
       <div 
-        className="relative w-full h-full duration-500 ease-out rounded-2xl"
+        className="relative w-full h-full duration-500 ease-out rounded-xl"
         style={{
           transform: `rotateX(${rotateX}deg) rotateY(${rotateY + (isFlipped ? 180 : 0)}deg) ${isHovered ? 'scale(1.03)' : 'scale(1)'}`,
           transformStyle: 'preserve-3d',
@@ -207,7 +208,7 @@ export default function SkyboCard({
         </div>
 
         {/* CARD BACK */}
-        <div className="absolute inset-0 p-0 flex [transform:rotateY(180deg)] border-0 bg-white backface-hidden rounded-2xl shadow-xl">
+        <div className="absolute inset-0 p-0 flex [transform:rotateY(180deg)] border-0 bg-white backface-hidden rounded-xl shadow-xl">
           <CardBack />
         </div>
       </div>

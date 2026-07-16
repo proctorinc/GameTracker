@@ -41,6 +41,7 @@ describe("ProfileOverviewPage", () => {
     const { container } = renderWithProviders(
       <ProfileOverviewPage
         initialData={{
+          cardsEnabled: false,
           user: {
             id: "viewer",
             role: "user",
@@ -129,6 +130,7 @@ describe("ProfileOverviewPage", () => {
     );
 
     expect(screen.getByText("Pending invitations need your review.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cards" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /friends/i }).length).toBeGreaterThan(0);
     expect(container.querySelectorAll(".bg-red-500")).toHaveLength(1);
     expect(window.localStorage.getItem("page-tab:/profile")).toBe("friends");

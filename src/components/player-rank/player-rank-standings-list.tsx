@@ -26,7 +26,7 @@ export function PlayerRankStandingsList({
       </CardHeader>
       <CardContent className="space-y-2">
         {standings.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border/70 px-4 py-6 text-center text-sm text-muted-foreground">
+          <div className="rounded-xl border border-dashed border-border/70 px-4 py-6 text-center text-sm text-muted-foreground">
             Add friends to see your Player Rank circle.
           </div>
         ) : (
@@ -37,7 +37,7 @@ export function PlayerRankStandingsList({
               <div
                 key={row.user.id}
                 className={cn(
-                  "flex items-center gap-3 rounded-2xl border border-border/70 bg-card/95 px-3 py-3",
+                  "flex items-center gap-3 rounded-xl border border-border/70 bg-card/95 px-3 py-3",
                   isCurrentUser && "border-primary/40 bg-primary/5",
                 )}
               >
@@ -53,6 +53,7 @@ export function PlayerRankStandingsList({
                     firstName: row.user.firstName,
                     lastName: row.user.lastName,
                     color: row.user.color,
+                    avatarUrl: row.user.avatarUrl,
                   }}
                 />
                 <div className="min-w-0 flex-1">

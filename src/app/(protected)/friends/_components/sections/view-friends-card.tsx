@@ -11,7 +11,7 @@ export function ViewFriendsCard() {
         <CardTitle>View Friends</CardTitle>
         <Link
           href="/activity?tab=leaderboard"
-          className="group w-full rounded-2xl border border-border bg-muted/60 text-left transition-colors hover:bg-muted"
+          className="group w-full rounded-xl border border-border bg-muted/60 text-left transition-colors hover:bg-muted"
         >
           <span className="flex w-full items-center justify-between gap-3 px-4 py-3">
             <div className="flex items-center gap-3">

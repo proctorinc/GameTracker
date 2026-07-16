@@ -27,6 +27,7 @@ export type PlayerRankSummaryCardProps = {
     firstName: string | null;
     lastName: string | null;
     color: string;
+    avatarUrl: string | null;
     displayName?: string;
   } | null;
   className?: string;
@@ -146,7 +147,7 @@ export function PlayerRankSummaryCard({
               <p className="text-sm text-muted-foreground">{detailCopy}</p>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-2xl border border-border/70 bg-background/90 p-3">
+              <div className="rounded-xl border border-border/70 bg-background/90 p-3">
                 <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   Recent up
                 </p>
@@ -160,7 +161,7 @@ export function PlayerRankSummaryCard({
                     : "No recent gain tracked"}
                 </p>
               </div>
-              <div className="rounded-2xl border border-border/70 bg-background/90 p-3">
+              <div className="rounded-xl border border-border/70 bg-background/90 p-3">
                 <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   Recent down
                 </p>
@@ -176,7 +177,7 @@ export function PlayerRankSummaryCard({
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-2xl border border-border/70 bg-background/90 p-3">
+              <div className="rounded-xl border border-border/70 bg-background/90 p-3">
                 <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   Games Played
                 </p>
@@ -184,7 +185,7 @@ export function PlayerRankSummaryCard({
                   {gamesPlayed}
                 </p>
               </div>
-              <div className="rounded-2xl border border-border/70 bg-background/90 p-3">
+              <div className="rounded-xl border border-border/70 bg-background/90 p-3">
                 <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   Top 3 Finishes
                 </p>
@@ -209,7 +210,7 @@ export function PlayerRankSummaryCard({
               View full standings
             </Link>
             <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-2xl border border-border/70 bg-background/90 p-3">
+              <div className="rounded-xl border border-border/70 bg-background/90 p-3">
                 <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   2 players
                 </p>
@@ -217,7 +218,7 @@ export function PlayerRankSummaryCard({
                   {twoPlayerPrizePool ?? "--"}
                 </p>
               </div>
-              <div className="rounded-2xl border border-border/70 bg-background/90 p-3">
+              <div className="rounded-xl border border-border/70 bg-background/90 p-3">
                 <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   3 players
                 </p>
@@ -225,7 +226,7 @@ export function PlayerRankSummaryCard({
                   {threePlayerPrizePool ?? "--"}
                 </p>
               </div>
-              <div className="rounded-2xl border border-border/70 bg-background/90 p-3">
+              <div className="rounded-xl border border-border/70 bg-background/90 p-3">
                 <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   6+ players
                 </p>

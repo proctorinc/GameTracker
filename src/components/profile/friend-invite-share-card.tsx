@@ -185,7 +185,7 @@ function ShareQrContent({
   return (
     <div className="flex flex-col gap-8 pb-20">
       <div className="flex justify-center">
-        <div className="relative overflow-hidden rounded-3xl border border-border bg-white shadow-sm">
+        <div className="relative overflow-hidden rounded-xl border border-border bg-white shadow-sm">
           <div
             className={cn(blurQrCode && "blur-md select-none")}
             data-testid={blurQrCode ? "share-qr-blurred" : "share-qr-visible"}
@@ -193,7 +193,7 @@ function ShareQrContent({
             {shareUrl ? (
               <QRCodeSVG
                 value={shareUrl}
-                className="rounded-3xl"
+                className="rounded-xl"
                 size={250}
                 bgColor="#ffffff"
                 fgColor="#111827"
@@ -201,7 +201,7 @@ function ShareQrContent({
                 title={qrTitle}
               />
             ) : (
-              <div className="flex h-[184px] w-[184px] items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+              <div className="flex h-[184px] w-[184px] items-center justify-center rounded-xl bg-muted text-muted-foreground">
                 <QrCode className="size-8" />
               </div>
             )}

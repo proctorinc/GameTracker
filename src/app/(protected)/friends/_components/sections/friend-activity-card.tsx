@@ -162,13 +162,16 @@ export function FriendActivityCard() {
                       >
                         <GameTitleImage
                           className={cn(
-                            "rounded-2xl border border-border/70 px-3 py-3 transition-colors hover:bg-muted/80",
+                            "px-3 py-3 transition-colors hover:bg-muted/80",
                           )}
                           color={game.gameTitle?.color}
+                          contentClassName="flex w-full items-center"
                           imageUrl={game.gameTitle?.imageUrl}
+                          size="sm"
+                          verticalFocus={game.gameTitle?.imageVerticalFocus}
                           variant="card"
                         >
-                          <div className="flex items-center justify-between gap-3">
+                          <div className="flex w-full items-center justify-between gap-3">
                             <div className="flex min-w-0 items-center gap-2 text-xs text-white">
                               <Trophy className="size-3.5 shrink-0" />
                               <span className="truncate font-bold">

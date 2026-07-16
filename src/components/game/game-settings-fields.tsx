@@ -17,7 +17,7 @@ export type EditableGameSettings = {
 };
 
 function optionClassName(isActive: boolean) {
-  return `rounded-3xl border p-4 text-left ${
+  return `rounded-xl border p-4 text-left ${
     isActive
       ? "border-foreground bg-foreground text-background shadow-sm"
       : "border-border bg-card text-foreground hover:bg-muted"
@@ -25,7 +25,7 @@ function optionClassName(isActive: boolean) {
 }
 
 function compactOptionClassName(isActive: boolean) {
-  return `rounded-2xl border p-3 text-sm font-bold ${
+  return `rounded-xl border p-3 text-sm font-bold ${
     isActive
       ? "border-foreground bg-foreground text-background shadow-sm"
       : "border-border bg-card text-foreground hover:bg-muted"
@@ -181,7 +181,7 @@ export default function GameSettingsFields({
           </button>
           {value.endingMode === "round_count" ? (
             <Input
-              className="h-14 rounded-[1.4rem] bg-background px-4 text-lg"
+              className="h-14 rounded-xl bg-background px-4 text-lg"
               inputMode="numeric"
               min={1}
               onChange={(event) => update("targetRounds", event.target.value)}
@@ -217,7 +217,7 @@ export default function GameSettingsFields({
               {value.endingMode === "score_threshold" ? (
                 <div className="grid grid-cols-2 gap-3">
                   <Input
-                    className="h-14 rounded-[1.4rem] bg-background px-4 text-lg"
+                    className="h-14 rounded-xl bg-background px-4 text-lg"
                     inputMode="numeric"
                     min={1}
                     onChange={(event) =>

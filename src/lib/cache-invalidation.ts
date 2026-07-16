@@ -1,16 +1,27 @@
-import { revalidateTag } from "next/cache";
+import { revalidateTag, updateTag } from "next/cache";
 import {
   getDashboardTag,
+  getCardCatalogTag,
+  getFeatureFlagsTag,
   getFriendsTag,
   getGameHistoryTag,
   getPlayerRankHistoryTag,
   getPlayerRankStandingsTag,
   getPlayerRankTag,
+  getProfileIdentityTag,
   getProfileOverviewTag,
   getPublicProfileTag,
   getTitlesGlobalTag,
   getTitlesTag,
 } from "./cache-tags";
+
+export function revalidateCardCatalog() {
+  revalidateTag(getCardCatalogTag(), "max");
+}
+
+export function revalidateFeatureFlags() {
+  updateTag(getFeatureFlagsTag());
+}
 
 function isPresentUserId(userId: string | null | undefined): userId is string {
   return typeof userId === "string" && userId.length > 0;
@@ -98,4 +109,8 @@ export function revalidatePlayerRankStandings() {
 
 export function revalidatePlayerRankHistory() {
   revalidateTag(getPlayerRankHistoryTag(), "max");
+}
+
+export function revalidateProfileIdentity() {
+  updateTag(getProfileIdentityTag());
 }

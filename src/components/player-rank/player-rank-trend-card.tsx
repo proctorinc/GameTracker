@@ -12,6 +12,7 @@ type PlayerRankTrendCardProps = {
     firstName: string | null;
     lastName: string | null;
     color: string;
+    avatarUrl: string | null;
   };
   color: string;
   rankTotal: string | null;

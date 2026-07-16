@@ -32,7 +32,7 @@ export function DashboardHeroSection() {
           twoPlayerPrizePool={twoPlayerPrizePool}
           threePlayerPrizePool={threePlayerPrizePool}
           sixPlusPlayerPrizePool={sixPlusPlayerPrizePool}
-          // className="mr-1"
+          className="mr-1"
         />
       ) : null}
     </div>

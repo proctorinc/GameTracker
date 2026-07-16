@@ -11,7 +11,7 @@ export function AdminToolsCard() {
         <CardTitle>Admin</CardTitle>
         <Link
           href="/admin"
-          className="flex items-center justify-between rounded-2xl border border-border bg-muted/60 px-4 py-3 transition-colors hover:bg-muted"
+          className="flex items-center justify-between rounded-xl border border-border bg-muted/60 px-4 py-3 transition-colors hover:bg-muted"
         >
           <div className="flex items-center gap-3">
             <div className="flex shrink-0 h-9 w-9 items-center justify-center rounded-xl bg-foreground text-background">

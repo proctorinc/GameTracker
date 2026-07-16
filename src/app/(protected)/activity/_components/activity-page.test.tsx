@@ -23,6 +23,7 @@ function createFriendActivityGame(dayOffset: number) {
       title: `Game ${dayOffset}`,
       color: "#123456",
       imageUrl: null,
+      imageVerticalFocus: 50,
     },
     players: [
       {
@@ -83,6 +84,7 @@ function createActivityPageData(
           title: "Skyjo",
           color: "#123456",
           imageUrl: null,
+          imageVerticalFocus: 50,
         },
         players: [
           {

@@ -25,6 +25,7 @@ type PlayerRankSummaryChartProps = {
     firstName: string | null;
     lastName: string | null;
     color: string;
+    avatarUrl: string | null;
   };
 };
 
@@ -172,7 +173,7 @@ export function PlayerRankSummaryChart({
     return (
       <div
         className={cn(
-          "flex min-h-14 items-center justify-center rounded-2xl border border-dashed border-border/70 bg-muted/25 px-3 text-center text-xs text-muted-foreground",
+          "flex min-h-14 items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/25 px-3 text-center text-xs text-muted-foreground",
           className,
         )}
       >

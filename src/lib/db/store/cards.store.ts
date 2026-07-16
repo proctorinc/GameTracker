@@ -1,199 +1,104 @@
-import { eq } from "drizzle-orm";
-import { db, cards } from "../index";
+import { and, eq, isNull } from "drizzle-orm";
+import { cards, db } from "../index";
+import type { CardRarity } from "../schema";
 
 export type CardBase = typeof cards.$inferSelect;
 export type CardInsert = typeof cards.$inferInsert;
-export type CardUpdate = Partial<Omit<CardInsert, "id">>;
-export type CardWithOwner = CardBase & {
-  owner: typeof db._.fullSchema.users.$inferSelect;
-};
-export type CardWithDeck = CardBase & {
-  deck: typeof db._.fullSchema.decks.$inferSelect | null;
-};
-export type CardFull = CardBase & {
-  owner: typeof db._.fullSchema.users.$inferSelect;
-  deck: typeof db._.fullSchema.decks.$inferSelect | null;
-};
+export type CardUpdate = Partial<Omit<CardInsert, "id" | "createdAt">>;
 export type CardRow = CardBase;
-
-const CARD_VALUE_WEIGHTS: Record<number, number> = {
-  [-2]: 2,
-  [-1]: 3,
-  0: 4,
-  1: 6,
-  2: 6,
-  3: 6,
-  4: 7,
-  5: 7,
-  6: 7,
-  7: 8,
-  8: 8,
-  9: 8,
-  10: 9,
-  11: 9,
-  12: 10,
+export type CardFull = Omit<CardBase, "cardTemplateId" | "rarity"> & {
+  cardTemplateId: string;
+  rarity: CardRarity;
+  owner: typeof db._.fullSchema.users.$inferSelect;
+  deck: typeof db._.fullSchema.decks.$inferSelect;
+  template: typeof db._.fullSchema.cardTemplates.$inferSelect;
 };
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function pickWeightedValue() {
-  const entries = Object.entries(CARD_VALUE_WEIGHTS).map(([value, weight]) => ({
-    value: Number(value),
-    weight,
-  }));
-  const totalWeight = entries.reduce((sum, entry) => sum + entry.weight, 0);
-  let roll = Math.floor(Math.random() * totalWeight);
-
-  for (const entry of entries) {
-    if (roll < entry.weight) {
-      return entry.value;
-    }
-    roll -= entry.weight;
-  }
-
-  return entries[entries.length - 1].value;
-}
-
-function getSuit(value: number) {
-  if (value < 0) return "DARK_BLUE";
-  if (value === 0) return "LIGHT_BLUE";
-  if (value <= 4) return "GREEN";
-  if (value <= 8) return "YELLOW";
-  return "RED";
-}
-
-function getSuitProbability(value: number) {
-  if (value < 0) return CARD_VALUE_WEIGHTS[-2] + CARD_VALUE_WEIGHTS[-1];
-  if (value === 0) return CARD_VALUE_WEIGHTS[0];
-  if (value <= 4)
-    return (
-      CARD_VALUE_WEIGHTS[1] +
-      CARD_VALUE_WEIGHTS[2] +
-      CARD_VALUE_WEIGHTS[3] +
-      CARD_VALUE_WEIGHTS[4]
-    );
-  if (value <= 8)
-    return (
-      CARD_VALUE_WEIGHTS[5] +
-      CARD_VALUE_WEIGHTS[6] +
-      CARD_VALUE_WEIGHTS[7] +
-      CARD_VALUE_WEIGHTS[8]
-    );
-  return (
-    CARD_VALUE_WEIGHTS[9] +
-    CARD_VALUE_WEIGHTS[10] +
-    CARD_VALUE_WEIGHTS[11] +
-    CARD_VALUE_WEIGHTS[12]
-  );
-}
-
-export function generateSingleCardDrop(): Omit<
-  CardInsert,
-  "id" | "ownerId" | "createdAt"
-> {
-  const value = pickWeightedValue();
-  return {
-    deckName: "standard",
-    value,
-    suit: getSuit(value),
-    weight: value * 100,
-    modifier: "Basic",
-    probability: CARD_VALUE_WEIGHTS[value],
-    suitProbability: getSuitProbability(value),
-  };
-}
 
 export async function createCard(input: CardInsert): Promise<CardBase> {
-  const [card] = await db
-    .insert(cards)
-    .values({
-      ...input,
-      createdAt: input.createdAt ?? nowIso(),
-    })
-    .returning();
-
+  const [card] = await db.insert(cards).values(input).returning();
   return card;
 }
 
 export async function getCardById(id: string): Promise<CardBase | null> {
-  const card = await db.query.cards.findFirst({
-    where: eq(cards.id, id),
-  });
-
-  return card ?? null;
+  return (
+    (await db.query.cards.findFirst({ where: eq(cards.id, id) })) ?? null
+  );
 }
 
 export async function getCardFullById(id: string): Promise<CardFull | null> {
   const card = await db.query.cards.findFirst({
     where: eq(cards.id, id),
-    with: {
-      owner: true,
-      deck: true,
-    },
+    with: { owner: true, deck: true, template: true },
   });
-
-  return card ?? null;
+  if (!card?.cardTemplateId || !card.rarity || !card.template) return null;
+  return card as CardFull;
 }
 
 export async function listCards(): Promise<CardBase[]> {
   return db.query.cards.findMany();
 }
 
-export async function getCardsByOwnerId(ownerId: string): Promise<CardBase[]> {
-  return db.query.cards.findMany({
+export async function getCardsByOwnerId(ownerId: string) {
+  const rows = await db.query.cards.findMany({
     where: eq(cards.ownerId, ownerId),
+    with: { deck: true, template: true },
   });
+  return rows.filter(
+    (row): row is typeof row & {
+      cardTemplateId: string;
+      rarity: CardRarity;
+      template: NonNullable<typeof row.template>;
+    } => Boolean(row.cardTemplateId && row.rarity && row.template),
+  );
 }
 
-export async function getCardsByDeckName(
-  deckName: string,
-): Promise<CardBase[]> {
+export async function getCardsByDeckName(deckName: string) {
   return db.query.cards.findMany({
     where: eq(cards.deckName, deckName),
+    with: { template: true },
   });
 }
 
-export async function updateCard(
-  id: string,
-  input: CardUpdate,
-): Promise<CardBase | null> {
-  const [card] = await db
-    .update(cards)
-    .set(input)
-    .where(eq(cards.id, id))
-    .returning();
+export async function getOwnedCardByIdentity(input: {
+  ownerId: string;
+  cardTemplateId: string;
+  subjectId?: string | null;
+}) {
+  return (
+    (await db.query.cards.findFirst({
+      where: and(
+        eq(cards.ownerId, input.ownerId),
+        eq(cards.cardTemplateId, input.cardTemplateId),
+        input.subjectId
+          ? eq(cards.subjectId, input.subjectId)
+          : isNull(cards.subjectId),
+      ),
+    })) ?? null
+  );
+}
 
+export async function updateCard(id: string, input: CardUpdate) {
+  const [card] = await db.update(cards).set(input).where(eq(cards.id, id)).returning();
   return card ?? null;
 }
 
-export async function deleteCard(id: string): Promise<CardBase | null> {
+export async function deleteCard(id: string) {
   const [card] = await db.delete(cards).where(eq(cards.id, id)).returning();
   return card ?? null;
 }
 
 export async function createUserCard(
   userId: string,
-  input?: Partial<Pick<CardInsert, "value" | "modifier" | "deckName">>,
-): Promise<CardRow> {
-  const generated = generateSingleCardDrop();
-  const created = await createCard({
-    ...generated,
+  input: Pick<CardInsert, "deckName" | "cardTemplateId" | "rarity"> &
+    Partial<Pick<CardInsert, "subjectType" | "subjectId">>,
+) {
+  return createCard({
     ownerId: userId,
-    deckName: input?.deckName ?? generated.deckName,
-    value: input?.value ?? generated.value,
-    modifier: input?.modifier ?? generated.modifier,
-    suit: getSuit(input?.value ?? generated.value),
-    weight: (input?.value ?? generated.value) * 100,
-    probability: CARD_VALUE_WEIGHTS[input?.value ?? generated.value],
-    suitProbability: getSuitProbability(input?.value ?? generated.value),
+    value: 0,
+    suit: "CATALOG",
+    weight: 0,
+    probability: 0,
+    suitProbability: 0,
+    ...input,
   });
-
-  const card = await getCardFullById(created.id);
-  if (!card) {
-    throw new Error("Failed to load created card");
-  }
-
-  return card;
 }

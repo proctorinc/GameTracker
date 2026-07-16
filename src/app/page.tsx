@@ -64,10 +64,10 @@ export default async function HomePage() {
                 ({ icon: Icon, eyebrow, title, description }) => (
                   <Card
                     key={title}
-                    className="rounded-[1.8rem] border-border/80 bg-card shadow-lg"
+                    className="rounded-xl border-border/80 bg-card shadow-lg"
                   >
                     <CardContent className="space-y-3 pt-1">
-                      <div className="flex size-12 items-center justify-center rounded-2xl bg-muted">
+                      <div className="flex size-12 items-center justify-center rounded-xl bg-muted">
                         <Icon className="size-5" />
                       </div>
                       <div>
@@ -89,7 +89,7 @@ export default async function HomePage() {
 
         {/*<LandingPageShowcase />*/}
 
-        <Card className="rounded-[2rem] border-border/80 bg-foreground py-0 text-background shadow-lg mx-4">
+        <Card className="rounded-xl border-border/80 bg-foreground py-0 text-background shadow-lg mx-4">
           <CardContent className="space-y-2 py-6">
             <p className="font-semibold">And remember,</p>
             <p className="text-3xl font-black tracking-tight text-balance">

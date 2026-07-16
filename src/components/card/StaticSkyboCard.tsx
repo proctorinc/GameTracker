@@ -1,9 +1,8 @@
-import { CardRow } from '@/lib/db/store/cards.store';
 import { cn } from '@/lib/utils';
-import { BACKGROUND_STYLES, cardVariants, determineCardStyle } from './SkyboCard';
+import { BACKGROUND_STYLES, cardVariants, determineCardStyle, type SkyboVisualCard } from './SkyboCard';
 
 interface StaticSkyboCardProps {
-  card: CardRow;
+  card: SkyboVisualCard;
   className?: string;
   /** Optional override to force a specific color theme */
   cardStyle?: keyof typeof BACKGROUND_STYLES;

@@ -8,6 +8,7 @@ import { EmptyDashboardStateSection } from "./sections/empty-dashboard-state-sec
 import { IncomingInvitationsCard } from "./sections/incoming-invitations-card";
 import { RecentlyPlayedSection } from "./sections/recently-played-section";
 import { StartGameCard } from "./sections/start-game-card";
+import { RewardPacksSection } from "./sections/reward-packs-section";
 import {
   DashboardPageProvider,
   useDashboardPage,
@@ -19,12 +20,14 @@ function DashboardPageContent() {
     recentActiveGames,
     recentCompletedGames,
     recentGameTitles,
+    unopenedCardPacks,
   } = useDashboardPage();
   const isFirstRunDashboard =
     incomingInvitations.length === 0 &&
     recentActiveGames.length === 0 &&
     recentCompletedGames.length === 0 &&
-    recentGameTitles.length === 0;
+    recentGameTitles.length === 0 &&
+    unopenedCardPacks.length === 0;
 
   return (
     <div
@@ -46,6 +49,7 @@ function DashboardPageContent() {
         ) : (
           <>
             <DashboardHeroSection />
+            <RewardPacksSection />
             <RecentlyPlayedSection />
             <StartGameCard />
             <IncomingInvitationsCard />

@@ -6,11 +6,16 @@ import { getFriendConnectionsPageData } from "@/app/(protected)/friends/_compone
 import { loadCurrentUser } from "@/lib/auth/auth-me";
 import {
   getFriendsTag,
+  getCardCatalogTag,
+  getFeatureFlagsTag,
   getPlayerRankTag,
+  getProfileIdentityTag,
   getProfileOverviewTag,
   getPublicProfileTag,
+  getTitlesTag,
 } from "@/lib/cache-tags";
 import { getUserById } from "@/lib/db/store";
+import { getCardCollectionForOwner } from "@/lib/collectible-cards";
 import {
   getActivePlayerRankConfig,
   getPlayerRankRecentChangeSummary,
@@ -20,6 +25,7 @@ import {
 import { formatPlayerRankTotal } from "@/lib/player-rank";
 import { getOwnProfileStatsPageData } from "../../[id]/page-data";
 import type { ProfileOverviewPageData, ProfileOverviewTab } from "./types";
+import { areCardsEnabled } from "@/lib/db/store/feature-flags.store";
 
 const PROFILE_OVERVIEW_REVALIDATE_SECONDS = 15;
 
@@ -31,7 +37,11 @@ export function selectProfileOverviewTab(input: {
     return "friends";
   }
 
-  if (input.tab === "friends" || input.tab === "settings") {
+  if (
+    input.tab === "friends" ||
+    input.tab === "collection" ||
+    input.tab === "settings"
+  ) {
     return input.tab;
   }
 
@@ -46,13 +56,17 @@ export async function getProfileOverviewPageData(input?: {
     onMissingAuth: "redirect",
     returnPath: "/profile",
   });
-  const initialTab = selectProfileOverviewTab(input ?? {});
+  const cardsEnabled = await areCardsEnabled();
+  const selectedTab = selectProfileOverviewTab(input ?? {});
+  const initialTab =
+    !cardsEnabled && selectedTab === "collection" ? "stats" : selectedTab;
   const showInviteNotice = input?.invites === "1";
 
   return getProfileOverviewPageDataCached({
     userId: sessionUser.id,
     initialTab,
     showInviteNotice,
+    cardsEnabled,
   });
 }
 
@@ -60,13 +74,17 @@ async function getProfileOverviewPageDataCached(input: {
   userId: string;
   initialTab: ProfileOverviewTab;
   showInviteNotice: boolean;
+  cardsEnabled: boolean;
 }): Promise<ProfileOverviewPageData> {
   return unstable_cache(
     async () => {
-      const [user, publicProfile, socialData] = await Promise.all([
+      const [user, publicProfile, socialData, cardCollection] = await Promise.all([
         getUserById(input.userId),
         getOwnProfileStatsPageData(input.userId),
         getFriendConnectionsPageData(),
+        input.cardsEnabled
+          ? getCardCollectionForOwner(input.userId)
+          : Promise.resolve([]),
       ]);
 
       if (!user || !publicProfile) {
@@ -91,19 +109,21 @@ async function getProfileOverviewPageDataCached(input: {
           firstName: user.firstName,
           lastName: user.lastName,
           color: user.color,
+          avatarUrl: user.avatarUrl,
           playerRankLeaderboardDisabled: user.playerRankLeaderboardDisabled,
         },
         friends: socialData.friends,
         standings,
       }).find((row) => row.user.id === input.userId);
-
       return {
+        cardsEnabled: input.cardsEnabled,
         user: {
           id: user.id,
           role: user.role,
           firstName: user.firstName,
           lastName: user.lastName,
           color: user.color,
+          avatarUrl: user.avatarUrl,
           createdAt: user.createdAt,
         },
         profile: publicProfile.profile,
@@ -137,15 +157,25 @@ async function getProfileOverviewPageDataCached(input: {
         hasPendingFriendInvitations: socialData.incomingInvitations.length > 0,
         showInviteNotice: input.showInviteNotice,
         initialTab: input.initialTab,
+        cardCollection,
       };
     },
-    [input.userId, input.initialTab, input.showInviteNotice ? "1" : "0"],
+    [
+      input.userId,
+      input.initialTab,
+      input.showInviteNotice ? "1" : "0",
+      input.cardsEnabled ? "cards-on" : "cards-off",
+    ],
     {
       tags: [
         getProfileOverviewTag(input.userId),
         getPublicProfileTag(input.userId),
         getPlayerRankTag(input.userId),
         getFriendsTag(input.userId),
+        getTitlesTag(input.userId),
+        getCardCatalogTag(),
+        getFeatureFlagsTag(),
+        getProfileIdentityTag(),
       ],
       revalidate: PROFILE_OVERVIEW_REVALIDATE_SECONDS,
     },

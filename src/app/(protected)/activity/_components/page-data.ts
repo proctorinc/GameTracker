@@ -7,6 +7,7 @@ import {
   getFriendsTag,
   getPlayerRankHistoryTag,
   getPlayerRankStandingsTag,
+  getProfileIdentityTag,
 } from "@/lib/cache-tags";
 import {
   getUserPlayerRankSummary,
@@ -30,7 +31,12 @@ const ACTIVITY_PAGE_REVALIDATE_SECONDS = 15;
 export type ActivityPageData = {
   user: Pick<
     Awaited<ReturnType<typeof loadCurrentUser>>,
-    "id" | "firstName" | "lastName" | "color" | "playerRankLeaderboardDisabled"
+    | "id"
+    | "firstName"
+    | "lastName"
+    | "color"
+    | "avatarUrl"
+    | "playerRankLeaderboardDisabled"
   >;
   friends: Awaited<ReturnType<typeof getFriendsPageCollections>>["friends"];
   friendActivity: Array<
@@ -63,6 +69,7 @@ export async function getActivityPageData(): Promise<ActivityPageData> {
         firstName: user.firstName,
         lastName: user.lastName,
         color: user.color,
+        avatarUrl: user.avatarUrl,
         playerRankLeaderboardDisabled: user.playerRankLeaderboardDisabled,
       },
     );
@@ -81,6 +88,7 @@ export async function getActivityPageData(): Promise<ActivityPageData> {
         firstName: user.firstName,
         lastName: user.lastName,
         color: user.color,
+        avatarUrl: user.avatarUrl,
         playerRankLeaderboardDisabled: user.playerRankLeaderboardDisabled,
       },
       ...data,
@@ -99,7 +107,12 @@ async function getActivityPageDataCached(
   userId: string,
   currentUser: Pick<
     Awaited<ReturnType<typeof loadCurrentUser>>,
-    "id" | "firstName" | "lastName" | "color" | "playerRankLeaderboardDisabled"
+    | "id"
+    | "firstName"
+    | "lastName"
+    | "color"
+    | "avatarUrl"
+    | "playerRankLeaderboardDisabled"
   >,
 ) {
   return unstable_cache(
@@ -161,6 +174,7 @@ async function getActivityPageDataCached(
         getFriendsTag(userId),
         getPlayerRankStandingsTag(),
         getPlayerRankHistoryTag(),
+        getProfileIdentityTag(),
       ],
       revalidate: ACTIVITY_PAGE_REVALIDATE_SECONDS,
     },

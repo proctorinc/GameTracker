@@ -10,6 +10,7 @@ export default async function AdminLeaderboardPage() {
       firstName: adminUser.firstName,
       lastName: adminUser.lastName,
       color: adminUser.color,
+      avatarUrl: adminUser.avatarUrl,
       playerRankLeaderboardDisabled: adminUser.playerRankLeaderboardDisabled,
     },
   });

@@ -9,6 +9,7 @@ import {
   getPlayerRankHistoryTag,
   getPlayerRankStandingsTag,
   getPlayerRankTag,
+  getProfileIdentityTag,
 } from "@/lib/cache-tags";
 import {
   getActivePlayerRankConfig,
@@ -27,6 +28,7 @@ export type PlayerRankPageComparisonSeries = {
   firstName: string | null;
   lastName: string | null;
   color: string;
+  avatarUrl: string | null;
   displayName: string;
   isCurrentUser: boolean;
   currentRankTotal: string;
@@ -45,6 +47,7 @@ export type PlayerRankPageSummary = {
   lastName: string | null;
   displayName: string;
   color: string;
+  avatarUrl: string | null;
   rankTotal: string;
   rankPosition: number | null;
   rankGamesCount: number;
@@ -96,6 +99,7 @@ async function getPlayerRankPageDataCached(userId: string) {
           firstName: currentUser.firstName,
           lastName: currentUser.lastName,
           color: currentUser.color,
+          avatarUrl: currentUser.avatarUrl,
           playerRankLeaderboardDisabled: currentUser.playerRankLeaderboardDisabled,
         },
         friends: collections.friends,
@@ -115,6 +119,7 @@ async function getPlayerRankPageDataCached(userId: string) {
           firstName: row.user.firstName,
           lastName: row.user.lastName,
           color: row.user.color,
+          avatarUrl: row.user.avatarUrl,
           displayName:
             [row.user.firstName, row.user.lastName].filter(Boolean).join(" ").trim() ||
             "Skybo Player",
@@ -138,6 +143,7 @@ async function getPlayerRankPageDataCached(userId: string) {
             lastName: series.lastName,
             displayName: series.displayName,
             color: series.color,
+            avatarUrl: series.avatarUrl,
             rankTotal: series.currentRankTotal,
             rankPosition: series.currentPosition,
             rankGamesCount: series.playerRankGamesCount,
@@ -186,6 +192,7 @@ async function getPlayerRankPageDataCached(userId: string) {
         getPlayerRankTag(userId),
         getPlayerRankStandingsTag(),
         getPlayerRankHistoryTag(),
+        getProfileIdentityTag(),
       ],
       revalidate: PLAYER_RANK_PAGE_REVALIDATE_SECONDS,
     },

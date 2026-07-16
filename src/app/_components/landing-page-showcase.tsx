@@ -80,7 +80,7 @@ export function LandingPageShowcase() {
 
   return (
     <section className="grid gap-4">
-      <Card className="rounded-[2rem] border-border/80 bg-card px-0 py-0 shadow-xl">
+      <Card className="rounded-xl border-border/80 bg-card px-0 py-0 shadow-xl">
         <div className="flex h-full flex-col gap-5 p-5">
           <div className="flex flex-wrap gap-2">
             {showcaseModes.map((mode) => (
@@ -118,7 +118,7 @@ export function LandingPageShowcase() {
                 Don&apos;t be a ScoreLoser
               </div>
 
-              <Card className="relative min-h-full rounded-[2rem] border-border/70 bg-background py-0 shadow-none">
+              <Card className="relative min-h-full rounded-xl border-border/70 bg-background py-0 shadow-none">
                 <div className="border-b border-border/70 px-5 py-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -127,14 +127,14 @@ export function LandingPageShowcase() {
                       </p>
                       <p className="mt-1 text-lg font-black">Friends only</p>
                     </div>
-                    <div className="flex size-11 items-center justify-center rounded-2xl bg-foreground text-background">
+                    <div className="flex size-11 items-center justify-center rounded-xl bg-foreground text-background">
                       <Users className="size-5" />
                     </div>
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-4 px-5 py-5">
-                  <div className="rounded-[1.6rem] border border-border/70 bg-muted/50 p-4">
+                  <div className="rounded-xl border border-border/70 bg-muted/50 p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -149,7 +149,7 @@ export function LandingPageShowcase() {
                   </div>
 
                   <div className="grid gap-3">
-                    <div className="winner-surface rounded-[1.6rem] p-4">
+                    <div className="winner-surface rounded-xl p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-xs font-semibold uppercase tracking-[0.18em] winner-muted">
@@ -162,14 +162,14 @@ export function LandingPageShowcase() {
                             Time for the rematch.
                           </p>
                         </div>
-                        <div className="winner-icon flex size-12 items-center justify-center rounded-2xl">
+                        <div className="winner-icon flex size-12 items-center justify-center rounded-xl">
                           <Swords className="size-5" />
                         </div>
                       </div>
                     </div>
 
                     <div className="grid gap-3">
-                      <Card className="gap-2 rounded-[1.6rem] border-border/70 bg-background/85 py-3 shadow-none">
+                      <Card className="gap-2 rounded-xl border-border/70 bg-background/85 py-3 shadow-none">
                         <CardContent className="space-y-2">
                           <div className="flex items-center gap-2 text-muted-foreground">
                             <Crown className="size-4" />
@@ -183,7 +183,7 @@ export function LandingPageShowcase() {
                         </CardContent>
                       </Card>
 
-                      <Card className="gap-2 rounded-[1.6rem] border-border/70 bg-background/85 py-3 shadow-none">
+                      <Card className="gap-2 rounded-xl border-border/70 bg-background/85 py-3 shadow-none">
                         <CardContent className="space-y-2">
                           <div className="flex items-center gap-2 text-muted-foreground">
                             <MessageCircleMore className="size-4" />
@@ -206,7 +206,7 @@ export function LandingPageShowcase() {
               {activeMode.stats.map((stat) => (
                 <Card
                   key={stat.label}
-                  className="gap-2 rounded-[1.5rem] border-border/70 bg-background py-3 shadow-none"
+                  className="gap-2 rounded-xl border-border/70 bg-background py-3 shadow-none"
                   size="sm"
                 >
                   <CardContent className="space-y-1">

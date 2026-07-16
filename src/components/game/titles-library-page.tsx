@@ -126,16 +126,18 @@ export default function TitlesLibraryPage({ data }: { data: TitlesPageData }) {
             {visibleTitles.map((title) => (
               <GameTitleImage
                 key={title.id}
-                className="flex min-h-40 flex-col justify-between rounded-3xl p-4 text-left shadow-sm"
+                className="flex flex-col justify-between p-4 text-left shadow-sm"
                 color={title.color}
                 imageUrl={title.imageUrl}
+                size="lg"
+                verticalFocus={title.imageVerticalFocus}
               >
                 <div className="flex h-full flex-col justify-between gap-4">
                   <div className="flex flex-wrap gap-2">
                     <Badge
                       className={cn(
                         "border-white/25 bg-white/15 text-white backdrop-blur-sm",
-                        title.isUniversal ? "" : "bg-black/15",
+                        title.isUniversal ? "" : "bg-slate-900/15 dark:bg-black/15",
                       )}
                       variant="outline"
                     >
@@ -152,7 +154,7 @@ export default function TitlesLibraryPage({ data }: { data: TitlesPageData }) {
                     <div className="flex flex-wrap gap-2">
                       <Link
                         href={`/titles/${title.id}`}
-                        className="inline-flex h-7 items-center justify-center rounded-full bg-white px-2.5 text-[0.8rem] font-medium text-slate-950 transition-colors hover:bg-white/90"
+                        className="inline-flex h-7 items-center justify-center rounded-full bg-white px-2.5 text-[0.8rem] font-medium text-slate-800 transition-colors hover:bg-white/90 dark:text-slate-950"
                       >
                         History
                       </Link>

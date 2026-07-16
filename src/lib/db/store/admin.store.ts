@@ -8,6 +8,7 @@ export type AdminManageableUser = Pick<
   | "firstName"
   | "lastName"
   | "color"
+  | "avatarUrl"
   | "role"
   | "isGuest"
   | "mergedIntoUserId"
@@ -35,6 +36,7 @@ export async function listAdminManageableUsers(): Promise<AdminManageableUser[]>
       firstName: true,
       lastName: true,
       color: true,
+      avatarUrl: true,
       role: true,
       isGuest: true,
       mergedIntoUserId: true,

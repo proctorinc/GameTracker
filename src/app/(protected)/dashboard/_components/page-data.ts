@@ -5,7 +5,13 @@ import { getFriendsPageCollections } from "@/app/actions/pages/friends";
 import { buildFriendRankSummaries } from "@/app/(protected)/activity/_components/leaderboard-utils";
 import { getDashboardPageCollections } from "@/app/actions/pages/dashboard";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
-import { getDashboardTag, getPlayerRankTag } from "@/lib/cache-tags";
+import {
+  getCardCatalogTag,
+  getFeatureFlagsTag,
+  getDashboardTag,
+  getPlayerRankTag,
+  getProfileIdentityTag,
+} from "@/lib/cache-tags";
 import {
   getActivePlayerRankConfig,
   getPlayerRankRecentChangeSummary,
@@ -50,6 +56,7 @@ export async function getDashboardOverviewPageData() {
         firstName: user.firstName,
         lastName: user.lastName,
         color: user.color,
+        avatarUrl: user.avatarUrl,
         playerRankLeaderboardDisabled: user.playerRankLeaderboardDisabled,
       },
       friends: friendCollections.friends,
@@ -119,7 +126,13 @@ async function getDashboardOverviewPageDataCached(userId: string) {
       }),
     [userId],
     {
-      tags: [getDashboardTag(userId), getPlayerRankTag(userId)],
+      tags: [
+        getDashboardTag(userId),
+        getPlayerRankTag(userId),
+        getCardCatalogTag(),
+        getFeatureFlagsTag(),
+        getProfileIdentityTag(),
+      ],
       revalidate: DASHBOARD_PAGE_REVALIDATE_SECONDS,
     },
   )();

@@ -12,6 +12,7 @@ export type PublicProfileSummaryData = {
     firstName: string | null;
     lastName: string | null;
     color: string;
+    avatarUrl: string | null;
     createdAt: string | null;
     displayName: string;
   };

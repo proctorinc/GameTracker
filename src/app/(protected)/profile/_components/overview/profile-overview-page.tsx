@@ -12,24 +12,25 @@ import { ProfileFriendsTab } from "./sections/profile-friends-tab";
 import { ProfileOverviewTabs } from "./sections/profile-overview-tabs";
 import { ProfileStatsTab } from "./sections/profile-stats-tab";
 import { PublicProfileCard } from "./sections/public-profile-card";
+import { ProfileCollectionTab } from "./sections/profile-collection-tab";
 
 function ProfileOverviewContent() {
-  const { user, activeTab } = useProfileOverview();
+  const { user, activeTab, data } = useProfileOverview();
+  const visibleTab =
+    activeTab === "collection" && data.cardsEnabled === false
+      ? "stats"
+      : activeTab;
   return (
     <div className="relative min-h-screen overflow-y-auto px-4 pb-40">
-      <div
-        className="pointer-events-none fixed inset-x-0 top-0 h-72"
-        style={{
-          background: `linear-gradient(180deg, color-mix(in srgb, ${user.color} 16%, transparent) 0%, color-mix(in srgb, ${user.color} 10%, transparent) 38%, transparent 100%), radial-gradient(circle at top, color-mix(in srgb, ${user.color} 14%, transparent) 0%, transparent 68%)`,
-        }}
-      />
       <div className="relative mx-auto flex w-full max-w-md flex-col gap-6">
         <ProfileHeroCard />
         <ProfileOverviewTabs />
-        {activeTab === "stats" ? (
+        {visibleTab === "stats" ? (
           <ProfileStatsTab />
-        ) : activeTab === "friends" ? (
+        ) : visibleTab === "friends" ? (
           <ProfileFriendsTab />
+        ) : visibleTab === "collection" ? (
+          <ProfileCollectionTab />
         ) : (
           <>
             <PublicProfileCard />

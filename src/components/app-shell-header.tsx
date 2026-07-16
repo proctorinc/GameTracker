@@ -70,6 +70,10 @@ function getFallbackHref(pathname: string) {
   return fallbackHref;
 }
 
+function shouldAlwaysUseFallback(pathname: string) {
+  return /^\/game\/[^/]+\/play$/.test(pathname);
+}
+
 export default function AppShellHeader() {
   const pathname = usePathname();
   const router = useRouter();
@@ -89,6 +93,11 @@ export default function AppShellHeader() {
     setIsGoingBack(true);
     startTransition(() => {
       if (typeof window === "undefined") {
+        router.push(fallbackHref);
+        return;
+      }
+
+      if (shouldAlwaysUseFallback(pathname)) {
         router.push(fallbackHref);
         return;
       }

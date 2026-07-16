@@ -9,14 +9,12 @@ import {
 } from "@/components/ui/section-styles";
 import {
   Card,
-  CardAction,
   CardContent,
   CardEmpty,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
+import { getProfileColorGlassStyles } from "@/components/profile/profile-color-styles";
 import { cn } from "@/lib/utils";
-import { ArrowRight, Trophy } from "lucide-react";
+import { ArrowRight, Gamepad2, Trophy } from "lucide-react";
 import Link from "next/link";
 import { useDashboardPage } from "../dashboard-page-provider";
 import { GamePlayerStack } from "../controls/game-player-stack";
@@ -24,10 +22,10 @@ import {
   getPlayerPlacementDisplay,
   getPlayersOrderedByPlacement,
 } from "../utils";
+import { GameSectionHeader } from "./game-section-header";
 
 export function ActiveGamesSection() {
   const { recentActiveGames, user } = useDashboardPage();
-  const hasMoreThanThreeGames = recentActiveGames.length > 3;
   const visibleGames = recentActiveGames.slice(0, 3);
 
   if (recentActiveGames.length === 0) {
@@ -35,21 +33,21 @@ export function ActiveGamesSection() {
   }
 
   return (
-    <Card className="mx-4">
-      <CardHeader>
-        <CardTitle>Continue Playing</CardTitle>
-        {hasMoreThanThreeGames ? (
-          <CardAction>
-            <Link
-              href="/game/history?status=active"
-              className={sectionActionClassName}
-            >
-              View all
-              <ArrowRight />
-            </Link>
-          </CardAction>
-        ) : null}
-      </CardHeader>
+    <Card className="mx-4 pt-2">
+      <GameSectionHeader
+        action={
+          <Link
+            href="/game/history?status=active"
+            className={sectionActionClassName}
+          >
+            View all
+            <ArrowRight />
+          </Link>
+        }
+        icon={Gamepad2}
+        title="Continue Playing"
+        variant="active"
+      />
 
       <CardContent className="flex flex-col gap-3">
         {recentActiveGames.length === 0 ? (
@@ -68,6 +66,9 @@ export function ActiveGamesSection() {
             (() => {
               const placement = getPlayerPlacementDisplay(game, user.id);
               const orderedPlayers = getPlayersOrderedByPlacement(game);
+              const actionStyle = game.gameTitle?.color
+                ? getProfileColorGlassStyles(game.gameTitle.color)
+                : undefined;
 
               return (
                 <Link
@@ -78,10 +79,12 @@ export function ActiveGamesSection() {
                   <GameTitleImage
                     className={cn(
                       sectionItemClassName,
-                      "border-border/70 p-4 transition-colors hover:bg-muted/80",
+                      "p-4 transition-colors hover:bg-muted/80",
                     )}
                     color={game.gameTitle?.color}
                     imageUrl={game.gameTitle?.imageUrl}
+                    size="md"
+                    verticalFocus={game.gameTitle?.imageVerticalFocus}
                     variant="card"
                   >
                     <div className="flex items-center justify-between gap-3">
@@ -89,7 +92,7 @@ export function ActiveGamesSection() {
                         className={cn(
                           "min-w-0 truncate",
                           sectionItemTitleClassName,
-                          "pr-2 font-bold text-white",
+                          "pr-2 text-[1.05rem] font-extrabold text-white",
                         )}
                       >
                         {game.gameTitle?.title ?? "New Game"}
@@ -133,7 +136,18 @@ export function ActiveGamesSection() {
                         <GamePlayerStack players={orderedPlayers} size="sm" />
                       </div>
                       <div className="ml-auto flex shrink-0 items-center gap-2">
-                        <div className="flex h-8 items-center gap-1.5 rounded-full border border-white/25 bg-white/15 px-3 text-sm font-medium text-white shadow-none backdrop-blur-sm transition-colors hover:bg-white/22">
+                        <div
+                          className="flex h-8 items-center gap-1.5 rounded-full border px-3 text-sm font-medium text-[color:var(--profile-surface-text)] shadow-none backdrop-blur-[6px] transition-all hover:brightness-95 dark:hover:brightness-110"
+                          style={{
+                            ...actionStyle,
+                            backgroundColor: game.gameTitle?.color
+                              ? `color-mix(in srgb, ${game.gameTitle.color} 34%, transparent)`
+                              : undefined,
+                            borderColor: game.gameTitle?.color
+                              ? `color-mix(in srgb, ${game.gameTitle.color} 52%, white 18%)`
+                              : undefined,
+                          }}
+                        >
                           <span>Play</span>
                           <ArrowRight className="size-3.5" />
                         </div>

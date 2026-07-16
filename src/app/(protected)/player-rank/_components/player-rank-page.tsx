@@ -67,31 +67,36 @@ export function PlayerRankPageView({ data }: { data: PlayerRankPageData }) {
   }
 
   return (
-    <div className="h-[calc(100dvh-5.5rem)] overflow-hidden px-4 pb-0">
+    <div className="h-[calc(100dvh-5.5rem)] overflow-hidden pr-4 pb-0">
       <div className="mx-auto flex h-full w-full max-w-md flex-col gap-4">
-        <PlayerRankSummaryCard
-          title="Highlighted Player Rank"
-          highlightedUser={
-            highlightedSummary
-              ? {
-                  id: highlightedSummary.userId,
-                  firstName: highlightedSummary.firstName,
-                  lastName: highlightedSummary.lastName,
-                  color: highlightedSummary.color,
-                  displayName: highlightedSummary.displayName,
-                }
-              : null
-          }
-          rankGamesCount={highlightedSummary?.rankGamesCount ?? null}
-          rankPosition={highlightedSummary?.rankPosition ?? null}
-          rankTotal={highlightedSummary?.rankTotal ?? null}
-          recentChangeSummary={highlightedSummary?.recentChangeSummary ?? null}
-          topThreeFinishes={highlightedSummary?.topThreeFinishes ?? null}
-          windowLabel={data.playerRankWindowLabel}
-          twoPlayerPrizePool={data.twoPlayerPrizePool}
-          threePlayerPrizePool={data.threePlayerPrizePool}
-          sixPlusPlayerPrizePool={data.sixPlusPlayerPrizePool}
-        />
+        <div className="pl-4">
+          <PlayerRankSummaryCard
+            title="Highlighted Player Rank"
+            highlightedUser={
+              highlightedSummary
+                ? {
+                    id: highlightedSummary.userId,
+                    firstName: highlightedSummary.firstName,
+                    lastName: highlightedSummary.lastName,
+                    color: highlightedSummary.color,
+                    avatarUrl: highlightedSummary.avatarUrl,
+                    displayName: highlightedSummary.displayName,
+                  }
+                : null
+            }
+            rankGamesCount={highlightedSummary?.rankGamesCount ?? null}
+            rankPosition={highlightedSummary?.rankPosition ?? null}
+            rankTotal={highlightedSummary?.rankTotal ?? null}
+            recentChangeSummary={
+              highlightedSummary?.recentChangeSummary ?? null
+            }
+            topThreeFinishes={highlightedSummary?.topThreeFinishes ?? null}
+            windowLabel={data.playerRankWindowLabel}
+            twoPlayerPrizePool={data.twoPlayerPrizePool}
+            threePlayerPrizePool={data.threePlayerPrizePool}
+            sixPlusPlayerPrizePool={data.sixPlusPlayerPrizePool}
+          />
+        </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           <div className="relative z-30 flex items-center justify-between gap-3">
@@ -129,7 +134,7 @@ export function PlayerRankPageView({ data }: { data: PlayerRankPageData }) {
                         variant="outline"
                         size="icon-lg"
                         aria-label="Close highlight drawer"
-                        className="shrink-0 rounded-[1.1rem]"
+                        className="shrink-0 rounded-xl"
                         onClick={() => setIsHighlightDrawerOpen(false)}
                       >
                         <X className="size-5" />
@@ -147,7 +152,7 @@ export function PlayerRankPageView({ data }: { data: PlayerRankPageData }) {
                             key={series.userId}
                             type="button"
                             aria-label={`${series.displayName} ${series.currentRankTotal} points`}
-                            className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/70 px-3 py-3 text-left"
+                            className="flex items-center gap-3 rounded-xl border border-border/70 bg-background/70 px-3 py-2 text-left"
                             onClick={() => {
                               setHighlightedUserId(series.userId);
                               setIsHighlightDrawerOpen(false);
@@ -159,8 +164,8 @@ export function PlayerRankPageView({ data }: { data: PlayerRankPageData }) {
                                 firstName: series.firstName,
                                 lastName: series.lastName,
                                 color: series.color,
+                                avatarUrl: series.avatarUrl,
                               }}
-                              size="sm"
                             />
                             <div className="min-w-0 flex-1">
                               <p className="truncate font-semibold">
@@ -213,7 +218,7 @@ export function PlayerRankPageView({ data }: { data: PlayerRankPageData }) {
                         variant="outline"
                         size="icon-lg"
                         aria-label="Close filter drawer"
-                        className="shrink-0 rounded-[1.1rem]"
+                        className="shrink-0 rounded-xl"
                         onClick={() => setIsFilterDrawerOpen(false)}
                       >
                         <X className="size-5" />
@@ -230,7 +235,7 @@ export function PlayerRankPageView({ data }: { data: PlayerRankPageData }) {
                         return (
                           <label
                             key={series.userId}
-                            className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/70 px-3 py-3"
+                            className="flex items-center gap-3 rounded-xl border border-border/70 bg-background/70 px-3 py-2"
                           >
                             <Checkbox
                               checked={isSelected}
@@ -255,8 +260,8 @@ export function PlayerRankPageView({ data }: { data: PlayerRankPageData }) {
                                 firstName: series.firstName,
                                 lastName: series.lastName,
                                 color: series.color,
+                                avatarUrl: series.avatarUrl,
                               }}
-                              size="sm"
                             />
                             <div className="min-w-0 flex-1">
                               <p className="truncate font-semibold">
@@ -294,6 +299,7 @@ export function PlayerRankPageView({ data }: { data: PlayerRankPageData }) {
                 firstName: series.firstName,
                 lastName: series.lastName,
                 color: series.color,
+                avatarUrl: series.avatarUrl,
               },
               points: series.chartPoints,
             }))}

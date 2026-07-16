@@ -130,6 +130,32 @@ describe("computePlayerRankPayouts", () => {
     expect(payouts.find((entry) => entry.userId === "c")?.pointsAwardedMinor).toBe(3000);
     expect(payouts.find((entry) => entry.userId === "d")?.placement).toBe(4);
   });
+
+  it("uses explicit placements for scored games when ties are manually broken", () => {
+    const payouts = computePlayerRankPayouts(
+      {
+        completedAt: "2026-01-01T00:00:00.000Z",
+        scoringMode: "highest_wins",
+        players: [
+          { userId: "a", score: 30 },
+          { userId: "b", score: 30 },
+          { userId: "c", score: 10 },
+          { userId: "d", score: 0 },
+        ],
+        winnerUserIds: ["a"],
+        placementSelections: [
+          { placement: 1, userIds: ["a"] },
+          { placement: 2, userIds: ["b"] },
+          { placement: 3, userIds: ["c"] },
+        ],
+      },
+      baseConfig,
+    );
+
+    expect(payouts.find((entry) => entry.userId === "a")?.placement).toBe(1);
+    expect(payouts.find((entry) => entry.userId === "b")?.placement).toBe(2);
+    expect(payouts.find((entry) => entry.userId === "b")?.pointsAwardedMinor).toBe(6000);
+  });
 });
 
 describe("assignDensePlayerRankPositions", () => {

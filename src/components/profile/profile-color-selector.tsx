@@ -13,6 +13,7 @@ interface ProfileColorSelectorProps {
   title?: string;
   description?: string;
   hidePreview?: boolean;
+  options?: readonly string[];
 }
 
 export function ProfileColorSelector({
@@ -23,13 +24,14 @@ export function ProfileColorSelector({
   title = "Profile color",
   description = "Choose a color for your profile badge",
   hidePreview,
+  options = PROFILE_COLORS,
 }: ProfileColorSelectorProps) {
   return (
     <div className={cn("grid gap-4", className)}>
       {!hidePreview && (
-        <div className="flex items-center gap-3 rounded-2xl border border-border bg-muted/60 p-3">
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/60 p-3">
           <span
-            className="h-10 w-10 rounded-xl shadow-sm ring-1 ring-black/8 dark:ring-white/12"
+            className="h-10 w-10 rounded-xl shadow-sm ring-1 ring-slate-900/8 dark:ring-white/12"
             style={{ backgroundColor: color }}
           />
           <div>
@@ -39,7 +41,7 @@ export function ProfileColorSelector({
         </div>
       )}
       <div className="grid grid-cols-6 gap-2">
-        {PROFILE_COLORS.map((option) => {
+        {options.map((option) => {
           const isSelected = option === color;
 
           return (

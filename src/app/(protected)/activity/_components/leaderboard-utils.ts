@@ -8,7 +8,12 @@ import { formatPlayerRankTotal } from "@/lib/player-rank";
 
 type ActivityLeaderboardUser = Pick<
   UserBase,
-  "id" | "firstName" | "lastName" | "color" | "playerRankLeaderboardDisabled"
+  | "id"
+  | "firstName"
+  | "lastName"
+  | "color"
+  | "avatarUrl"
+  | "playerRankLeaderboardDisabled"
 >;
 
 export type FriendRankSummary = {

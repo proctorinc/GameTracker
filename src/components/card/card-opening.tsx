@@ -4,12 +4,27 @@ import { useRef, useState, useEffect } from "react";
 import { gsap } from "gsap";
 import { Button } from "../ui/button";
 import Link from "next/link";
-import { pullPack } from "@/app/actions/card";
-import { CardRow } from "@/lib/db/store/cards.store";
-import { limitSigFigs } from "../utils";
+import { openCardDrop } from "@/app/actions/card";
+import type { CollectibleCardViewModel } from "@/lib/card-catalog";
+import { CARD_RARITY_LABELS } from "@/lib/card-catalog";
 import CardBack from "./CardBack";
-import SkyboCard from "./SkyboCard";
-import { UserFull } from "@/lib/db/store";
+import { CollectibleCard } from "./collectible-card";
+import type { DeckBackStyle } from "@/lib/db/schema";
+
+type CardOpeningDrop = {
+  id: string;
+  cardCount: number;
+  deckName: string | null;
+  deck: {
+    name: string;
+    label: string;
+    description: string;
+    backStyle: DeckBackStyle;
+    backPrimaryColor: string;
+    backSecondaryColor: string;
+    backAccentColor: string;
+  } | null;
+};
 
 export const SUIT_LABELS: Record<string, string> = {
   ["DARK_BLUE"]: "Negative",
@@ -37,12 +52,21 @@ export const VALUE_LABELS: Record<string, string> = {
   [12]: "Twelve",
 };
 
-export default function CardOpening({ user }: { user: UserFull }) {
+export default function CardOpening({
+  alreadyOpened,
+  drop,
+  remainingPackCount,
+}: {
+  alreadyOpened: boolean;
+  drop: CardOpeningDrop | null;
+  remainingPackCount: number;
+}) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [isGeneratingCard, setIsGeneratingCard] = useState(false);
   const [hasAnimated, setHasAnimated] = useState(false);
   // Store all pulled cards here (handles single card or full pack arrays)
-  const [cards, setCards] = useState<CardRow[]>([]);
+  const [cards, setCards] = useState<CollectibleCardViewModel[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const stageRef = useRef<HTMLDivElement>(null);
   const fanRef = useRef<HTMLDivElement>(null);
@@ -70,27 +94,24 @@ export default function CardOpening({ user }: { user: UserFull }) {
   // }
 
   const handleGeneratePack = async () => {
-    if (isGeneratingCard || isAnimating) return;
+    if (!drop || isGeneratingCard || isAnimating) return;
     setIsGeneratingCard(true);
+    setErrorMessage(null);
 
     try {
-      const pulledCards = await pullPack(user.id);
+      const pulledCards = await openCardDrop({ cardDropId: drop.id });
       setCards(pulledCards); // Directly save the array of cards
       setIsGeneratingCard(false);
     } catch (error) {
       console.error("Failed to pull pack:", error);
+      setErrorMessage(
+        error instanceof Error ? error.message : "Could not open this pack",
+      );
       setIsGeneratingCard(false);
     }
   };
 
-  // Trigger animation safely after React flushes the DOM updates for the new card(s)
-  useEffect(() => {
-    if (cards.length > 0 && !hasAnimated && !isAnimating) {
-      triggerAnimation();
-    }
-  }, [cards]);
-
-  const triggerAnimation = () => {
+  function triggerAnimation() {
     if (!stageRef.current || !fanRef.current || !mainCardRef.current) return;
 
     setHasAnimated(true);
@@ -308,7 +329,18 @@ export default function CardOpening({ user }: { user: UserFull }) {
         { scale: 1, duration: 0.15, ease: "power1.inOut" },
         "-=0.15",
       );
-  };
+  }
+
+  // Trigger animation safely after React flushes the DOM updates for the new card(s)
+  useEffect(() => {
+    if (cards.length > 0 && !hasAnimated && !isAnimating) {
+      // GSAP needs the rendered card nodes before the reveal timeline starts.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      triggerAnimation();
+    }
+    // The animation intentionally runs once for each newly opened pack.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cards]);
 
   return (
     <div className="relative flex h-screen w-full flex-col items-center justify-center py-4">
@@ -318,27 +350,11 @@ export default function CardOpening({ user }: { user: UserFull }) {
           {cards.length === 1 ? (
             <>
               <h1 className="text-balance text-center text-4xl font-black">
-                You got a{" "}
-                {cards[0].modifier === "Holographic"
-                  ? cards[0].modifier
-                  : cards[0].deckName.toLowerCase()}{" "}
-                {cards[0].value}!
+                You got {cards[0].subject?.name ?? cards[0].name}!
               </h1>
-              <div>
-                <h2>
-                  {limitSigFigs(cards[0].suitProbability * 100, 5)}% chance for{" "}
-                  {SUIT_LABELS[cards[0].suit]?.toLowerCase() ??
-                    cards[0].suit.toLowerCase()}
-                  s
-                </h2>
-                {cards[0].value !== 0 && (
-                  <h2>
-                    {limitSigFigs(cards[0].probability * 100, 5)}% chance for{" "}
-                    {cards[0].modifier} {cards[0].value}
-                    &apos;s
-                  </h2>
-                )}
-              </div>
+              <p className="font-bold text-muted-foreground">
+                {CARD_RARITY_LABELS[cards[0].rarity]} · {cards[0].deckLabel}
+              </p>
             </>
           ) : (
             <>
@@ -357,10 +373,17 @@ export default function CardOpening({ user }: { user: UserFull }) {
         ref={stageRef}
         className="relative w-full h-[450px] flex items-center justify-center perspective-1000 overflow-visible"
       >
-        {cards.length === 0 && (
+        {cards.length === 0 && drop && (
           <div className="absolute z-50 flex flex-col items-center gap-4">
             <button onClick={handleGeneratePack} className="relative w-44 h-60">
-              <CardBack className="absolute left-0 top-0" />
+              <CardBack
+                className="absolute left-0 top-0"
+                label={drop.deck?.label}
+                backStyle={drop.deck?.backStyle}
+                primaryColor={drop.deck?.backPrimaryColor}
+                secondaryColor={drop.deck?.backSecondaryColor}
+                accentColor={drop.deck?.backAccentColor}
+              />
               <CardBack className="absolute left-[4px] -top-[2px]" />
               <CardBack className="absolute left-[8px] -top-[4px]" />
               <CardBack className="absolute left-[12px] -top-[6px]" />
@@ -375,8 +398,34 @@ export default function CardOpening({ user }: { user: UserFull }) {
                 {isGeneratingCard ? "Opening..." : "Open pack"}
               </Button>
             </div>
+            {errorMessage ? (
+              <p className="max-w-xs text-center text-sm text-destructive">
+                {errorMessage}
+              </p>
+            ) : null}
           </div>
         )}
+
+        {cards.length === 0 && !drop ? (
+          <div className="absolute z-50 flex max-w-sm flex-col items-center gap-4 px-6 text-center">
+            <h1 className="text-3xl font-black">
+              {alreadyOpened ? "Pack already opened" : "No packs to open"}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {alreadyOpened
+                ? "Those cards are safely stored in your collection."
+                : "Complete a game with another registered player to earn your next five-card pack."}
+            </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <Button render={<Link href="/profile?tab=collection" />}>
+                View collection
+              </Button>
+              <Button render={<Link href="/dashboard" />} variant="outline">
+                Back to dashboard
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
         {/* FX Layers */}
         <div
@@ -414,6 +463,11 @@ export default function CardOpening({ user }: { user: UserFull }) {
             <CardBack
               key={`card-mock-${index}`}
               className="absolute opacity-0 transform origin-bottom"
+              label={drop?.deck?.label}
+              backStyle={drop?.deck?.backStyle}
+              primaryColor={drop?.deck?.backPrimaryColor}
+              secondaryColor={drop?.deck?.backSecondaryColor}
+              accentColor={drop?.deck?.backAccentColor}
             />
           ))}
         </div>
@@ -431,20 +485,32 @@ export default function CardOpening({ user }: { user: UserFull }) {
           {/* Map each pulled card element horizontally */}
           {cards.map((c, index) => (
             <div
-              key={`reveal-${c.id || index}`}
-              className="absolute w-44 h-60 opacity-0 pointer-events-auto rounded-2xl"
+              key={`reveal-${c.instanceId || index}`}
+              className="absolute w-44 h-60 opacity-0 pointer-events-auto rounded-xl"
               style={{ transformStyle: "preserve-3d" }}
             >
-              <SkyboCard card={c} />
+              <CollectibleCard card={c} />
             </div>
           ))}
         </div>
       </div>
 
       {hasAnimated && !isAnimating && (
-        <Link href="/profile" className="z-50">
-          <Button>Add to your collection</Button>
-        </Link>
+        <div className="z-50 flex flex-wrap justify-center gap-3">
+          <Button render={<Link href="/profile?tab=collection" />}>
+            View collection
+          </Button>
+          {remainingPackCount > 1 ? (
+            <Button
+              render={
+                <Link href={`/card/pull?deck=${drop?.deckName ?? "standard"}`} />
+              }
+              variant="outline"
+            >
+              Open next pack
+            </Button>
+          ) : null}
+        </div>
       )}
     </div>
   );

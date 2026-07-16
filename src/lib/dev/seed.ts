@@ -4,6 +4,7 @@ import * as schema from "../db/schema"; // Adjust this path to your actual schem
 import { db } from "../db";
 import { addPlayerToGame, createGame } from "../db/store/game.store";
 import { backfillMissingPlayerRankResults } from "../db/store/player-rank.store";
+import { seedCardCatalog } from "../card-catalog-seed";
 
 const DEMO_ADMIN_EMAIL = "admin@demo.com";
 
@@ -331,6 +332,7 @@ export async function runDevSeed() {
   // }
 
   console.log("✅ Seeded matches, scores, and title definitions.");
+  await seedCardCatalog();
   // console.log(
   //   `✅ Created ${allCards.reduce((sum, c) => sum + c.length, 0)} cards total.`,
   // );

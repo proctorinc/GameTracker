@@ -15,7 +15,7 @@ import type {
 } from "./types";
 
 const PROFILE_TAB_STORAGE_KEY = "page-tab:/profile";
-const PROFILE_TABS = ["stats", "friends", "settings"] as const;
+const PROFILE_TABS = ["stats", "friends", "collection", "settings"] as const;
 
 function normalizeStoredProfileTab(tab: ProfileOverviewTab): ProfileOverviewTab {
   return tab === "settings" ? "stats" : tab;
@@ -74,6 +74,7 @@ export function ProfileOverviewProvider({
           firstName: nextUser.firstName ?? current.profile.firstName,
           lastName: nextUser.lastName ?? current.profile.lastName,
           color: nextUser.color ?? current.profile.color,
+          avatarUrl: nextUser.avatarUrl ?? current.profile.avatarUrl,
           displayName: formatDisplayName({
             firstName: nextUser.firstName ?? current.profile.firstName,
             lastName: nextUser.lastName ?? current.profile.lastName,

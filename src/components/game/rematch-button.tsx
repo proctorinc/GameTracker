@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useMemo, useRef, useState } from "react";
 import { createRematchGameAndRedirect } from "@/app/actions/game";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ type RematchButtonProps = {
   playerCount: number;
   className?: string;
   confirmButtonClassName?: string;
+  style?: CSSProperties;
   iconOnly?: boolean;
   variant?: "default" | "outline" | "secondary" | "ghost";
   size?: "default" | "xs" | "sm" | "lg";
@@ -35,6 +37,7 @@ export function RematchButton({
   playerCount,
   className,
   confirmButtonClassName,
+  style,
   iconOnly = false,
   variant = "outline",
   size = "default",
@@ -69,6 +72,7 @@ export function RematchButton({
         disabled={isSubmitting}
         onClick={() => setIsOpen(true)}
         size={size}
+        style={style}
         type="button"
         variant={variant}
       >
@@ -81,7 +85,7 @@ export function RematchButton({
       </Button>
 
       <Dialog onOpenChange={setIsOpen} open={isOpen}>
-        <DialogContent className="rounded-[2rem] p-0 sm:max-w-md">
+        <DialogContent className="rounded-xl p-0 sm:max-w-md">
           <form
             onSubmit={(event) => {
               event.preventDefault();
@@ -106,7 +110,7 @@ export function RematchButton({
                 </DialogDescription>
               </DialogHeader>
             </div>
-            <DialogFooter className="rounded-b-[2rem]" showCloseButton>
+            <DialogFooter className="rounded-b-xl" showCloseButton>
               <Button
                 className={cn("min-w-32", confirmButtonClassName)}
                 disabled={isSubmitting}

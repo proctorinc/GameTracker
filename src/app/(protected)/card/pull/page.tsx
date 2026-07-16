@@ -1,18 +1,53 @@
-import { loadUser } from "@/lib/auth/protected-session";
 import CardOpening from "@/components/card/card-opening";
-import { createUserCard } from "@/lib/db/store/cards.store";
+import { loadCurrentUser } from "@/lib/auth/auth-me";
+import {
+  getCardDropForUserByGame,
+  getUnopenedCardDropForUser,
+  listUnopenedCardPackGroups,
+} from "@/lib/card-rewards";
+import { areCardsEnabled } from "@/lib/db/store/feature-flags.store";
+import { redirect } from "next/navigation";
 
-export default async function CreateProfilePage() {
-  const { user } = await loadUser();
+export const dynamic = "force-dynamic";
 
-  if (!user) {
-    return <div>Error</div>
+export default async function CardPullPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ gameId?: string; deck?: string }>;
+}) {
+  if (!(await areCardsEnabled())) {
+    redirect("/dashboard");
   }
 
-  // Cast UserBase to UserFull - CardOpening handles optional relations
+  const user = await loadCurrentUser({
+    onMissingAuth: "redirect",
+    returnPath: "/card/pull",
+  });
+  const params = await searchParams;
+  const gameDrop = params.gameId
+    ? await getCardDropForUserByGame({ userId: user.id, gameId: params.gameId })
+    : null;
+  const drop = params.gameId
+    ? gameDrop?.openedAt === null
+      ? gameDrop
+      : null
+    : await getUnopenedCardDropForUser({
+        userId: user.id,
+        deckName: params.deck ?? null,
+      });
+  const packGroups = await listUnopenedCardPackGroups(user.id);
+  const remainingPackCount = packGroups.reduce(
+    (total, group) => total + group.packCount,
+    0,
+  );
+
   return (
     <div className="h-screen overflow-clip">
-      <CardOpening user={user as any} />
+      <CardOpening
+        alreadyOpened={Boolean(gameDrop?.openedAt)}
+        drop={drop}
+        remainingPackCount={remainingPackCount}
+      />
     </div>
   );
 }

@@ -20,6 +20,7 @@ type ComparisonOption = {
   firstName: string | null;
   lastName: string | null;
   color: string;
+  avatarUrl: string | null;
   displayName: string;
   isGuest: boolean;
 };
@@ -52,7 +53,7 @@ export function ProfileMatchupSelector({
       <Button
         type="button"
         variant="outline"
-        className="h-auto w-full justify-between rounded-[1.5rem] border-border/70 bg-background/80 px-4 py-3 shadow-none hover:bg-muted/60 dark:border-white/10 dark:bg-white/6 dark:hover:bg-white/10"
+        className="h-auto w-full justify-between rounded-xl border-border/70 bg-background/80 px-4 py-3 shadow-none hover:bg-muted/60 dark:border-white/10 dark:bg-white/6 dark:hover:bg-white/10"
         onClick={() => setOpen(true)}
       >
         <div className="flex min-w-0 items-center gap-3">
