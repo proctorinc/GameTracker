@@ -22,6 +22,7 @@ import {
   getActivePlayerRankConfig,
   rebuildPlayerRankHistoryFromDate,
 } from "./player-rank.store";
+import { getProfileBackgroundUrl } from "@/lib/profile-backgrounds";
 
 export type UserBase = typeof users.$inferSelect;
 export type UserInsert = typeof users.$inferInsert;
@@ -115,13 +116,25 @@ function createInviteToken() {
   return randomBytes(24).toString("base64url");
 }
 
+function normalizeUserAvatarUrl<T extends UserInsert | UserUpdate>(input: T): T {
+  if (input.avatarUrl === undefined) {
+    return input;
+  }
+
+  return {
+    ...input,
+    avatarUrl: getProfileBackgroundUrl(input.avatarUrl),
+  };
+}
+
 export async function createUser(input: UserInsert): Promise<UserBase> {
+  const normalizedInput = normalizeUserAvatarUrl(input);
   const [user] = await db
     .insert(users)
     .values({
-      ...input,
-      createdAt: input.createdAt ?? nowIso(),
-      updatedAt: input.updatedAt ?? nowIso(),
+      ...normalizedInput,
+      createdAt: normalizedInput.createdAt ?? nowIso(),
+      updatedAt: normalizedInput.updatedAt ?? nowIso(),
     })
     .returning();
 
@@ -340,10 +353,11 @@ export async function updateUser(
   id: string,
   input: UserUpdate,
 ): Promise<UserBase | null> {
+  const normalizedInput = normalizeUserAvatarUrl(input);
   const [user] = await db
     .update(users)
     .set({
-      ...input,
+      ...normalizedInput,
       updatedAt: nowIso(),
     })
     .where(eq(users.id, id))

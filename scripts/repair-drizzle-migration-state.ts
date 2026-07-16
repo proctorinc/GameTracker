@@ -62,8 +62,8 @@ function printUsage() {
       "",
       "Behavior:",
       "  Dry run is the default and prints the detected migration/schema drift.",
-      "  Add --apply to reconcile missing migration records and add any missing pause columns.",
-      "  The script only repairs the known-safe 0011/0013 drift for this repo.",
+      "  Add --apply to reconcile the known-safe 0011/0013/0014 drift for this repo.",
+      "  The 0014 schema statements and migration record are applied atomically.",
     ].join("\n"),
   );
 }
@@ -76,6 +76,14 @@ async function readJournal(): Promise<Journal> {
 async function sha256File(filePath: string) {
   const contents = await readFile(filePath);
   return createHash("sha256").update(contents).digest("hex");
+}
+
+async function readMigrationStatements(fileName: string) {
+  const contents = await readFile(path.join(MIGRATIONS_DIR, fileName), "utf8");
+  return contents
+    .split("--> statement-breakpoint")
+    .map((statement) => statement.trim())
+    .filter(Boolean);
 }
 
 async function getAppliedMigrations(db: ReturnType<typeof createClient>) {
@@ -290,6 +298,177 @@ async function repair0013(input: {
   });
 }
 
+async function repair0014(input: {
+  db: ReturnType<typeof createClient>;
+  appliedMigrations: Map<string, number | null>;
+  journal: Journal;
+  apply: boolean;
+}) {
+  const fileName = "0014_clear_shooting_star.sql";
+  const journalEntry = assertJournalEntry(input.journal, "0014_clear_shooting_star");
+  const filePath = path.join(MIGRATIONS_DIR, fileName);
+  const hash = await sha256File(filePath);
+  const appliedCreatedAt = input.appliedMigrations.get(hash);
+  const statements = await readMigrationStatements(fileName);
+
+  if (statements.length !== 6) {
+    throw new Error(
+      `${fileName} was expected to contain 6 statements but contains ${statements.length}. Aborting.`,
+    );
+  }
+
+  const tableNames = await getTableNames(input.db);
+  const gameTitleColumns = await getTableColumns(input.db, "game_title");
+  const gameColumns = await getTableColumns(input.db, "games");
+  const expectedTableColumns = new Map<string, string[]>([
+    [
+      "game_eliminations",
+      ["id", "game_id", "eliminated_user_id", "placement", "round_number", "created_at"],
+    ],
+    [
+      "game_itemized_score_categories",
+      ["id", "game_id", "name", "value", "sort_order", "created_at"],
+    ],
+    [
+      "game_itemized_score_entries",
+      ["id", "game_id", "user_id", "category_id", "quantity", "created_at"],
+    ],
+  ]);
+
+  const schemaObjects = [
+    {
+      name: "game_eliminations table",
+      present: tableNames.has("game_eliminations"),
+      statement: statements[0],
+    },
+    {
+      name: "game_itemized_score_categories table",
+      present: tableNames.has("game_itemized_score_categories"),
+      statement: statements[1],
+    },
+    {
+      name: "game_itemized_score_entries table",
+      present: tableNames.has("game_itemized_score_entries"),
+      statement: statements[2],
+    },
+    {
+      name: "game_title.default_settings_version column",
+      present: gameTitleColumns.has("default_settings_version"),
+      statement: statements[3],
+    },
+    {
+      name: "game_title.default_settings_json column",
+      present: gameTitleColumns.has("default_settings_json"),
+      statement: statements[4],
+    },
+    {
+      name: "games.settings_json column",
+      present: gameColumns.has("settings_json"),
+      statement: statements[5],
+    },
+  ];
+
+  console.log("\n[repair-drizzle-migration-state] 0014_clear_shooting_star schema audit");
+  for (const schemaObject of schemaObjects) {
+    console.log(`  - ${schemaObject.present ? "OK" : "MISSING"}: ${schemaObject.name}`);
+  }
+
+  for (const [tableName, expectedColumns] of expectedTableColumns) {
+    if (!tableNames.has(tableName)) continue;
+
+    const actualColumns = await getTableColumns(input.db, tableName);
+    const missingExpectedColumns = expectedColumns.filter(
+      (columnName) => !actualColumns.has(columnName),
+    );
+    if (missingExpectedColumns.length > 0) {
+      throw new Error(
+        `${tableName} exists but is missing expected 0014 columns: ${missingExpectedColumns.join(", ")}. Aborting without changes.`,
+      );
+    }
+  }
+
+  const missingObjects = schemaObjects.filter((schemaObject) => !schemaObject.present);
+
+  if (appliedCreatedAt !== undefined && missingObjects.length > 0) {
+    throw new Error(
+      `0014_clear_shooting_star is recorded in __drizzle_migrations but ${missingObjects.length} schema object(s) are missing. Aborting without changes.`,
+    );
+  }
+
+  if (!input.apply) {
+    if (missingObjects.length > 0) {
+      console.log(`  - WOULD APPLY: ${missingObjects.length} missing 0014 schema object(s)`);
+    }
+
+    if (appliedCreatedAt === undefined) {
+      console.log(
+        `  - WOULD RECORD: ${journalEntry.tag} with hash ${hash} and created_at ${journalEntry.when}`,
+      );
+    } else if (appliedCreatedAt === journalEntry.when) {
+      console.log(`  - OK: ${journalEntry.tag} already recorded with current hash ${hash}`);
+    } else {
+      console.log(
+        `  - WOULD UPDATE: ${journalEntry.tag} created_at from ${appliedCreatedAt} to ${journalEntry.when}`,
+      );
+    }
+    return;
+  }
+
+  const batchStatements: Array<string | { sql: string; args: Array<string | number> }> =
+    missingObjects.map((schemaObject) => schemaObject.statement);
+
+  if (appliedCreatedAt === undefined) {
+    batchStatements.push({
+      sql: "insert into __drizzle_migrations(hash, created_at) values (?, ?)",
+      args: [hash, journalEntry.when],
+    });
+  } else if (appliedCreatedAt !== journalEntry.when) {
+    batchStatements.push({
+      sql: "update __drizzle_migrations set created_at = ? where hash = ?",
+      args: [journalEntry.when, hash],
+    });
+  }
+
+  if (batchStatements.length > 0) {
+    await input.db.batch(batchStatements, "write");
+  }
+  input.appliedMigrations.set(hash, journalEntry.when);
+
+  const repairedTableNames = await getTableNames(input.db);
+  const repairedGameTitleColumns = await getTableColumns(input.db, "game_title");
+  const repairedGameColumns = await getTableColumns(input.db, "games");
+  const repairComplete =
+    repairedTableNames.has("game_eliminations") &&
+    repairedTableNames.has("game_itemized_score_categories") &&
+    repairedTableNames.has("game_itemized_score_entries") &&
+    repairedGameTitleColumns.has("default_settings_version") &&
+    repairedGameTitleColumns.has("default_settings_json") &&
+    repairedGameColumns.has("settings_json");
+
+  if (!repairComplete) {
+    throw new Error("0014_clear_shooting_star schema audit failed after apply.");
+  }
+
+  console.log(`  - APPLIED: ${missingObjects.length} missing 0014 schema object(s)`);
+  console.log(`  - RECORDED: ${journalEntry.tag} (${hash})`);
+}
+
+async function audit0019Preflight(db: ReturnType<typeof createClient>) {
+  const result = await db.execute<{ count: number }>(
+    "select count(*) as count from card_drops",
+  );
+  const rowCount = Number(result.rows[0]?.count ?? 0);
+
+  console.log("\n[repair-drizzle-migration-state] 0019_abandoned_black_crow preflight");
+  console.log(`  - ${rowCount === 0 ? "OK" : "BLOCKED"}: card_drops row count is ${rowCount}`);
+
+  if (rowCount > 0) {
+    throw new Error(
+      "0019 adds card_drops.created_at as NOT NULL without a database default, but card_drops contains rows. A data-preserving 0019 backfill is required before db:migrate.",
+    );
+  }
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const env = validateEnv(true);
@@ -325,6 +504,15 @@ async function main() {
   });
 
   await repair0013({
+    db,
+    appliedMigrations,
+    journal,
+    apply: options.apply,
+  });
+
+  await audit0019Preflight(db);
+
+  await repair0014({
     db,
     appliedMigrations,
     journal,

@@ -50,16 +50,13 @@ export async function updateUserProfile(data: {
     const user = await loadCurrentUser();
     actorUserId = user.id;
 
-    await db
-      .update(users)
-      .set({
-        firstName: data.firstName,
-        lastName: data.lastName,
-        color: data.color,
-        avatarUrl: data.avatarUrl,
-        isProfileComplete: true,
-      })
-      .where(eq(users.id, user.id));
+    await updateUser(user.id, {
+      firstName: data.firstName,
+      lastName: data.lastName,
+      color: data.color,
+      avatarUrl: data.avatarUrl,
+      isProfileComplete: true,
+    });
 
     revalidateProfileOverviewPage(user.id);
     revalidatePublicProfilePage(user.id);

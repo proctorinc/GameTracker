@@ -37,9 +37,6 @@ describe("ProfilePicture", () => {
 
     expect(screen.getByText("AL")).toBeInTheDocument();
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
-    expect(container.querySelector('img[aria-hidden="true"]')).toHaveAttribute(
-      "src",
-      expect.stringContaining("maze-puzzle.png"),
-    );
+    expect(container.querySelector('img[aria-hidden="true"]')).toBeNull();
   });
 });

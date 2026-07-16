@@ -28,8 +28,6 @@ const VALID_PROFILE_BACKGROUND_URLS = [
   ...LEGACY_PROFILE_BACKGROUND_URLS,
 ] as const;
 
-export const DEFAULT_PROFILE_BACKGROUND_URL = "/images/profiles/maze-puzzle.png";
-
 export function isProfileBackgroundUrl(
   avatarUrl: string | null | undefined,
 ): avatarUrl is (typeof VALID_PROFILE_BACKGROUND_URLS)[number] {
@@ -45,7 +43,5 @@ export function getProfileBackgroundUrl(
     return null;
   }
 
-  return isProfileBackgroundUrl(avatarUrl)
-    ? avatarUrl
-    : DEFAULT_PROFILE_BACKGROUND_URL;
+  return isProfileBackgroundUrl(avatarUrl) ? avatarUrl : null;
 }

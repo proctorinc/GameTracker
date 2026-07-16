@@ -26,4 +26,20 @@ describe("ProfileBackgroundSelector", () => {
 
     expect(onSelect).toHaveBeenCalledWith(null);
   });
+
+  it("treats an old Clerk avatar URL as no profile background", () => {
+    render(
+      <ProfileBackgroundSelector
+        avatarUrl="https://img.clerk.com/example/avatar.png"
+        color="#7c3aed"
+        firstName="Ada"
+        lastName="Lovelace"
+        onSelect={() => {}}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Choose no background" }),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
 });

@@ -3,6 +3,8 @@ import { eq } from "drizzle-orm";
 import { createUserFixture } from "../../fixtures/users";
 import { withTestDatabase } from "../../helpers/test-db";
 
+vi.mock("server-only", () => ({}));
+
 function mockAuthenticatedUser(userId: string) {
   vi.doMock("@/lib/auth/auth-me", () => ({
     loadCurrentUser: async () => {
@@ -1610,11 +1612,13 @@ describe("server action integration", () => {
 
       const revalidatePath = vi.fn();
       const revalidateTag = vi.fn();
+      const updateTag = vi.fn();
       const cookieSet = vi.fn();
 
       vi.doMock("next/cache", () => ({
         revalidatePath,
         revalidateTag,
+        updateTag,
       }));
       vi.doMock("next/headers", () => ({
         cookies: async () => ({
@@ -1632,6 +1636,7 @@ describe("server action integration", () => {
         firstName: "Sky",
         lastName: "Bo",
         color: "#3B82F6",
+        avatarUrl: "https://img.clerk.com/example/avatar.png",
       });
 
       const { getUserById } = await import("../../../src/lib/db/store/user.store");
@@ -1640,6 +1645,7 @@ describe("server action integration", () => {
       expect(updatedUser?.firstName).toBe("Sky");
       expect(updatedUser?.lastName).toBe("Bo");
       expect(updatedUser?.color).toBe("#3B82F6");
+      expect(updatedUser?.avatarUrl).toBeNull();
       expect(updatedUser?.isProfileComplete).toBe(true);
       expect(cookieSet).toHaveBeenCalledWith(
         PROFILE_COMPLETION_BYPASS_COOKIE,
