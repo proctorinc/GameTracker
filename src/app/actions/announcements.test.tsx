@@ -176,6 +176,7 @@ describe("announcement actions", () => {
       isGuest: false,
       mergedIntoUserId: null,
     });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/", "layout");
   });
 
   it("lets an admin mark a published announcement unseen only for themselves", async () => {

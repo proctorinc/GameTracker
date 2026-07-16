@@ -246,6 +246,7 @@ export async function acknowledgeAnnouncementAction(input: {
     throw new Error("Announcement is not available");
   }
 
+  revalidatePath("/", "layout");
   return { acknowledged: true as const };
 }
 

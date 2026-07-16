@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -23,10 +23,21 @@ export function AnnouncementModal({
   announcements: AnnouncementForClient[];
 }) {
   const pathname = usePathname();
+  const [locallyAcknowledgedIds, setLocallyAcknowledgedIds] = useState<
+    Set<string>
+  >(() => new Set());
+  const [navigation, setNavigation] = useState<{
+    announcement: AnnouncementForClient;
+    originPathname: string;
+  } | null>(null);
   const visibleAnnouncements = useMemo(
     () => {
       if (pathname === "/admin" || pathname.startsWith("/admin/")) {
         return [];
+      }
+
+      if (navigation && pathname === navigation.originPathname) {
+        return [navigation.announcement];
       }
 
       const isActionDestination = announcements.some((announcement) => {
@@ -43,16 +54,27 @@ export function AnnouncementModal({
         }
       });
 
-      return isActionDestination ? [] : announcements;
+      return isActionDestination
+        ? []
+        : announcements.filter(
+            (announcement) => !locallyAcknowledgedIds.has(announcement.id),
+          );
     },
-    [announcements, pathname],
+    [announcements, locallyAcknowledgedIds, navigation, pathname],
   );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [open, setOpen] = useState(visibleAnnouncements.length > 0);
-  const [isNavigating, setIsNavigating] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [isAcknowledging, setIsAcknowledging] = useState(false);
   const router = useRouter();
   const current = visibleAnnouncements[currentIndex];
+  const isNavigating = navigation !== null;
+
+  useEffect(() => {
+    if (!navigation || pathname === navigation.originPathname) return;
+
+    const timeoutId = window.setTimeout(() => setNavigation(null), 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [navigation, pathname]);
 
   if (!current) {
     return null;
@@ -61,13 +83,15 @@ export function AnnouncementModal({
   const isLast = currentIndex === visibleAnnouncements.length - 1;
 
   function acknowledgeCurrent() {
-    startTransition(async () => {
+    setIsAcknowledging(true);
+    void (async () => {
       try {
         await acknowledgeAnnouncementAction({ announcementId: current.id });
+        setLocallyAcknowledgedIds((ids) => new Set(ids).add(current.id));
         if (isLast) {
           setOpen(false);
         } else {
-          setCurrentIndex((index) => index + 1);
+          setCurrentIndex(0);
         }
       } catch (error) {
         toast.error(
@@ -75,28 +99,32 @@ export function AnnouncementModal({
             ? error.message
             : "Could not acknowledge announcement",
         );
+      } finally {
+        setIsAcknowledging(false);
       }
-    });
+    })();
   }
 
   function followAction() {
     const destination = current.actionHref;
     if (!destination) return;
 
-    setIsNavigating(true);
-    startTransition(async () => {
+    setCurrentIndex(0);
+    setNavigation({ announcement: current, originPathname: pathname });
+    void (async () => {
       try {
         await acknowledgeAnnouncementAction({ announcementId: current.id });
+        setLocallyAcknowledgedIds((ids) => new Set(ids).add(current.id));
         router.push(destination);
       } catch (error) {
-        setIsNavigating(false);
+        setNavigation(null);
         toast.error(
           error instanceof Error
             ? error.message
             : "Could not acknowledge announcement",
         );
       }
-    });
+    })();
   }
 
   return (
@@ -131,7 +159,7 @@ export function AnnouncementModal({
         <DialogFooter>
           {current.actionLabel && current.actionHref ? (
             <Button
-              disabled={isPending || isNavigating}
+              disabled={isAcknowledging || isNavigating}
               onClick={followAction}
               type="button"
             >
@@ -140,12 +168,12 @@ export function AnnouncementModal({
             </Button>
           ) : null}
           <Button
-            disabled={isPending || isNavigating}
+            disabled={isAcknowledging || isNavigating}
             onClick={acknowledgeCurrent}
             type="button"
             variant={current.actionLabel && current.actionHref ? "outline" : "default"}
           >
-            {isPending && !isNavigating ? <LoaderCircle className="animate-spin" /> : null}
+            {isAcknowledging && !isNavigating ? <LoaderCircle className="animate-spin" /> : null}
             {isLast ? "Got it" : "Next"}
           </Button>
         </DialogFooter>

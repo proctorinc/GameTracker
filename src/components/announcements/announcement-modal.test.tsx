@@ -4,13 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../tests/helpers/render";
 import { AnnouncementModal } from "./announcement-modal";
 
-const { acknowledgeAnnouncementAction, push } = vi.hoisted(() => ({
+const { acknowledgeAnnouncementAction, navigation, push } = vi.hoisted(() => ({
   acknowledgeAnnouncementAction: vi.fn(),
+  navigation: { pathname: "/dashboard" },
   push: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/dashboard",
+  usePathname: () => navigation.pathname,
   useRouter: () => ({ push }),
 }));
 
@@ -46,7 +47,37 @@ const announcements = [
 describe("AnnouncementModal", () => {
   beforeEach(() => {
     acknowledgeAnnouncementAction.mockReset();
+    navigation.pathname = "/dashboard";
     push.mockReset();
+  });
+
+  it("does not restore a followed announcement when returning to its origin", async () => {
+    acknowledgeAnnouncementAction.mockResolvedValue({ acknowledged: true });
+    const user = userEvent.setup();
+    const view = renderWithProviders(
+      <AnnouncementModal announcements={announcements} />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Choose a background" }),
+    );
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith("/profile/backgrounds"),
+    );
+
+    navigation.pathname = "/profile/backgrounds";
+    view.rerender(<AnnouncementModal announcements={announcements} />);
+    await waitFor(() =>
+      expect(screen.queryByText("Profile backgrounds")).not.toBeInTheDocument(),
+    );
+
+    navigation.pathname = "/dashboard";
+    view.rerender(<AnnouncementModal announcements={announcements} />);
+
+    expect(screen.queryByText("Profile backgrounds")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Opening…" })).not.toBeInTheDocument();
+    expect(screen.getByText("Another update")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Got it" })).toBeEnabled();
   });
 
   it("acknowledges the current announcement before following its action", async () => {
@@ -125,7 +156,7 @@ describe("AnnouncementModal", () => {
       }),
     );
     expect(screen.getByText("Another update")).toBeInTheDocument();
-    expect(screen.getByText(/2 of 2/)).toBeInTheDocument();
+    expect(screen.getByText(/1 of 1/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Got it" }));
     await waitFor(() =>
