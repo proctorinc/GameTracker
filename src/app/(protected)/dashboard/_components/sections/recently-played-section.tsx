@@ -281,7 +281,7 @@ export function RecentlyPlayedSection() {
           <div className="overflow-visible">
             <div
               ref={shelfRef}
-              className="flex snap-x snap-mandatory scroll-pl-4 gap-4 overflow-x-auto pb-7 pt-2 scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+              className="flex snap-x snap-mandatory scroll-pl-4 gap-4 overflow-x-auto overflow-y-hidden pb-7 pt-2 scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
               onScroll={handleShelfScroll}
             >
               <div className="w-0 shrink-0" aria-hidden="true" />
