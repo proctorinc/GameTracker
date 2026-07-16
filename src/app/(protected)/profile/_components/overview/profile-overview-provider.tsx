@@ -3,9 +3,11 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useState,
   type PropsWithChildren,
 } from "react";
+import { useSearchParams } from "next/navigation";
 import { usePageAutoRefresh } from "@/lib/use-page-auto-refresh";
 import { useRememberedPageTabState } from "@/lib/use-remembered-page-tab-state";
 import type {
@@ -45,17 +47,30 @@ export function ProfileOverviewProvider({
 }: PropsWithChildren<{ initialData: ProfileOverviewPageData }>) {
   usePageAutoRefresh();
 
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const explicitTab = PROFILE_TABS.includes(requestedTab as ProfileOverviewTab)
+    ? (requestedTab as ProfileOverviewTab)
+    : null;
+  const availableExplicitTab =
+    explicitTab === "collection" && initialData.cardsEnabled === false
+      ? "stats"
+      : explicitTab;
   const [data, setData] = useState(initialData);
   const [activeTab, setActiveTab] =
     useRememberedPageTabState<ProfileOverviewTab>({
       storageKey: PROFILE_TAB_STORAGE_KEY,
-      initialValue: initialData.initialTab,
+      initialValue: availableExplicitTab ?? initialData.initialTab,
       validTabs: PROFILE_TABS,
       normalizeStoredTab: normalizeStoredProfileTab,
-      preferInitialValue:
-        typeof window !== "undefined" &&
-        new URLSearchParams(window.location.search).has("tab"),
+      preferInitialValue: availableExplicitTab !== null,
     });
+
+  useEffect(() => {
+    if (availableExplicitTab) {
+      setActiveTab(availableExplicitTab);
+    }
+  }, [availableExplicitTab, setActiveTab]);
 
   const value: ProfileOverviewContextValue = {
     data,

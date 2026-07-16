@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   createAnnouncementDraft: vi.fn(),
   getAnnouncementById: vi.fn(),
   publishAnnouncement: vi.fn(),
+  resetAnnouncementAcknowledgmentForUser: vi.fn(),
   updateAnnouncementDraft: vi.fn(),
   prepareAnnouncementImage: vi.fn(),
   uploadAnnouncementImageToS3: vi.fn(),
@@ -25,6 +26,8 @@ vi.mock("@/lib/db/store/announcement.store", () => ({
   createAnnouncementDraft: mocks.createAnnouncementDraft,
   getAnnouncementById: mocks.getAnnouncementById,
   publishAnnouncement: mocks.publishAnnouncement,
+  resetAnnouncementAcknowledgmentForUser:
+    mocks.resetAnnouncementAcknowledgmentForUser,
   updateAnnouncementDraft: mocks.updateAnnouncementDraft,
 }));
 vi.mock("@/lib/title-image-storage", () => ({
@@ -35,6 +38,7 @@ import {
   acknowledgeAnnouncementAction,
   createAnnouncementDraftAction,
   publishAnnouncementAction,
+  resetAnnouncementAcknowledgmentAction,
 } from "./announcements";
 
 const admin = {
@@ -172,5 +176,25 @@ describe("announcement actions", () => {
       isGuest: false,
       mergedIntoUserId: null,
     });
+  });
+
+  it("lets an admin mark a published announcement unseen only for themselves", async () => {
+    mocks.getAnnouncementById.mockResolvedValue({
+      id: "announcement-1",
+      publishedAt: "2026-07-16T00:00:00.000Z",
+      archivedAt: null,
+    });
+    mocks.resetAnnouncementAcknowledgmentForUser.mockResolvedValue(true);
+
+    await expect(
+      resetAnnouncementAcknowledgmentAction({
+        announcementId: "announcement-1",
+      }),
+    ).resolves.toEqual({ reset: true });
+    expect(mocks.resetAnnouncementAcknowledgmentForUser).toHaveBeenCalledWith({
+      announcementId: "announcement-1",
+      userId: "admin-1",
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/", "layout");
   });
 });

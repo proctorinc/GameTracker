@@ -64,6 +64,11 @@ describe("AnnouncementModal", () => {
       }),
     );
     expect(push).toHaveBeenCalledWith("/profile/backgrounds");
+    expect(screen.getByText("Profile backgrounds")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Opening…" }),
+    ).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
     expect(screen.queryByText("Another update")).not.toBeInTheDocument();
   });
 

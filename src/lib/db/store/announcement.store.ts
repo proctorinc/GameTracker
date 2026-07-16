@@ -222,3 +222,20 @@ export async function acknowledgeAnnouncementForUser(input: {
 
   return true;
 }
+
+export async function resetAnnouncementAcknowledgmentForUser(input: {
+  announcementId: string;
+  userId: string;
+}): Promise<boolean> {
+  const deleted = await db
+    .delete(announcementAcknowledgments)
+    .where(
+      and(
+        eq(announcementAcknowledgments.announcementId, input.announcementId),
+        eq(announcementAcknowledgments.userId, input.userId),
+      ),
+    )
+    .returning({ announcementId: announcementAcknowledgments.announcementId });
+
+  return deleted.length > 0;
+}

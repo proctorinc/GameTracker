@@ -15,6 +15,7 @@ import {
   createAnnouncementDraft,
   getAnnouncementById,
   publishAnnouncement,
+  resetAnnouncementAcknowledgmentForUser,
   updateAnnouncementDraft,
 } from "@/lib/db/store/announcement.store";
 import { uploadAnnouncementImageToS3 } from "@/lib/title-image-storage";
@@ -246,4 +247,27 @@ export async function acknowledgeAnnouncementAction(input: {
   }
 
   return { acknowledged: true as const };
+}
+
+export async function resetAnnouncementAcknowledgmentAction(input: {
+  announcementId: string;
+}) {
+  const admin = await requireAdminUser();
+  const announcement = await getAnnouncementById(input.announcementId);
+
+  if (!announcement) {
+    throw new Error("Announcement not found");
+  }
+  if (!announcement.publishedAt || announcement.archivedAt) {
+    throw new Error("Only active published announcements can be marked unseen");
+  }
+
+  const reset = await resetAnnouncementAcknowledgmentForUser({
+    announcementId: input.announcementId,
+    userId: admin.id,
+  });
+
+  revalidateAnnouncementAdmin();
+  revalidatePath("/", "layout");
+  return { reset };
 }

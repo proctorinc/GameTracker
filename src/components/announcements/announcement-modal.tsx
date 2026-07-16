@@ -25,6 +25,10 @@ export function AnnouncementModal({
   const pathname = usePathname();
   const visibleAnnouncements = useMemo(
     () => {
+      if (pathname === "/admin" || pathname.startsWith("/admin/")) {
+        return [];
+      }
+
       const isActionDestination = announcements.some((announcement) => {
         if (!announcement.actionHref) return false;
 
@@ -45,6 +49,7 @@ export function AnnouncementModal({
   );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [open, setOpen] = useState(visibleAnnouncements.length > 0);
+  const [isNavigating, setIsNavigating] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const current = visibleAnnouncements[currentIndex];
@@ -78,12 +83,13 @@ export function AnnouncementModal({
     const destination = current.actionHref;
     if (!destination) return;
 
+    setIsNavigating(true);
     startTransition(async () => {
       try {
         await acknowledgeAnnouncementAction({ announcementId: current.id });
-        setOpen(false);
         router.push(destination);
       } catch (error) {
+        setIsNavigating(false);
         toast.error(
           error instanceof Error
             ? error.message
@@ -94,8 +100,16 @@ export function AnnouncementModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto p-0 sm:max-w-xl">
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!isNavigating) setOpen(nextOpen);
+      }}
+    >
+      <DialogContent
+        className="max-h-[calc(100dvh-2rem)] overflow-y-auto p-0 sm:max-w-xl"
+        showCloseButton={!isNavigating}
+      >
         {current.screenshotUrl ? (
           <img
             alt={`${current.title} announcement screenshot`}
@@ -117,20 +131,21 @@ export function AnnouncementModal({
         <DialogFooter>
           {current.actionLabel && current.actionHref ? (
             <Button
-              disabled={isPending}
+              disabled={isPending || isNavigating}
               onClick={followAction}
               type="button"
             >
-              {current.actionLabel}
+              {isNavigating ? <LoaderCircle className="animate-spin" /> : null}
+              {isNavigating ? "Opening…" : current.actionLabel}
             </Button>
           ) : null}
           <Button
-            disabled={isPending}
+            disabled={isPending || isNavigating}
             onClick={acknowledgeCurrent}
             type="button"
             variant={current.actionLabel && current.actionHref ? "outline" : "default"}
           >
-            {isPending ? <LoaderCircle className="animate-spin" /> : null}
+            {isPending && !isNavigating ? <LoaderCircle className="animate-spin" /> : null}
             {isLast ? "Got it" : "Next"}
           </Button>
         </DialogFooter>

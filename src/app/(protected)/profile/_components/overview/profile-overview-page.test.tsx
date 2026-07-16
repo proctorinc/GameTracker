@@ -21,6 +21,7 @@ vi.mock("next-themes", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(window.location.search),
   useRouter: () => ({
     refresh: vi.fn(),
   }),
@@ -136,7 +137,10 @@ describe("ProfileOverviewPage", () => {
     expect(window.localStorage.getItem("page-tab:/profile")).toBe("friends");
   });
 
-  it("toggles settings back to stats when the settings button is clicked twice", () => {
+  it("guarantees a settings deep link overrides remembered and server tab state", () => {
+    window.localStorage.setItem("page-tab:/profile", "friends");
+    window.history.replaceState({}, "", "/profile?tab=settings");
+
     renderWithProviders(
       <ProfileOverviewPage
         initialData={{
@@ -218,18 +222,17 @@ describe("ProfileOverviewPage", () => {
       name: /profile settings/i,
     });
 
-    expect(screen.queryByText("Edit Profile")).not.toBeInTheDocument();
-    expect(screen.getByText("Fresh start")).toBeInTheDocument();
+    expect(screen.getByText("Edit Profile")).toBeInTheDocument();
 
     fireEvent.click(settingsButton);
 
-    expect(screen.getByText("Edit Profile")).toBeInTheDocument();
+    expect(screen.queryByText("Edit Profile")).not.toBeInTheDocument();
+    expect(screen.getByText("Fresh start")).toBeInTheDocument();
     expect(window.localStorage.getItem("page-tab:/profile")).toBe("stats");
 
     fireEvent.click(settingsButton);
 
-    expect(screen.queryByText("Edit Profile")).not.toBeInTheDocument();
-    expect(screen.getByText("Fresh start")).toBeInTheDocument();
+    expect(screen.getByText("Edit Profile")).toBeInTheDocument();
     expect(window.localStorage.getItem("page-tab:/profile")).toBe("stats");
   });
 

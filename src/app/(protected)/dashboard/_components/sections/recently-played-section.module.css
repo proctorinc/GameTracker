@@ -1,6 +1,10 @@
+.snapWrapper {
+    flex-shrink: 0;
+    scroll-snap-align: start;
+}
+
 .tiltWrapper {
     --card-tilt: 0deg;
-    flex-shrink: 0;
     transform: rotate(var(--card-tilt));
     transform-origin: 50% 88%;
     transition: transform 120ms ease-out;
@@ -11,7 +15,6 @@
     height: 30vh;
     aspect-ratio: 5 / 7;
     flex-shrink: 0;
-    scroll-snap-align: start;
     perspective: 1200px;
 }
 
@@ -238,6 +241,20 @@
     transform: translateX(24%) rotate(2deg);
 }
 
+.playingCard.autoGlint .glint {
+    animation: auto-glint 650ms cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+@keyframes auto-glint {
+    from {
+        transform: translateX(-25%) rotate(2deg);
+    }
+
+    to {
+        transform: translateX(24%) rotate(2deg);
+    }
+}
+
 .playAction {
     box-shadow:
         0 8px 16px -11px rgb(2 6 23 / 92%),
@@ -257,7 +274,9 @@
 
     .glint,
     .playingCard:hover .glint,
-    .playingCard:focus-within .glint {
+    .playingCard:focus-within .glint,
+    .playingCard.autoGlint .glint {
+        animation: none;
         transition: none;
         transform: translateX(-25%) rotate(2deg);
     }

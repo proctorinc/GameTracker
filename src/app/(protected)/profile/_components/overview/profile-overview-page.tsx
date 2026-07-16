@@ -5,7 +5,6 @@ import {
   useProfileOverview,
 } from "./profile-overview-provider";
 import type { ProfileOverviewPageData } from "./types";
-import { AdminToolsCard } from "./sections/admin-tools-card";
 import { ProfileDetailsCard } from "./sections/profile-details-card";
 import { ProfileHeroCard } from "./sections/profile-hero-card";
 import { ProfileFriendsTab } from "./sections/profile-friends-tab";
@@ -15,7 +14,7 @@ import { PublicProfileCard } from "./sections/public-profile-card";
 import { ProfileCollectionTab } from "./sections/profile-collection-tab";
 
 function ProfileOverviewContent() {
-  const { user, activeTab, data } = useProfileOverview();
+  const { activeTab, data } = useProfileOverview();
   const visibleTab =
     activeTab === "collection" && data.cardsEnabled === false
       ? "stats"
@@ -35,7 +34,6 @@ function ProfileOverviewContent() {
           <>
             <PublicProfileCard />
             <ProfileDetailsCard />
-            {user.role === "admin" ? <AdminToolsCard /> : null}
           </>
         )}
       </div>

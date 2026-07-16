@@ -20,7 +20,13 @@ import styles from "./recently-played-section.module.css";
 
 type RecentGameTitle = DashboardPageData["recentGameTitles"][number];
 
-function RecentlyPlayedCard({ gameTitle }: { gameTitle: RecentGameTitle }) {
+function RecentlyPlayedCard({
+  gameTitle,
+  autoGlint,
+}: {
+  gameTitle: RecentGameTitle;
+  autoGlint: boolean;
+}) {
   const [isFlipped, setIsFlipped] = useState(false);
   const titleColor = gameTitle.color?.trim() || "#64748b";
   const timesPlayed = gameTitle.timesPlayed ?? 0;
@@ -43,7 +49,11 @@ function RecentlyPlayedCard({ gameTitle }: { gameTitle: RecentGameTitle }) {
   return (
     <div className={styles.cardScene}>
       <div
-        className={cn(styles.playingCard, isFlipped && styles.flipped)}
+        className={cn(
+          styles.playingCard,
+          isFlipped && styles.flipped,
+          autoGlint && styles.autoGlint,
+        )}
         style={{ "--game-title-color": titleColor } as CSSProperties}
         role="button"
         tabIndex={0}
@@ -128,6 +138,10 @@ export function RecentlyPlayedSection() {
   const { recentGameTitles } = useDashboardPage();
   const shelfRef = useRef<HTMLDivElement>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const scrollSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const [autoGlintTitleId, setAutoGlintTitleId] = useState<string | null>(null);
 
   const updateCardTilts = useCallback(() => {
     const shelf = shelfRef.current;
@@ -152,10 +166,11 @@ export function RecentlyPlayedSection() {
           1,
           Math.max(0, (0.58 - centerPosition) / 0.58),
         );
+        const tiltWrapper = card.firstElementChild as HTMLElement | null;
 
-        card.style.setProperty(
+        tiltWrapper?.style.setProperty(
           "--card-tilt",
-          `${(-3 * leftwardProgress).toFixed(2)}deg`,
+          `${(-5 * leftwardProgress).toFixed(2)}deg`,
         );
       },
     );
@@ -172,6 +187,58 @@ export function RecentlyPlayedSection() {
     });
   }, [updateCardTilts]);
 
+  const updateLeftmostCard = useCallback(() => {
+    const shelf = shelfRef.current;
+
+    if (!shelf) {
+      return;
+    }
+
+    const shelfBounds = shelf.getBoundingClientRect();
+    const visibleCards = Array.from(
+      shelf.querySelectorAll<HTMLElement>("[data-recent-title-card]"),
+    ).filter((card) => {
+      const bounds = card.getBoundingClientRect();
+
+      return bounds.right > shelfBounds.left && bounds.left < shelfBounds.right;
+    });
+    const leftmostCard = visibleCards.reduce<HTMLElement | null>(
+      (closest, card) => {
+        if (!closest) {
+          return card;
+        }
+
+        const cardDistance = Math.abs(
+          card.getBoundingClientRect().left - shelfBounds.left,
+        );
+        const closestDistance = Math.abs(
+          closest.getBoundingClientRect().left - shelfBounds.left,
+        );
+
+        return cardDistance < closestDistance ? card : closest;
+      },
+      null,
+    );
+    const titleId = leftmostCard?.dataset.recentTitleCard;
+
+    if (titleId) {
+      setAutoGlintTitleId((current) => (current === titleId ? current : titleId));
+    }
+  }, []);
+
+  const handleShelfScroll = useCallback(() => {
+    scheduleCardTiltUpdate();
+
+    if (scrollSettleTimerRef.current !== null) {
+      clearTimeout(scrollSettleTimerRef.current);
+    }
+
+    scrollSettleTimerRef.current = setTimeout(() => {
+      scrollSettleTimerRef.current = null;
+      updateLeftmostCard();
+    }, 140);
+  }, [scheduleCardTiltUpdate, updateLeftmostCard]);
+
   useEffect(() => {
     updateCardTilts();
     window.addEventListener("resize", scheduleCardTiltUpdate);
@@ -181,6 +248,10 @@ export function RecentlyPlayedSection() {
 
       if (animationFrameRef.current !== null) {
         window.cancelAnimationFrame(animationFrameRef.current);
+      }
+
+      if (scrollSettleTimerRef.current !== null) {
+        clearTimeout(scrollSettleTimerRef.current);
       }
     };
   }, [recentGameTitles, scheduleCardTiltUpdate, updateCardTilts]);
@@ -211,16 +282,21 @@ export function RecentlyPlayedSection() {
             <div
               ref={shelfRef}
               className="flex snap-x snap-mandatory scroll-pl-4 gap-4 overflow-x-auto pb-7 pt-2 scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-              onScroll={scheduleCardTiltUpdate}
+              onScroll={handleShelfScroll}
             >
               <div className="w-0 shrink-0" aria-hidden="true" />
               {recentGameTitles.map((gameTitle) => (
                 <div
                   key={`title=${gameTitle.id}`}
-                  className={styles.tiltWrapper}
-                  data-recent-title-card
+                  className={styles.snapWrapper}
+                  data-recent-title-card={gameTitle.id}
                 >
-                  <RecentlyPlayedCard gameTitle={gameTitle} />
+                  <div className={styles.tiltWrapper}>
+                    <RecentlyPlayedCard
+                      gameTitle={gameTitle}
+                      autoGlint={autoGlintTitleId === gameTitle.id}
+                    />
+                  </div>
                 </div>
               ))}
               <div className="w-0 shrink-0" aria-hidden="true" />

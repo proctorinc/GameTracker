@@ -2,7 +2,8 @@
 
 import ProfilePicture from "@/components/profile/profile-picture";
 import { useProfileOverview } from "../profile-overview-provider";
-import { Settings } from "lucide-react";
+import Link from "next/link";
+import { Settings, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 function formatMemberSince(createdAt: string | null) {
@@ -44,14 +45,28 @@ export function ProfileHeroCard() {
             </div>
           </div>
         </div>
-        <Button
-          size="icon-lg"
-          variant={isSettingsActive ? "default" : "outline"}
-          aria-label="Profile settings"
-          onClick={() => setActiveTab(isSettingsActive ? "stats" : "settings")}
-        >
-          <Settings />
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          {user.role === "admin" ? (
+            <Button
+              aria-label="Admin tools"
+              render={<Link href="/admin" />}
+              size="icon-lg"
+              variant="outline"
+            >
+              <Shield />
+            </Button>
+          ) : null}
+          <Button
+            size="icon-lg"
+            variant={isSettingsActive ? "default" : "outline"}
+            aria-label="Profile settings"
+            onClick={() =>
+              setActiveTab(isSettingsActive ? "stats" : "settings")
+            }
+          >
+            <Settings />
+          </Button>
+        </div>
       </div>
     </div>
   );
