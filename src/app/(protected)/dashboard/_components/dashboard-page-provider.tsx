@@ -31,6 +31,7 @@ type DashboardPageContextValue = {
   recentCompletedGames: DashboardPageData["recentCompletedGames"];
   recentGameTitles: DashboardPageData["recentGameTitles"];
   unopenedCardPacks: DashboardPageData["unopenedCardPacks"];
+  recentAnnouncements: DashboardPageData["recentAnnouncements"];
   handleAcceptInvitation: (invitationId: string) => void;
   handleDeclineInvitation: (invitationId: string) => void;
 };
@@ -92,6 +93,7 @@ export function DashboardPageProvider({
     recentCompletedGames: data.recentCompletedGames,
     recentGameTitles: data.recentGameTitles,
     unopenedCardPacks: data.unopenedCardPacks,
+    recentAnnouncements: data.recentAnnouncements ?? [],
     handleAcceptInvitation(invitationId) {
       handleInvitationAction(acceptInvitation, invitationId, {
         loading: "Accepting invitation...",

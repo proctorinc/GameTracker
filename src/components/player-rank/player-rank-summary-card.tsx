@@ -69,7 +69,10 @@ export function PlayerRankSummaryCard({
     : `Your Player Rank reflects your top 3 finishes within the last ${resolvedWindowLabel.replace(" rolling rank", "")} period. Keep playing to keep your rank.`;
 
   return (
-    <Card className={cn("overflow-hidden p-0", className)}>
+    <Card
+      className={cn("overflow-hidden p-0", className)}
+      surface="plain"
+    >
       <button
         type="button"
         className={cn(

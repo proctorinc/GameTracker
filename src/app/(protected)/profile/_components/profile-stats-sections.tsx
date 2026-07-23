@@ -8,7 +8,6 @@ import {
   Gamepad2,
   Target,
   Trophy,
-  Users,
   Zap,
 } from "lucide-react";
 import Link from "next/link";
@@ -19,11 +18,11 @@ import {
 } from "@/components/profile/comparison-metric-row";
 import ProfilePicture from "@/components/profile/profile-picture";
 import { ProfileMatchupSelector } from "@/components/profile/profile-matchup-selector";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { ProfileStatsPageData } from "../profile-types";
+import styles from "./profile-stats-sections.module.css";
 
 const DEFAULT_VISIBLE_COMPARISON_METRICS = 5;
 type ComparisonMode = "head-to-head" | "all-time";
@@ -105,13 +104,14 @@ function StatCard(props: {
   cardClassName?: string;
   surfaceClassName: string;
   iconClassName?: string;
+  iconGlowColor: string;
 }) {
   return (
     <Card
       size="sm"
       style={{ backgroundImage: "none" }}
       className={cn(
-        "relative overflow-hidden bg-card/95 shadow-lg ring-0 dark:bg-white/5 dark:shadow-black/20",
+        "group/stat-card relative h-44 overflow-hidden bg-card/95 shadow-lg ring-0 sm:h-48 dark:bg-white/5 dark:shadow-black/20",
         props.cardClassName,
       )}
     >
@@ -122,14 +122,36 @@ function StatCard(props: {
           props.surfaceClassName,
         )}
       />
-      <CardContent className="relative flex min-h-28 flex-col items-center justify-center gap-3 px-4 py-0 text-center sm:min-h-32 sm:px-5 sm:py-3.5">
+      <CardContent className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-4 py-0 text-center sm:px-5 sm:py-3.5">
         <div
+          data-stat-icon
           className={cn(
-            "inline-flex size-12 items-center justify-center rounded-xl border border-white/60 bg-white/90 text-foreground shadow-sm dark:border-white/10 dark:bg-white/10 dark:text-white",
+            "relative isolate inline-flex size-12 items-center justify-center overflow-hidden rounded-xl border border-white/60 bg-white/90 text-foreground ring-1 ring-slate-900/8 dark:border-white/10 dark:bg-white/10 dark:text-white dark:ring-white/16",
             props.iconClassName,
           )}
+          style={{
+            ["--stat-icon-glow" as string]: props.iconGlowColor,
+            boxShadow:
+              "0 12px 25px -13px var(--stat-icon-glow), 0 0 16px -6px var(--stat-icon-glow), inset 0 1px 0 rgba(255,255,255,0.65), inset 0 -5px 12px rgba(15,23,42,0.16)",
+          }}
         >
-          {props.icon}
+          <div
+            data-stat-icon-shine
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_28%_20%,rgba(255,255,255,0.72)_0%,rgba(255,255,255,0.22)_19%,transparent_49%)]"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.16)_0%,transparent_43%,rgba(15,23,42,0.16)_100%)]"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -inset-x-1/2 -inset-y-1/4 translate-x-[-34%] rotate-12 bg-[linear-gradient(112deg,transparent_38%,rgba(255,255,255,0.04)_43%,rgba(255,255,255,0.62)_48%,rgba(255,255,255,0.1)_52%,transparent_58%)] opacity-80 mix-blend-screen transition-transform duration-700 ease-out group-hover/stat-card:translate-x-[34%] motion-reduce:transition-none motion-reduce:group-hover/stat-card:translate-x-[-34%]"
+          />
+          <div className="pointer-events-none absolute inset-[1px] rounded-[calc(var(--radius-xl)-1px)] border border-white/35 shadow-[inset_0_0_8px_rgba(255,255,255,0.2)]" />
+          <span className="relative z-10 drop-shadow-[0_1px_2px_rgba(15,23,42,0.24)]">
+            {props.icon}
+          </span>
         </div>
         <div className="space-y-2">
           <p className="text-4xl font-black tracking-tight text-foreground dark:text-white sm:text-[2.7rem]">
@@ -358,7 +380,7 @@ export function ProfileStatsSections({
       {hero}
       <section>
         <Card
-          className="overflow-hidden rounded-xl py-0 border border-border/70 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-white/5 dark:shadow-black/20"
+          className="overflow-hidden rounded-xl border border-[var(--profile-accent-line)] py-0 shadow-[0_12px_28px_-18px_var(--profile-accent-glow)] dark:border-[var(--profile-accent-line)] dark:bg-white/5 dark:shadow-[0_12px_30px_-18px_var(--profile-accent-glow)]"
           style={{ backgroundImage: "none" }}
         >
           <CardContent className="relative px-5 py-0">
@@ -366,12 +388,16 @@ export function ProfileStatsSections({
               className="absolute inset-0 backdrop-blur-xs opacity-80"
               style={{
                 background:
-                  "linear-gradient(135deg,var(--profile-accent-soft),transparent 55%)",
+                  "radial-gradient(circle at 10% 0%,var(--profile-accent-panel),transparent 48%),linear-gradient(135deg,var(--profile-accent-soft),transparent 70%)",
               }}
             />
             <div className="relative flex items-start justify-between gap-4">
               <div className="space-y-2 py-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground dark:text-white/60">
+                <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.24em] text-[var(--profile-accent)] dark:text-[color-mix(in_srgb,var(--profile-accent)_68%,white_32%)]">
+                  <span
+                    aria-hidden="true"
+                    className="size-2 rounded-full bg-[var(--profile-accent)] shadow-[0_0_12px_var(--profile-accent-glow)]"
+                  />
                   My activity
                 </p>
                 <h2 className="text-2xl font-black tracking-tight text-foreground dark:text-white sm:text-[2.1rem]">
@@ -383,68 +409,75 @@ export function ProfileStatsSections({
         </Card>
       </section>
 
-      <section>
+      <section
+        data-stat-grid
+        className="grid grid-cols-3 gap-3 xl:grid-cols-3"
+      >
         {data.stats.signatureTitle ? (
           <Link
+            data-favorite-game-card
             href={`/titles/${encodeURIComponent(data.stats.signatureTitle.id)}`}
-            className="group block overflow-hidden rounded-xl border border-border/70 shadow-2xl shadow-black/10"
+            aria-label={`View ${data.stats.signatureTitle.title} stats`}
+            className={cn("group", styles.favoriteCard)}
+            style={
+              {
+                "--game-title-color":
+                  data.stats.signatureTitle.color?.trim() || "#64748b",
+              } as CSSProperties
+            }
           >
-            <GameTitleImage
-              className="bg-slate-800 text-white dark:bg-slate-950"
-              color={data.stats.signatureTitle.color}
-              contentClassName="h-full"
-              imageUrl={data.stats.signatureTitle.imageUrl}
-              size="lg"
-              verticalFocus={data.stats.signatureTitle.imageVerticalFocus}
-              imageClassName="transition-transform duration-500 group-hover:scale-[1.03]"
-            >
-              <div className="flex h-full flex-col justify-center p-5 sm:p-6">
-                <div className="space-y-3">
-                  <h2 className="max-w-2xl text-3xl font-black tracking-tight sm:text-4xl">
+            <div className={styles.favoriteCardFace}>
+              <GameTitleImage
+                className="h-full w-full rounded-[inherit] border-0 bg-slate-800 text-white dark:bg-slate-950"
+                color={data.stats.signatureTitle.color}
+                contentClassName="h-full"
+                imageUrl={data.stats.signatureTitle.imageUrl}
+                verticalFocus={data.stats.signatureTitle.imageVerticalFocus}
+                imageClassName="transition-transform duration-500 group-hover:scale-[1.035] motion-reduce:transition-none"
+              >
+                <div className={styles.dotTexture} aria-hidden="true" />
+                <div className={styles.sheen} aria-hidden="true" />
+                <div className={styles.glint} aria-hidden="true" />
+                <div className="relative z-10 flex h-full min-w-0 flex-col p-3 text-white sm:p-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/72 drop-shadow-sm sm:text-[11px]">
+                    Favorite game
+                  </p>
+                  <h2 className="mt-auto line-clamp-3 text-lg font-black leading-[1.02] tracking-tight text-balance drop-shadow-md sm:text-2xl">
                     {data.stats.signatureTitle.title}
                   </h2>
-                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-white/65">
+                  <p className="mt-2 text-[9px] font-black uppercase tracking-[0.12em] text-white/72 drop-shadow-sm sm:text-[10px]">
                     Played {data.stats.signatureTitle.completedCount} times
                   </p>
                 </div>
-              </div>
-            </GameTitleImage>
+              </GameTitleImage>
+            </div>
           </Link>
         ) : (
-          <Card className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xl shadow-black/5 dark:border-white/10 dark:bg-card dark:shadow-black/20">
-            <CardContent className="relative p-6">
-              <div
-                className="absolute inset-0 opacity-70 dark:opacity-100"
-                style={{
-                  background:
-                    "linear-gradient(135deg,var(--profile-accent-soft),transparent 52%)",
-                }}
-              />
-              <div className="relative space-y-3">
-                <Badge
-                  variant="outline"
-                  className="rounded-full border-border/80 bg-background/80 text-foreground dark:border-white/10 dark:bg-white/6 dark:text-white/88"
-                >
-                  Favorite game
-                </Badge>
-                <h2 className="text-3xl font-black tracking-tight text-foreground dark:text-white">
-                  Favorite game coming soon
-                </h2>
-                <p className="max-w-xl text-sm text-muted-foreground dark:text-white/72">
-                  Finish a few more games and we&apos;ll highlight the title you
-                  come back to most.
-                </p>
-              </div>
+          <Card
+            data-favorite-game-card
+            size="sm"
+            style={{ backgroundImage: "none" }}
+            className="relative h-44 overflow-hidden border-[var(--profile-accent-line)] bg-card/95 shadow-lg shadow-[0_10px_15px_-3px_var(--profile-accent-glow)] ring-0 sm:h-48 dark:border-[var(--profile-accent-line)] dark:bg-white/5"
+          >
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,var(--profile-accent-soft),rgba(255,255,255,0.94)_75%)] dark:bg-[linear-gradient(180deg,var(--profile-accent-panel),rgba(255,255,255,0.03)_100%)]"
+            />
+            <CardContent className="relative flex min-h-0 flex-1 flex-col justify-between gap-2 p-3 sm:p-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground sm:text-[11px]">
+                Favorite game
+              </p>
+              <p className="text-lg font-black leading-tight tracking-tight text-foreground sm:text-xl dark:text-white">
+                Coming soon
+              </p>
             </CardContent>
           </Card>
         )}
-      </section>
-
-      <section className="grid grid-cols-3 gap-3 xl:grid-cols-3">
         <StatCard
           label="Games"
           value={data.stats.completedGames}
           icon={<Gamepad2 className="size-6" />}
+          iconGlowColor="rgba(51,65,85,0.72)"
           cardClassName="border-slate-300/70 shadow-slate-950/10 dark:border-white/10"
           surfaceClassName="bg-[linear-gradient(180deg,#ffffff_0%,#f1f5f9_100%)] dark:bg-[linear-gradient(180deg,rgba(148,163,184,0.16)_0%,rgba(255,255,255,0.03)_100%)]"
           iconClassName="bg-slate-800 text-white border-slate-800/20 dark:bg-white dark:text-slate-950 dark:border-white/20"
@@ -453,6 +486,7 @@ export function ProfileStatsSections({
           label="Wins"
           value={data.stats.wins}
           icon={<Trophy className="size-6" />}
+          iconGlowColor="rgba(245,158,11,0.78)"
           cardClassName="border-amber-300/70 shadow-amber-950/10 dark:border-amber-200/20"
           surfaceClassName="bg-[linear-gradient(180deg,#fff8eb_0%,#fff1cf_100%)] dark:bg-[linear-gradient(180deg,rgba(245,158,11,0.18)_0%,rgba(255,255,255,0.03)_100%)]"
           iconClassName="bg-amber-400/90 text-slate-800 border-amber-300/50 dark:bg-amber-300 dark:text-slate-950 dark:border-amber-200/30"
@@ -461,6 +495,7 @@ export function ProfileStatsSections({
           label="Win Rate"
           value={formatPercent(data.stats.winRate)}
           icon={<Target className="size-6" />}
+          iconGlowColor="rgba(99,102,241,0.78)"
           cardClassName="border-indigo-300/70 shadow-indigo-950/10 dark:border-indigo-300/20"
           surfaceClassName="bg-[linear-gradient(180deg,#f8fafc_0%,#e0e7ff_100%)] dark:bg-[linear-gradient(180deg,rgba(99,102,241,0.18)_0%,rgba(255,255,255,0.03)_100%)]"
           iconClassName="bg-indigo-500/90 text-white border-indigo-400/40 dark:bg-indigo-400 dark:text-slate-950 dark:border-indigo-300/30"
@@ -472,6 +507,7 @@ export function ProfileStatsSections({
             data.stats.currentStreak.count,
           )}
           icon={<Zap className="size-6" />}
+          iconGlowColor="rgba(244,63,94,0.78)"
           cardClassName="border-rose-300/70 shadow-rose-950/10 dark:border-rose-300/20"
           surfaceClassName="bg-[linear-gradient(180deg,#fff1f2_0%,#ffe4e6_100%)] dark:bg-[linear-gradient(180deg,rgba(244,63,94,0.16)_0%,rgba(255,255,255,0.03)_100%)]"
           iconClassName="bg-rose-500/90 text-white border-rose-400/40 dark:bg-rose-400 dark:text-slate-950 dark:border-rose-300/30"
@@ -480,17 +516,10 @@ export function ProfileStatsSections({
           label="Best Streak"
           value={data.stats.bestWinStreak}
           icon={<Flame className="size-6" />}
+          iconGlowColor="rgba(249,115,22,0.78)"
           cardClassName="border-orange-300/70 shadow-orange-950/10 dark:border-orange-300/20"
           surfaceClassName="bg-[linear-gradient(180deg,#fff7ed_0%,#ffedd5_100%)] dark:bg-[linear-gradient(180deg,rgba(249,115,22,0.16)_0%,rgba(255,255,255,0.03)_100%)]"
           iconClassName="bg-orange-500/90 text-white border-orange-400/40 dark:bg-orange-400 dark:text-slate-950 dark:border-orange-300/30"
-        />
-        <StatCard
-          label="Matchups"
-          value={data.stats.bestFriendGames}
-          icon={<Users className="size-6" />}
-          cardClassName="border-[var(--profile-accent-line)] shadow-[0_10px_15px_-3px_var(--profile-accent-glow)] dark:border-[var(--profile-accent-line)]"
-          surfaceClassName="bg-[linear-gradient(180deg,var(--profile-accent-soft),rgba(255,255,255,0.94)_75%)] dark:bg-[linear-gradient(180deg,var(--profile-accent-panel),rgba(255,255,255,0.03)_100%)]"
-          iconClassName="border-[var(--profile-accent-line)] bg-[var(--profile-accent)] text-white dark:border-white/10"
         />
       </section>
 

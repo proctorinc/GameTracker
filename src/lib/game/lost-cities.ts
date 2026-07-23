@@ -145,8 +145,8 @@ export function getLostCitiesOrderedCategories(
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
     .sort(
       (left, right) =>
-        left.category.sortOrder - right.category.sortOrder ||
-        left.category.name.localeCompare(right.category.name),
+        LOST_CITIES_EXPEDITIONS.indexOf(left.expedition) -
+        LOST_CITIES_EXPEDITIONS.indexOf(right.expedition),
     );
 }
 

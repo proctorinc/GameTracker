@@ -4,17 +4,24 @@ import { ArrowRight, ListCheck, Swords, Trophy } from "lucide-react";
 import Link from "next/link";
 import { useDashboardPage } from "../dashboard-page-provider";
 import { Card } from "@/components/ui/card";
+import { AnnouncementModal } from "@/components/announcements/announcement-modal";
 
 export function EmptyDashboardStateSection() {
-  const { user } = useDashboardPage();
+  const { user, recentAnnouncements } = useDashboardPage();
 
   return (
     <Card className="relative overflow-hidden rounded-xl px-5 py-6 shadow-2xl">
       <div className="relative flex flex-col gap-5">
         <div className="space-y-2">
-          <h1 className="text-4xl font-black tracking-tight">
-            Hi, {user.firstName}!
-          </h1>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-4xl font-black tracking-tight">
+              Hi, {user.firstName}!
+            </h1>
+            <AnnouncementModal
+              announcements={recentAnnouncements}
+              mode="recent"
+            />
+          </div>
           <p className="max-w-xs text-sm leading-6 text-slate-700 dark:text-white/80">
             Your dashboard wakes up once you start playing. Create your first
             game to track rounds, winners, and the games you keep coming back

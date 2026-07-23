@@ -33,7 +33,7 @@ export function ActiveGamesSection() {
   }
 
   return (
-    <Card className="mx-4 pt-2">
+    <Card className="mx-4 overflow-visible pt-2">
       <GameSectionHeader
         action={
           <Link
@@ -79,7 +79,7 @@ export function ActiveGamesSection() {
                   <GameTitleImage
                     className={cn(
                       sectionItemClassName,
-                      "p-4 transition-colors hover:bg-muted/80",
+                      "border-2 p-4 transition-colors hover:bg-muted/80",
                     )}
                     color={game.gameTitle?.color}
                     imageUrl={game.gameTitle?.imageUrl}

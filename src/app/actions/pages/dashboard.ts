@@ -8,6 +8,7 @@ import {
   listRecentActiveGames,
   listRecentGameTitles,
 } from "@/lib/db/store";
+import type { AnnouncementForClient } from "@/lib/db/store/announcement.store";
 import type {
   PlayerRankGameDelta,
   PlayerRankRecentChangeSummary,
@@ -38,6 +39,7 @@ export type DashboardPageData = {
   threePlayerPrizePool: string | null;
   sixPlusPlayerPrizePool: string | null;
   unopenedCardPacks: UnopenedCardPackGroup[];
+  recentAnnouncements: AnnouncementForClient[];
 };
 
 export type DashboardPageCollections = Pick<

@@ -89,7 +89,7 @@ export default function GameTitleImage({
   return (
     <div
       className={cn(
-        "game-title-image relative overflow-hidden rounded-xl border",
+        "game-title-image relative overflow-hidden rounded-xl border-2",
         size && SIZE_STYLES[size],
         className,
       )}
@@ -121,6 +121,8 @@ export default function GameTitleImage({
         style={{ background: styles.darkOverlay(resolvedColor) }}
       />
       <div className={cn("absolute inset-0", styles.scrimClassName)} />
+      <div className="game-title-dot-overlay" aria-hidden="true" />
+      <div className="game-title-light-sheen" aria-hidden="true" />
       {children ? (
         <div className={cn("relative z-10 h-full", contentClassName)}>
           {children}

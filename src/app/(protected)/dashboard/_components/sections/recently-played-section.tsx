@@ -70,8 +70,6 @@ function RecentlyPlayedCard({
             imageUrl={gameTitle.imageUrl}
             verticalFocus={gameTitle.imageVerticalFocus}
           >
-            <div className={styles.dotTexture} aria-hidden="true" />
-            <div className={styles.sheen} aria-hidden="true" />
             <div className={styles.glint} aria-hidden="true" />
             <div className={styles.frame} aria-hidden="true" />
 

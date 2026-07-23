@@ -70,6 +70,7 @@ export function getProfileColorSurfaceStyles(
   color: string,
 ): CSSPropertiesWithCustomProperties {
   const { isDark, textTint } = getProfileColorContrastValues(color);
+  const { r, g, b } = hexToRgb(color);
   return {
     backgroundColor: color,
     color: textTint,
@@ -82,6 +83,7 @@ export function getProfileColorSurfaceStyles(
     "--profile-surface-highlight": isDark
       ? "rgba(255,255,255,0.18)"
       : "rgba(255,255,255,0.3)",
+    "--profile-surface-glow": `rgba(${r},${g},${b},${isDark ? 0.42 : 0.34})`,
     "--profile-surface-shade": isDark
       ? "rgba(15,23,42,0.16)"
       : "rgba(15,23,42,0.08)",
@@ -108,6 +110,7 @@ export function getProfileColorGlassStyles(
     "--profile-surface-ring": surfaceStyles["--profile-surface-ring"],
     "--profile-surface-highlight":
       surfaceStyles["--profile-surface-highlight"],
+    "--profile-surface-glow": surfaceStyles["--profile-surface-glow"],
     "--profile-surface-shade": surfaceStyles["--profile-surface-shade"],
     "--profile-surface-panel": surfaceStyles["--profile-surface-panel"],
     "--profile-surface-panel-border":

@@ -5,6 +5,7 @@ import { getFriendsPageCollections } from "@/app/actions/pages/friends";
 import { buildFriendRankSummaries } from "@/app/(protected)/activity/_components/leaderboard-utils";
 import { getDashboardPageCollections } from "@/app/actions/pages/dashboard";
 import { loadCurrentUser } from "@/lib/auth/auth-me";
+import { listRecentAnnouncements } from "@/lib/db/store/announcement.store";
 import {
   getCardCatalogTag,
   getFeatureFlagsTag,
@@ -24,6 +25,7 @@ import { logError, logInfo } from "@/lib/server-log";
 import { getServerRequestContext } from "@/lib/server-request-context";
 
 const DASHBOARD_PAGE_REVALIDATE_SECONDS = 15;
+const RECENT_ANNOUNCEMENT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
 export async function getDashboardOverviewPageData() {
   const requestContext = await getServerRequestContext();
@@ -40,6 +42,7 @@ export async function getDashboardOverviewPageData() {
       playerRankSummary,
       playerRankConfig,
       playerRankRecentChangeSummary,
+      recentAnnouncements,
     ] =
       await Promise.all([
         getFriendsPageCollections({ userId: user.id }),
@@ -49,6 +52,11 @@ export async function getDashboardOverviewPageData() {
         ),
         getActivePlayerRankConfig(),
         getPlayerRankRecentChangeSummary(user.id),
+        listRecentAnnouncements({
+          since: new Date(
+            Date.now() - RECENT_ANNOUNCEMENT_WINDOW_MS,
+          ).toISOString(),
+        }),
       ]);
     const friendRankSummary = buildFriendRankSummaries({
       currentUser: {
@@ -78,6 +86,7 @@ export async function getDashboardOverviewPageData() {
     return {
       user,
       ...data,
+      recentAnnouncements,
       recentCompletedGames: data.recentCompletedGames.map((game) => ({
         ...game,
         currentUserRankDelta:

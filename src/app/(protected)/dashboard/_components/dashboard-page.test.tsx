@@ -7,13 +7,18 @@ vi.mock("@/components/game/rematch-button", () => ({
   RematchButton: () => <button type="button">Rematch</button>,
 }));
 vi.mock("next/navigation", () => ({
+  usePathname: () => "/dashboard",
   useRouter: () => ({
+    push: vi.fn(),
     refresh: vi.fn(),
   }),
 }));
 vi.mock("@/app/actions/friends", () => ({
   acceptInvitation: vi.fn(),
   declineInvitation: vi.fn(),
+}));
+vi.mock("@/app/actions/announcements", () => ({
+  acknowledgeAnnouncementAction: vi.fn(),
 }));
 vi.mock("@/lib/use-page-auto-refresh", () => ({
   usePageAutoRefresh: () => undefined,
@@ -50,6 +55,7 @@ function createDashboardPageData(): DashboardPageData {
     },
     incomingInvitations: [],
     unopenedCardPacks: [],
+    recentAnnouncements: [],
     canViewPlayerRank: true,
     playerRankTotal: "270",
     playerRankPosition: 1,
@@ -261,5 +267,32 @@ describe("DashboardPageView", () => {
     expect(markup).toContain('href="/card/pull"');
     expect(markup).not.toContain("Generic rewards");
     expect(markup).not.toContain("5 cards each");
+  });
+
+  it("shows the announcement button only when recent announcements exist", () => {
+    const data = createDashboardPageData();
+    const withoutAnnouncements = renderToStaticMarkup(
+      <DashboardPageView data={data} />,
+    );
+
+    expect(withoutAnnouncements).not.toContain('aria-label="Announcements"');
+
+    data.recentAnnouncements = [
+      {
+        id: "announcement-1",
+        title: "A recent update",
+        details: "Something changed.",
+        screenshotUrl: null,
+        actionLabel: null,
+        actionHref: null,
+        publishedAt: "2026-07-15T12:00:00.000Z",
+      },
+    ];
+
+    const withAnnouncements = renderToStaticMarkup(
+      <DashboardPageView data={data} />,
+    );
+
+    expect(withAnnouncements).toContain('aria-label="Announcements"');
   });
 });

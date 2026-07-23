@@ -8,13 +8,28 @@ const cardNoiseTexture =
 const cardFiberTexture =
   "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 320 320' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.025 .12' numOctaves='3' seed='31' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='table' tableValues='0 .24'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23grain)' opacity='.48'/%3E%3Cg fill='%23000' opacity='.16'%3E%3Ccircle cx='27' cy='46' r='.7'/%3E%3Ccircle cx='112' cy='19' r='.45'/%3E%3Ccircle cx='191' cy='83' r='.65'/%3E%3Ccircle cx='288' cy='38' r='.5'/%3E%3Ccircle cx='67' cy='174' r='.55'/%3E%3Ccircle cx='238' cy='219' r='.7'/%3E%3Ccircle cx='143' cy='286' r='.5'/%3E%3C/g%3E%3C/svg%3E\")";
 
+const cardSurfaceStyle: React.CSSProperties = {
+  backgroundImage: [
+    "radial-gradient(circle at 12% 0%, rgba(255,255,255,0.13), transparent 38%)",
+    "radial-gradient(circle at 88% 100%, rgba(15,23,42,0.1), transparent 44%)",
+    cardFiberTexture,
+    cardNoiseTexture,
+  ].join(", "),
+  backgroundBlendMode: "screen, multiply, soft-light, soft-light",
+  backgroundSize: "auto, auto, 320px 320px, 160px 160px",
+};
+
 function Card({
   className,
   size = "default",
+  surface = "textured",
   children,
   style,
   ...props
-}: React.ComponentProps<"div"> & { size?: "default" | "sm" }) {
+}: React.ComponentProps<"div"> & {
+  size?: "default" | "sm";
+  surface?: "textured" | "plain";
+}) {
   return (
     <div
       data-slot="card"
@@ -24,14 +39,7 @@ function Card({
         className,
       )}
       style={{
-        backgroundImage: [
-          "radial-gradient(circle at 12% 0%, rgba(255,255,255,0.13), transparent 38%)",
-          "radial-gradient(circle at 88% 100%, rgba(15,23,42,0.1), transparent 44%)",
-          cardFiberTexture,
-          cardNoiseTexture,
-        ].join(", "),
-        backgroundBlendMode: "screen, multiply, soft-light, soft-light",
-        backgroundSize: "auto, auto, 320px 320px, 160px 160px",
+        ...(surface === "textured" ? cardSurfaceStyle : undefined),
         ...style,
       }}
       {...props}
@@ -135,4 +143,5 @@ export {
   CardDescription,
   CardContent,
   CardEmpty,
+  cardSurfaceStyle,
 };

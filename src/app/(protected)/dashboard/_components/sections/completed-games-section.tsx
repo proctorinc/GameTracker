@@ -31,7 +31,7 @@ export function CompletedGamesSection() {
   const { recentCompletedGames, user } = useDashboardPage();
 
   return (
-    <Card className="mx-4 pt-2">
+    <Card className="mx-4 overflow-visible pt-2">
       <GameSectionHeader
         action={
           <Link
@@ -73,7 +73,7 @@ export function CompletedGamesSection() {
                 key={`completed-game-${game.id}`}
                 className={cn(
                   sectionItemClassName,
-                  "p-0",
+                  "border-2 p-0",
                 )}
                 color={game.gameTitle?.color}
                 imageUrl={game.gameTitle?.imageUrl}

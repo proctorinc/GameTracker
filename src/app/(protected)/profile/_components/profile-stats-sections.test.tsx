@@ -76,7 +76,16 @@ describe("ProfileStatsSections comparison modes", () => {
         bestWinStreak: 4,
         bestFriendGames: 5,
         storyline: { kind: "steady", label: "Steady", detail: "Playing on." },
-        signatureTitle: null,
+        signatureTitle: {
+          id: "title-1",
+          title: "Lost Cities",
+          color: "#0f766e",
+          imageUrl: "/lost-cities.jpg",
+          imageVerticalFocus: 50,
+          completedCount: 7,
+          winRate: 57,
+          lastPlayedAt: "2026-06-01T00:00:00.000Z",
+        },
         placements: { first: 8, second: 6, third: 3 },
         rankWindowLabel: "6-month rank gain",
         rankGainInWindow: { formatted: "+40", minor: 4000 },
@@ -111,7 +120,22 @@ describe("ProfileStatsSections comparison modes", () => {
       defaultComparisonUserId: "user-2",
     };
 
-    renderWithProviders(<ProfileStatsSections data={data} />);
+    const { container } = renderWithProviders(
+      <ProfileStatsSections data={data} />,
+    );
+
+    expect(container.querySelectorAll("[data-stat-icon]")).toHaveLength(5);
+    expect(container.querySelectorAll("[data-stat-icon-shine]")).toHaveLength(
+      5,
+    );
+    expect(
+      screen.getByRole("link", { name: "View Lost Cities stats" }),
+    ).toHaveStyle("--game-title-color: #0f766e");
+    expect(screen.getByText("Favorite game")).toBeInTheDocument();
+    expect(screen.queryByText("Matchups")).not.toBeInTheDocument();
+    expect(
+      container.querySelector("[data-stat-grid]")?.firstElementChild,
+    ).toHaveAttribute("data-favorite-game-card");
 
     expect(screen.getByRole("tab", { name: "Head to head" })).toHaveAttribute(
       "aria-selected",

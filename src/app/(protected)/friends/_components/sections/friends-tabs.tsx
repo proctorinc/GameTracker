@@ -1,7 +1,10 @@
 "use client";
 
 import { AudioLines, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import {
+  TabSelector,
+  TabSelectorButton,
+} from "@/components/ui/tab-selector";
 import { useFriendsPage } from "../friends-page-provider";
 
 export function FriendsTabs() {
@@ -13,20 +16,17 @@ export function FriendsTabs() {
   const hasPendingInvitations = incomingInvitations.length > 0;
 
   return (
-    <div className="grid grid-cols-2 gap-2 rounded-xl border border-border/70 bg-muted/70 p-1">
-      <Button
-        variant={activeTab === "activity" ? "default" : "ghost"}
-        className="rounded-xl"
-        size="sm"
+    <TabSelector className="grid-cols-2">
+      <TabSelectorButton
+        active={activeTab === "activity"}
         onClick={() => setActiveTab("activity")}
       >
         <AudioLines />
         Activity
-      </Button>
-      <Button
-        variant={activeTab === "friends" ? "default" : "ghost"}
+      </TabSelectorButton>
+      <TabSelectorButton
+        active={activeTab === "friends"}
         className="relative rounded-xl"
-        size="sm"
         onClick={() => setActiveTab("friends")}
       >
         {hasPendingInvitations ? (
@@ -34,7 +34,7 @@ export function FriendsTabs() {
         ) : null}
         <Users />
         Friends
-      </Button>
-    </div>
+      </TabSelectorButton>
+    </TabSelector>
   );
 }

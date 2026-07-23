@@ -116,44 +116,46 @@ export default function AppShellHeader() {
   }
 
   return (
-    <div className="relative flex h-16 w-full items-center justify-center px-4 text-center">
-      {fallbackHref ? (
-        <Button
-          aria-label="Go back"
-          className="absolute left-4 top-1/2 size-10 -translate-y-1/2 rounded-full px-0 active:translate-y-0"
-          disabled={isPending}
-          onClick={handleBack}
-          size="icon"
-          type="button"
-          variant="ghost"
-        >
-          {isGoingBack ? (
-            <LoaderCircle className="size-5 animate-spin" />
-          ) : (
-            <ArrowLeft className="size-5" />
+    <header className="pt-[env(safe-area-inset-top,0px)]">
+      <div className="relative flex h-16 w-full items-center justify-center px-4 text-center">
+        {fallbackHref ? (
+          <Button
+            aria-label="Go back"
+            className="absolute left-4 top-1/2 size-10 -translate-y-1/2 rounded-full px-0 active:translate-y-0"
+            disabled={isPending}
+            onClick={handleBack}
+            size="icon"
+            type="button"
+            variant="ghost"
+          >
+            {isGoingBack ? (
+              <LoaderCircle className="size-5 animate-spin" />
+            ) : (
+              <ArrowLeft className="size-5" />
+            )}
+          </Button>
+        ) : null}
+        <Link
+          href="/dashboard"
+          aria-label={`${APP_NAME} home`}
+          className={cn(
+            "group flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-foreground transition-transform transition-colors hover:scale-[1.01] hover:border-border/40 dark:border-white/20 backdrop-blur-sm",
+            fallbackHref ? "scale-75" : "scale-75",
           )}
-        </Button>
-      ) : null}
-      <Link
-        href="/dashboard"
-        aria-label={`${APP_NAME} home`}
-        className={cn(
-          "group flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-foreground transition-transform transition-colors hover:scale-[1.01] hover:border-border/40 dark:border-white/20 backdrop-blur-sm",
-          fallbackHref ? "scale-75" : "scale-75",
-        )}
-      >
-        <Image
-          src="/score-loser.png"
-          alt={`${APP_NAME} logo`}
-          width={24}
-          height={24}
-          className="size-6 object-contain"
-          unoptimized
-        />
-        <span className="font-bold font-logo tracking-[0.18em]">
-          {APP_NAME}
-        </span>
-      </Link>
-    </div>
+        >
+          <Image
+            src="/score-loser.png"
+            alt={`${APP_NAME} logo`}
+            width={24}
+            height={24}
+            className="size-6 object-contain"
+            unoptimized
+          />
+          <span className="font-bold font-logo tracking-[0.18em]">
+            {APP_NAME}
+          </span>
+        </Link>
+      </div>
+    </header>
   );
 }

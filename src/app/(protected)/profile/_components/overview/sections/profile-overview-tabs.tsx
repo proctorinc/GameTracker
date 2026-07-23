@@ -1,7 +1,10 @@
 "use client";
 
 import { BarChart3, Layers3, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import {
+  TabSelector,
+  TabSelectorButton,
+} from "@/components/ui/tab-selector";
 import { useProfileOverview } from "../profile-overview-provider";
 
 export function ProfileOverviewTabs() {
@@ -12,31 +15,28 @@ export function ProfileOverviewTabs() {
   } = useProfileOverview();
 
   return (
-    <div className={`grid gap-2 rounded-xl border border-border/70 bg-muted/70 p-1 ${cardsEnabled === false ? "grid-cols-2" : "grid-cols-3"}`}>
-      <Button
-        variant={activeTab === "stats" ? "default" : "ghost"}
-        className="rounded-xl"
-        size="sm"
+    <TabSelector
+      className={cardsEnabled === false ? "grid-cols-2" : "grid-cols-3"}
+    >
+      <TabSelectorButton
+        active={activeTab === "stats"}
         onClick={() => setActiveTab("stats")}
       >
         <BarChart3 />
         Stats
-      </Button>
+      </TabSelectorButton>
       {cardsEnabled !== false ? (
-        <Button
-          variant={activeTab === "collection" ? "default" : "ghost"}
-          className="rounded-xl"
-          size="sm"
+        <TabSelectorButton
+          active={activeTab === "collection"}
           onClick={() => setActiveTab("collection")}
         >
           <Layers3 />
           Cards
-        </Button>
+        </TabSelectorButton>
       ) : null}
-      <Button
-        variant={activeTab === "friends" ? "default" : "ghost"}
+      <TabSelectorButton
+        active={activeTab === "friends"}
         className="relative rounded-xl"
-        size="sm"
         onClick={() => setActiveTab("friends")}
       >
         {hasPendingFriendInvitations ? (
@@ -44,7 +44,7 @@ export function ProfileOverviewTabs() {
         ) : null}
         <Users />
         Friends
-      </Button>
+      </TabSelectorButton>
       {/*<Button
         variant={activeTab === "settings" ? "default" : "ghost"}
         className="rounded-xl"
@@ -54,6 +54,6 @@ export function ProfileOverviewTabs() {
         <Settings />
         Settings
       </Button>*/}
-    </div>
+    </TabSelector>
   );
 }

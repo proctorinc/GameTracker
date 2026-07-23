@@ -13,13 +13,15 @@ describe("GameTitleImage", () => {
     const titleImage = screen.getByText("Skyjo").parentElement?.parentElement;
 
     expect(titleImage).toHaveClass("game-title-image");
-    expect(titleImage).toHaveClass("h-40", "rounded-xl", "border");
+    expect(titleImage).toHaveClass("h-40", "rounded-xl", "border-2");
     expect(titleImage?.style.getPropertyValue("--game-title-color")).toBe(
       "#0f766e",
     );
     expect(titleImage?.style.borderColor).toBe(
       "var(--game-title-border-color)",
     );
+    expect(titleImage?.querySelector(".game-title-dot-overlay")).toBeTruthy();
+    expect(titleImage?.querySelector(".game-title-light-sheen")).toBeTruthy();
   });
 
   it("uses the fallback title color for its border", () => {

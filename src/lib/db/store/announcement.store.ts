@@ -181,6 +181,32 @@ export async function listUnseenAnnouncementsForUser(input: {
     .orderBy(asc(announcements.publishedAt));
 }
 
+export async function listRecentAnnouncements(input: {
+  since: string;
+}): Promise<AnnouncementForClient[]> {
+  // This is announcement history, not an inbox. Deliberately do not join or
+  // filter announcementAcknowledgments so already-viewed announcements remain.
+  return db
+    .select({
+      id: announcements.id,
+      title: announcements.title,
+      details: announcements.details,
+      screenshotUrl: announcements.screenshotUrl,
+      actionLabel: announcements.actionLabel,
+      actionHref: announcements.actionHref,
+      publishedAt: announcements.publishedAt,
+    })
+    .from(announcements)
+    .where(
+      and(
+        isNotNull(announcements.publishedAt),
+        isNull(announcements.archivedAt),
+        gte(announcements.publishedAt, input.since),
+      ),
+    )
+    .orderBy(desc(announcements.publishedAt));
+}
+
 export async function acknowledgeAnnouncementForUser(input: {
   announcementId: string;
   userId: string;

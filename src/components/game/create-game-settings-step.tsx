@@ -329,7 +329,10 @@ function PersonalSettingsCard({
   children: ReactNode;
 }) {
   return (
-    <Card className="gap-0 overflow-visible border-0 p-0 ring-0">
+    <Card
+      className="gap-0 overflow-visible border-0 p-0 ring-0"
+      surface="plain"
+    >
       <CardHeader className="gap-0 p-0">
         <button
           aria-expanded={open}
@@ -1245,7 +1248,10 @@ export default function CreateGameSettingsStep({
                 </div>
               ) : null}
 
-              <Card className="gap-0 overflow-visible border-0 p-0 ring-0">
+              <Card
+                className="gap-0 overflow-visible border-0 p-0 ring-0"
+                surface="plain"
+              >
                 <CardHeader className="gap-0 p-0">
                   <div
                     className={cn(

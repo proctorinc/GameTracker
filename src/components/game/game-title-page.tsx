@@ -30,6 +30,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { sectionActionClassName } from "@/components/ui/section-styles";
+import {
+  TabSelector,
+  TabSelectorButton,
+} from "@/components/ui/tab-selector";
 import type {
   GameTitleComparisonSummary,
   GameTitleStatsPageData,
@@ -363,36 +367,27 @@ export default function GameTitlePage({
         />
 
         {canManageTitle ? (
-          <div
-            role="tablist"
+          <TabSelector
             aria-label="Game title sections"
-            className="grid grid-cols-2 gap-2 rounded-xl border border-border/70 bg-muted/70 p-1"
+            className="grid-cols-2"
           >
-            <Button
+            <TabSelectorButton
               type="button"
-              role="tab"
-              aria-selected={activeTab === "stats"}
-              variant={activeTab === "stats" ? "default" : "ghost"}
-              className="rounded-xl"
-              size="sm"
+              active={activeTab === "stats"}
               onClick={() => setActiveTab("stats")}
             >
               <BarChart3 />
               Stats
-            </Button>
-            <Button
+            </TabSelectorButton>
+            <TabSelectorButton
               type="button"
-              role="tab"
-              aria-selected={activeTab === "admin"}
-              variant={activeTab === "admin" ? "default" : "ghost"}
-              className="rounded-xl"
-              size="sm"
+              active={activeTab === "admin"}
               onClick={() => setActiveTab("admin")}
             >
               <Settings />
               Admin
-            </Button>
-          </div>
+            </TabSelectorButton>
+          </TabSelector>
         ) : null}
 
         <Link href={gameHistoryHref}>

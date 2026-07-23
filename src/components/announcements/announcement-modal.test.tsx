@@ -188,4 +188,60 @@ describe("AnnouncementModal", () => {
     );
     expect(acknowledgeAnnouncementAction).not.toHaveBeenCalled();
   });
+
+  it("keeps oversized announcement content inside a viewport-bounded scroller", () => {
+    renderWithProviders(
+      <AnnouncementModal
+        announcements={[
+          {
+            ...announcements[0]!,
+            details: Array.from(
+              { length: 80 },
+              (_, index) => `Announcement detail ${index + 1}`,
+            ).join("\n"),
+          },
+        ]}
+      />,
+    );
+
+    const dialog = screen.getByRole("dialog");
+    const scrollRegion = dialog.querySelector(
+      '[data-slot="announcement-scroll-region"]',
+    );
+    const imageWrapper = dialog.querySelector(
+      '[data-slot="announcement-image"]',
+    );
+    const footer = dialog.querySelector('[data-slot="dialog-footer"]');
+
+    expect(dialog).toHaveClass("overflow-hidden");
+    expect(dialog.className).toContain("100dvh");
+    expect(dialog.className).toContain("safe-area-inset-top");
+    expect(dialog.className).toContain("safe-area-inset-bottom");
+    expect(scrollRegion).toHaveClass("min-h-0", "overflow-y-auto");
+    expect(imageWrapper?.className).toContain("42dvh");
+    expect(footer).toHaveClass("shrink-0");
+    expect(scrollRegion).not.toContainElement(footer);
+  });
+
+  it("opens recent announcements on demand without acknowledging them", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <AnnouncementModal announcements={announcements} mode="recent" />,
+    );
+
+    expect(screen.queryByText("Profile backgrounds")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Announcements" }));
+    expect(screen.getByText("Profile backgrounds")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText("Another update")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Got it" }));
+    expect(screen.queryByText("Another update")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Announcements" }),
+    ).toBeInTheDocument();
+    expect(acknowledgeAnnouncementAction).not.toHaveBeenCalled();
+  });
 });
