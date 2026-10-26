@@ -128,17 +128,22 @@ export function getInitialScoreThresholdError(
 
   const threshold = parsePositiveInteger(draft.thresholdValue);
   const initialScore = parseInteger(draft.initialPlayerScore);
+  const direction = draft.thresholdDirection;
 
   if (threshold === null) {
     return null;
   }
 
   if (initialScore === null) {
-    return `Enter a starting score above ${threshold}; otherwise the game ends immediately.`;
+    return `Enter a starting score that does not already meet the threshold; otherwise the game ends immediately.`;
   }
 
-  if (initialScore <= threshold) {
+  if (direction === "at_most" && initialScore <= threshold) {
     return `Starting score must be above ${threshold}; otherwise the game ends immediately.`;
+  }
+
+  if (direction === "at_least" && initialScore >= threshold) {
+    return `Starting score must be below ${threshold}; otherwise the game ends immediately.`;
   }
 
   return null;

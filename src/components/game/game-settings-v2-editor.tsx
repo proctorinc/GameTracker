@@ -24,6 +24,7 @@ import {
   isInitialScoreUsingTitleDefault,
   isSectionResolved,
   isSectionUsingTitleDefault,
+  parseInteger,
   parsePositiveInteger,
   type EditableGameSettingsV2,
   type EditableItemizedCategory,
@@ -956,7 +957,12 @@ export default function GameSettingsV2Editor({
   const [thresholdDirectionError, setThresholdDirectionError] = useState<
     string | null
   >(null);
-  const [initialScoreWasEdited, setInitialScoreWasEdited] = useState(false);
+  const [pendingThresholdDirection, setPendingThresholdDirection] = useState<
+    "at_least" | "at_most" | null
+  >(null);
+  const [initialScoreWasEdited, setInitialScoreWasEdited] = useState(
+    () => parseInteger(draft.initialPlayerScore) !== 0,
+  );
 
   function updateThresholdValue(nextValue: string) {
     const nextDraft = { ...draft, thresholdValue: nextValue };
@@ -969,12 +975,14 @@ export default function GameSettingsV2Editor({
       nextDraft.initialPlayerScore = (threshold + 1).toString();
     }
     if (thresholdDirectionError) {
-      setThresholdDirectionError(
-        getInitialScoreThresholdError({
-          ...nextDraft,
-          thresholdDirection: "at_most",
-        }),
-      );
+      const error = pendingThresholdDirection
+        ? getInitialScoreThresholdError({
+            ...nextDraft,
+            thresholdDirection: pendingThresholdDirection,
+          })
+        : getInitialScoreThresholdError(nextDraft);
+      setThresholdDirectionError(error);
+      if (!error) setPendingThresholdDirection(null);
     }
     onDraftChange(nextDraft);
   }
@@ -1677,9 +1685,11 @@ export default function GameSettingsV2Editor({
                                     getInitialScoreThresholdError(nextDraft);
                                   if (nextError) {
                                     setThresholdDirectionError(nextError);
+                                    setPendingThresholdDirection(direction);
                                     return;
                                   }
                                   setThresholdDirectionError(null);
+                                  setPendingThresholdDirection(null);
                                   onDraftChange(nextDraft);
                                 }}
                                 type="button"
@@ -1792,13 +1802,14 @@ export default function GameSettingsV2Editor({
             onValueChange={(nextValue) => {
               setInitialScoreWasEdited(true);
               if (thresholdDirectionError) {
-                setThresholdDirectionError(
-                  getInitialScoreThresholdError({
+                const error = getInitialScoreThresholdError({
                     ...draft,
                     initialPlayerScore: nextValue,
-                    thresholdDirection: "at_most",
-                  }),
-                );
+                    thresholdDirection:
+                      pendingThresholdDirection ?? draft.thresholdDirection,
+                  });
+                setThresholdDirectionError(error);
+                if (!error) setPendingThresholdDirection(null);
               }
               onSectionTouchedChange({
                 ...sectionTouched,
