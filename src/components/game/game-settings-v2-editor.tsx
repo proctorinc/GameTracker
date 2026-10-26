@@ -1539,6 +1539,35 @@ export default function GameSettingsV2Editor({
               ) : null}
 
               {draft.endConditionMode === "score_threshold" ? (
+                <>
+                  {draft.template === "point_scoring" ? (
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <OptionCard
+                        active={draft.thresholdDirection === "at_least"}
+                        defaultColor={defaultColor}
+                        description="End when a player reaches or exceeds the threshold."
+                        density={density}
+                        disabled={disabled}
+                        onClick={() =>
+                          onDraftChange({ ...draft, thresholdDirection: "at_least" })
+                        }
+                        selectedColor={selectedColor}
+                        title="At or above"
+                      />
+                      <OptionCard
+                        active={draft.thresholdDirection === "at_most"}
+                        defaultColor={defaultColor}
+                        description="End when a player drops to or below the threshold."
+                        density={density}
+                        disabled={disabled}
+                        onClick={() =>
+                          onDraftChange({ ...draft, thresholdDirection: "at_most" })
+                        }
+                        selectedColor={selectedColor}
+                        title="At or below"
+                      />
+                    </div>
+                  ) : null}
                 <DefaultNumberField
                   badgeText={
                     thresholdValueUsesDefault
@@ -1557,7 +1586,7 @@ export default function GameSettingsV2Editor({
                   defaultValue={draft.thresholdValue}
                   description={
                     draft.template === "point_scoring" &&
-                    draft.winMetric === "lowest_score"
+                    draft.thresholdDirection === "at_most"
                       ? "The game ends when a player drops to this score or lower."
                       : draft.template === "point_scoring"
                         ? "The game ends when a player reaches this score or higher."
@@ -1597,6 +1626,7 @@ export default function GameSettingsV2Editor({
                   }}
                   placeholder="Score target"
                 />
+                </>
               ) : null}
             </div>
           )}

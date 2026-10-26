@@ -652,6 +652,7 @@ export function buildCreateGameSettingsFromTemplate(input: {
   roundsEnabled?: boolean;
   endConditionMode?: "manual" | "fixed_rounds" | "score_threshold";
   winMetric?: "highest_score" | "lowest_score";
+  thresholdDirection?: GameScoreThresholdDirection;
   targetRounds?: number | null;
   thresholdValue?: number | null;
   allowTies?: boolean;
@@ -707,9 +708,7 @@ export function buildCreateGameSettingsFromTemplate(input: {
           : null,
       direction:
         endConditionMode === "score_threshold"
-          ? scoringType === "points" && winMetric === "lowest_score"
-            ? "at_most"
-            : "at_least"
+          ? input.thresholdDirection ?? "at_least"
           : null,
     },
     tiePolicy: {

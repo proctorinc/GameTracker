@@ -41,6 +41,7 @@ export type EditableGameSettingsV2 = {
   gameplayMode: "rounds" | "no_rounds" | null;
   winMetric: "highest_score" | "lowest_score" | null;
   endConditionMode: "manual" | "fixed_rounds" | "score_threshold" | null;
+  thresholdDirection: "at_least" | "at_most";
   targetRounds: string;
   thresholdValue: string;
   initialPlayerScore: string;
@@ -151,6 +152,7 @@ export function createEditableSettings(
       gameplayMode: null,
       winMetric: null,
       endConditionMode: null,
+      thresholdDirection: "at_least",
       targetRounds: "6",
       thresholdValue: "100",
       initialPlayerScore: "0",
@@ -176,6 +178,7 @@ export function createEditableSettings(
           ? "fixed_rounds"
           : "manual"
       : null,
+    thresholdDirection: settings.thresholdConfig.direction ?? "at_least",
     targetRounds: settings.roundConfig.targetRounds?.toString() ?? "6",
     thresholdValue: settings.thresholdConfig.value?.toString() ?? "100",
     initialPlayerScore: settings.initialPlayerScore.toString(),
@@ -222,6 +225,19 @@ export function buildValidatedSettings(
     throw new Error("Choose a starting score");
   }
 
+  if (
+    draft.template === "point_scoring" &&
+    draft.gameplayMode === "rounds" &&
+    draft.endConditionMode === "score_threshold" &&
+    draft.thresholdDirection === "at_most" &&
+    parseInteger(draft.initialPlayerScore) !== null &&
+    parsePositiveInteger(draft.thresholdValue) !== null &&
+    parseInteger(draft.initialPlayerScore)! <=
+      parsePositiveInteger(draft.thresholdValue)!
+  ) {
+    throw new Error("Starting score must be greater than the score threshold");
+  }
+
   if (draft.gameplayMode === "rounds" && !draft.endConditionMode) {
     throw new Error("Choose how the game should end");
   }
@@ -234,6 +250,7 @@ export function buildValidatedSettings(
         ? (draft.endConditionMode ?? "manual")
         : "manual",
     winMetric: draft.winMetric ?? undefined,
+    thresholdDirection: draft.thresholdDirection,
     targetRounds: parsePositiveInteger(draft.targetRounds),
     thresholdValue: parsePositiveInteger(draft.thresholdValue),
     initialPlayerScore: parseInteger(draft.initialPlayerScore),
@@ -290,6 +307,7 @@ export function buildCurrentSettings(draft: EditableGameSettingsV2) {
       endConditionMode: previewEndConditionMode,
       winMetric:
         draft.winMetric === "lowest_score" ? "lowest_score" : "highest_score",
+      thresholdDirection: draft.thresholdDirection,
       targetRounds,
       thresholdValue,
       initialPlayerScore: parseInteger(draft.initialPlayerScore) ?? 0,
@@ -389,9 +407,9 @@ export function getEndConditionSummary(draft: EditableGameSettingsV2) {
 
   if (draft.endConditionMode === "score_threshold") {
     const threshold = draft.thresholdValue.trim() || "target";
-    return draft.winMetric === "lowest_score"
-      ? `Ends when a score drops to ${threshold}`
-      : `Ends when a score reaches ${threshold}`;
+    return draft.thresholdDirection === "at_most"
+      ? `Ends when a score drops to ${threshold} or lower`
+      : `Ends when a score reaches ${threshold} or higher`;
   }
 
   if (draft.endConditionMode === "manual") {
