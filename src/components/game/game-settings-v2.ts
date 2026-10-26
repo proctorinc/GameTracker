@@ -120,8 +120,7 @@ export function getInitialScoreThresholdError(
   if (
     draft.template !== "point_scoring" ||
     draft.gameplayMode !== "rounds" ||
-    draft.endConditionMode !== "score_threshold" ||
-    draft.thresholdDirection !== "at_most"
+    draft.endConditionMode !== "score_threshold"
   ) {
     return null;
   }

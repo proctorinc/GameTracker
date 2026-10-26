@@ -135,4 +135,59 @@ describe("game settings v2 gameplay model", () => {
       thresholdConfig: { value: 3, direction: "at_least" },
     });
   });
+
+  it("keeps win metric independent from score threshold direction", () => {
+    const draft = createEditableSettings(null);
+    Object.assign(draft, {
+      template: "point_scoring",
+      gameplayMode: "rounds",
+      winMetric: "lowest_score",
+      endConditionMode: "score_threshold",
+      thresholdDirection: "at_least",
+      thresholdValue: "500",
+      initialPlayerScore: "0",
+    });
+
+    expect(buildValidatedSettings(draft)).toMatchObject({
+      winMetric: "lowest_score",
+      thresholdConfig: { value: 500, direction: "at_least" },
+    });
+  });
+
+  it("rejects a starting score that already meets the threshold", () => {
+    const draft = createEditableSettings(null);
+    Object.assign(draft, {
+      template: "point_scoring",
+      gameplayMode: "rounds",
+      winMetric: "lowest_score",
+      endConditionMode: "score_threshold",
+      thresholdDirection: "at_most",
+      thresholdValue: "500",
+      initialPlayerScore: "500",
+    });
+
+    expect(() => buildValidatedSettings(draft)).toThrow(/ends immediately/i);
+
+    draft.thresholdDirection = "at_least";
+    draft.initialPlayerScore = "500";
+    expect(() => buildValidatedSettings(draft)).toThrow(/ends immediately/i);
+  });
+
+  it("accepts a starting score above a lower-than threshold", () => {
+    const draft = createEditableSettings(null);
+    Object.assign(draft, {
+      template: "point_scoring",
+      gameplayMode: "rounds",
+      winMetric: "lowest_score",
+      endConditionMode: "score_threshold",
+      thresholdDirection: "at_most",
+      thresholdValue: "500",
+      initialPlayerScore: "501",
+    });
+
+    expect(buildValidatedSettings(draft).thresholdConfig).toEqual({
+      value: 500,
+      direction: "at_most",
+    });
+  });
 });

@@ -487,6 +487,11 @@ function DefaultNumberField({
           <Check className="size-5" />
         </Button>
       </div>
+      {error ? (
+        <p className="text-sm font-medium text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -822,7 +827,7 @@ function ItemizedCategoriesEditor({
                       placeholder="formula_key"
                       value={input.key}
                     />
-      <div className="flex gap-2">
+                    <div className="flex gap-2">
                       <Input
                         className={cn(
                           density === "compact"
@@ -911,11 +916,6 @@ function ItemizedCategoriesEditor({
           </div>
         ))}
       </div>
-      {error ? (
-        <p className="text-sm font-medium text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
     </div>
   );
 }
