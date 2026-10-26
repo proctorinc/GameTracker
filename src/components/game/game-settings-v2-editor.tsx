@@ -11,6 +11,7 @@ import {
   getCategoryPreview,
   getEndConditionSummary,
   getGameplaySummary,
+  getInitialScoreThresholdError,
   getInitialScoreSummary,
   getSectionStatusLabel,
   getTemplateLabel,
@@ -38,6 +39,7 @@ import type {
   GameSettingsV2,
 } from "@/lib/game/v2";
 import { Check, ChevronDown } from "lucide-react";
+import { useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
 function getTitleAccentStyle(color?: string | null) {
@@ -396,6 +398,7 @@ function DefaultNumberField({
   disabled,
   submitAriaLabel,
   inlineControl,
+  error,
 }: {
   color?: string | null;
   description: string;
@@ -413,6 +416,7 @@ function DefaultNumberField({
   disabled?: boolean;
   submitAriaLabel?: string;
   inlineControl?: ReactNode;
+  error?: string | null;
 }) {
   return (
     <div
@@ -459,11 +463,13 @@ function DefaultNumberField({
         <Input
           className={cn(
             "bg-background px-4",
+            error && "border-destructive focus-visible:ring-destructive",
             density === "compact"
               ? "h-11 rounded-xl text-base"
               : "h-14 rounded-xl text-lg",
           )}
           disabled={disabled}
+          aria-invalid={Boolean(error)}
           inputMode="numeric"
           min={min}
           onChange={(event) => onValueChange(event.target.value)}
@@ -815,7 +821,7 @@ function ItemizedCategoriesEditor({
                       placeholder="formula_key"
                       value={input.key}
                     />
-                    <div className="flex gap-2">
+      <div className="flex gap-2">
                       <Input
                         className={cn(
                           density === "compact"
@@ -904,6 +910,11 @@ function ItemizedCategoriesEditor({
           </div>
         ))}
       </div>
+      {error ? (
+        <p className="text-sm font-medium text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -942,6 +953,31 @@ export default function GameSettingsV2Editor({
   titleSeed: CreateGameSettingsTitleSeed;
 }) {
   const defaultSeed = defaultIndicatorSeed ?? titleSeed;
+  const [thresholdDirectionError, setThresholdDirectionError] = useState<
+    string | null
+  >(null);
+  const [initialScoreWasEdited, setInitialScoreWasEdited] = useState(false);
+
+  function updateThresholdValue(nextValue: string) {
+    const nextDraft = { ...draft, thresholdValue: nextValue };
+    const threshold = parsePositiveInteger(nextValue);
+    if (
+      nextDraft.thresholdDirection === "at_most" &&
+      !initialScoreWasEdited &&
+      threshold !== null
+    ) {
+      nextDraft.initialPlayerScore = (threshold + 1).toString();
+    }
+    if (thresholdDirectionError) {
+      setThresholdDirectionError(
+        getInitialScoreThresholdError({
+          ...nextDraft,
+          thresholdDirection: "at_most",
+        }),
+      );
+    }
+    onDraftChange(nextDraft);
+  }
   function completeSection(
     section: CreateGameSettingsSection,
     nextDraft = draft,
@@ -1572,7 +1608,7 @@ export default function GameSettingsV2Editor({
                       : null
                   }
                   onGameDefaultSelect={(value) => {
-                    onDraftChange({ ...draft, thresholdValue: value });
+                    updateThresholdValue(value);
                     onSectionTouchedChange({
                       ...sectionTouched,
                       endCondition: true,
@@ -1586,51 +1622,81 @@ export default function GameSettingsV2Editor({
                     updateNumericSection("thresholdValue", draft.thresholdValue)
                   }
                   onValueChange={(nextValue) => {
+                    updateThresholdValue(nextValue);
                     onSectionTouchedChange({
                       ...sectionTouched,
                       endCondition: false,
-                    });
-                    onDraftChange({
-                      ...draft,
-                      thresholdValue: nextValue,
                     });
                   }}
                   placeholder="Score target"
                   inlineControl={
                     draft.template === "point_scoring" ? (
-                      <div
-                        aria-label="Score threshold direction"
-                        className="grid w-full grid-cols-2 gap-1 rounded-xl border border-border bg-background p-1"
-                        role="group"
-                      >
-                        {([
-                          ["at_most", "Below"],
-                          ["at_least", "Above"],
-                        ] as const).map(([direction, label]) => {
-                          const active = draft.thresholdDirection === direction;
-                          return (
-                            <button
-                              aria-pressed={active}
-                              className={cn(
-                                "min-h-11 rounded-lg px-4 py-2 text-sm font-semibold transition-colors",
-                                active
-                                  ? "bg-primary text-primary-foreground shadow-sm"
-                                  : "text-muted-foreground hover:text-foreground",
-                              )}
-                              disabled={disabled}
-                              key={direction}
-                              onClick={() =>
-                                onDraftChange({
-                                  ...draft,
-                                  thresholdDirection: direction,
-                                })
-                              }
-                              type="button"
-                            >
-                              {label}
-                            </button>
-                          );
-                        })}
+                      <div className="space-y-2">
+                        <div
+                          aria-label="Score threshold direction"
+                          className="grid w-full grid-cols-2 gap-1 rounded-xl border border-border bg-background p-1"
+                          role="group"
+                        >
+                          {([
+                            ["at_most", "Below"],
+                            ["at_least", "Above"],
+                          ] as const).map(([direction, label]) => {
+                            const active = draft.thresholdDirection === direction;
+                            return (
+                              <button
+                                aria-pressed={active}
+                                className={cn(
+                                  "min-h-11 rounded-lg px-4 py-2 text-sm font-semibold transition-colors",
+                                  active
+                                    ? "bg-primary text-primary-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground",
+                                )}
+                                disabled={disabled}
+                                key={direction}
+                                onClick={() => {
+                                  let nextDraft = {
+                                    ...draft,
+                                    thresholdDirection: direction,
+                                  };
+                                  if (!initialScoreWasEdited) {
+                                    const threshold = parsePositiveInteger(
+                                      draft.thresholdValue,
+                                    );
+                                    nextDraft = {
+                                      ...nextDraft,
+                                      initialPlayerScore:
+                                        direction === "at_most" &&
+                                        threshold !== null
+                                          ? (threshold + 1).toString()
+                                          : direction === "at_least"
+                                            ? "0"
+                                            : draft.initialPlayerScore,
+                                    };
+                                  }
+                                  const nextError =
+                                    getInitialScoreThresholdError(nextDraft);
+                                  if (nextError) {
+                                    setThresholdDirectionError(nextError);
+                                    return;
+                                  }
+                                  setThresholdDirectionError(null);
+                                  onDraftChange(nextDraft);
+                                }}
+                                type="button"
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {thresholdDirectionError ? (
+                          <p
+                            className="text-sm font-medium text-destructive"
+                            role="alert"
+                          >
+                            {thresholdDirectionError}
+                          </p>
+                        ) : null}
                       </div>
                     ) : null
                   }
@@ -1690,6 +1756,7 @@ export default function GameSettingsV2Editor({
             description=""
             density={density}
             disabled={disabled}
+            error={getInitialScoreThresholdError(draft)}
             gameDefaultColor={defaultColor}
             gameDefaultValue={
               defaultSeed.source === "v2"
@@ -1697,6 +1764,7 @@ export default function GameSettingsV2Editor({
                 : null
             }
             onGameDefaultSelect={(value) => {
+              setInitialScoreWasEdited(true);
               onDraftChange({
                 ...draft,
                 initialPlayerScore: value,
@@ -1711,6 +1779,7 @@ export default function GameSettingsV2Editor({
               });
             }}
             onSubmit={() => {
+              setInitialScoreWasEdited(true);
               onSectionTouchedChange({
                 ...sectionTouched,
                 initialScore: true,
@@ -1721,6 +1790,16 @@ export default function GameSettingsV2Editor({
               });
             }}
             onValueChange={(nextValue) => {
+              setInitialScoreWasEdited(true);
+              if (thresholdDirectionError) {
+                setThresholdDirectionError(
+                  getInitialScoreThresholdError({
+                    ...draft,
+                    initialPlayerScore: nextValue,
+                    thresholdDirection: "at_most",
+                  }),
+                );
+              }
               onSectionTouchedChange({
                 ...sectionTouched,
                 initialScore: false,

@@ -114,6 +114,36 @@ export function parseInteger(value: string) {
   return Math.trunc(parsed);
 }
 
+export function getInitialScoreThresholdError(
+  draft: EditableGameSettingsV2,
+) {
+  if (
+    draft.template !== "point_scoring" ||
+    draft.gameplayMode !== "rounds" ||
+    draft.endConditionMode !== "score_threshold" ||
+    draft.thresholdDirection !== "at_most"
+  ) {
+    return null;
+  }
+
+  const threshold = parsePositiveInteger(draft.thresholdValue);
+  const initialScore = parseInteger(draft.initialPlayerScore);
+
+  if (threshold === null) {
+    return null;
+  }
+
+  if (initialScore === null) {
+    return `Enter a starting score above ${threshold}; otherwise the game ends immediately.`;
+  }
+
+  if (initialScore <= threshold) {
+    return `Starting score must be above ${threshold}; otherwise the game ends immediately.`;
+  }
+
+  return null;
+}
+
 function buildEditableCategoryId() {
   return `category-${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -225,17 +255,9 @@ export function buildValidatedSettings(
     throw new Error("Choose a starting score");
   }
 
-  if (
-    draft.template === "point_scoring" &&
-    draft.gameplayMode === "rounds" &&
-    draft.endConditionMode === "score_threshold" &&
-    draft.thresholdDirection === "at_most" &&
-    parseInteger(draft.initialPlayerScore) !== null &&
-    parsePositiveInteger(draft.thresholdValue) !== null &&
-    parseInteger(draft.initialPlayerScore)! <=
-      parsePositiveInteger(draft.thresholdValue)!
-  ) {
-    throw new Error("Starting score must be greater than the score threshold");
+  const initialScoreThresholdError = getInitialScoreThresholdError(draft);
+  if (initialScoreThresholdError) {
+    throw new Error(initialScoreThresholdError);
   }
 
   if (draft.gameplayMode === "rounds" && !draft.endConditionMode) {
