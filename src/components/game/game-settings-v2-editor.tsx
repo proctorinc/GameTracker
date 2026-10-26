@@ -395,6 +395,7 @@ function DefaultNumberField({
   placeholder,
   disabled,
   submitAriaLabel,
+  inlineControl,
 }: {
   color?: string | null;
   description: string;
@@ -411,6 +412,7 @@ function DefaultNumberField({
   defaultValue: string;
   disabled?: boolean;
   submitAriaLabel?: string;
+  inlineControl?: ReactNode;
 }) {
   return (
     <div
@@ -453,6 +455,7 @@ function DefaultNumberField({
         </button>
       ) : null}
       <div className="flex gap-2">
+        {inlineControl}
         <Input
           className={cn(
             "bg-background px-4",
@@ -1539,35 +1542,6 @@ export default function GameSettingsV2Editor({
               ) : null}
 
               {draft.endConditionMode === "score_threshold" ? (
-                <>
-                  {draft.template === "point_scoring" ? (
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <OptionCard
-                        active={draft.thresholdDirection === "at_least"}
-                        defaultColor={defaultColor}
-                        description="End when a player reaches or exceeds the threshold."
-                        density={density}
-                        disabled={disabled}
-                        onClick={() =>
-                          onDraftChange({ ...draft, thresholdDirection: "at_least" })
-                        }
-                        selectedColor={selectedColor}
-                        title="At or above"
-                      />
-                      <OptionCard
-                        active={draft.thresholdDirection === "at_most"}
-                        defaultColor={defaultColor}
-                        description="End when a player drops to or below the threshold."
-                        density={density}
-                        disabled={disabled}
-                        onClick={() =>
-                          onDraftChange({ ...draft, thresholdDirection: "at_most" })
-                        }
-                        selectedColor={selectedColor}
-                        title="At or below"
-                      />
-                    </div>
-                  ) : null}
                 <DefaultNumberField
                   badgeText={
                     thresholdValueUsesDefault
@@ -1585,12 +1559,9 @@ export default function GameSettingsV2Editor({
                   }
                   defaultValue={draft.thresholdValue}
                   description={
-                    draft.template === "point_scoring" &&
-                    draft.thresholdDirection === "at_most"
-                      ? "The game ends when a player drops to this score or lower."
-                      : draft.template === "point_scoring"
-                        ? "The game ends when a player reaches this score or higher."
-                        : "The game ends when a player reaches this many wins."
+                    draft.template === "point_scoring"
+                      ? "End the game when a player crosses this score."
+                      : "The game ends when a player reaches this many wins."
                   }
                   density={density}
                   disabled={disabled}
@@ -1625,8 +1596,45 @@ export default function GameSettingsV2Editor({
                     });
                   }}
                   placeholder="Score target"
+                  inlineControl={
+                    draft.template === "point_scoring" ? (
+                      <div
+                        aria-label="Score threshold direction"
+                        className="inline-flex shrink-0 items-center rounded-xl border border-border bg-background p-1"
+                        role="group"
+                      >
+                        {([
+                          ["at_most", "Below"],
+                          ["at_least", "Above"],
+                        ] as const).map(([direction, label]) => {
+                          const active = draft.thresholdDirection === direction;
+                          return (
+                            <button
+                              aria-pressed={active}
+                              className={cn(
+                                "rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
+                                active
+                                  ? "bg-primary text-primary-foreground shadow-sm"
+                                  : "text-muted-foreground hover:text-foreground",
+                              )}
+                              disabled={disabled}
+                              key={direction}
+                              onClick={() =>
+                                onDraftChange({
+                                  ...draft,
+                                  thresholdDirection: direction,
+                                })
+                              }
+                              type="button"
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null
+                  }
                 />
-                </>
               ) : null}
             </div>
           )}
