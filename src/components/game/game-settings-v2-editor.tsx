@@ -1604,7 +1604,7 @@ export default function GameSettingsV2Editor({
                   defaultValue={draft.thresholdValue}
                   description={
                     draft.template === "point_scoring"
-                      ? "End the game when a player crosses this score."
+                      ? "End the game when a player reaches this score."
                       : "The game ends when a player reaches this many wins."
                   }
                   density={density}
