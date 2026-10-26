@@ -454,8 +454,8 @@ function DefaultNumberField({
           <span className="text-base font-black">{gameDefaultValue}</span>
         </button>
       ) : null}
+      {inlineControl ? <div className="w-full">{inlineControl}</div> : null}
       <div className="flex gap-2">
-        {inlineControl}
         <Input
           className={cn(
             "bg-background px-4",
@@ -1600,7 +1600,7 @@ export default function GameSettingsV2Editor({
                     draft.template === "point_scoring" ? (
                       <div
                         aria-label="Score threshold direction"
-                        className="inline-flex shrink-0 items-center rounded-xl border border-border bg-background p-1"
+                        className="grid w-full grid-cols-2 gap-1 rounded-xl border border-border bg-background p-1"
                         role="group"
                       >
                         {([
@@ -1612,7 +1612,7 @@ export default function GameSettingsV2Editor({
                             <button
                               aria-pressed={active}
                               className={cn(
-                                "rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
+                                "min-h-11 rounded-lg px-4 py-2 text-sm font-semibold transition-colors",
                                 active
                                   ? "bg-primary text-primary-foreground shadow-sm"
                                   : "text-muted-foreground hover:text-foreground",
